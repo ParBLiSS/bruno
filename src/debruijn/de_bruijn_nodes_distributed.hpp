@@ -19,6 +19,7 @@
  *
  *  Created on: Aug 6, 2015
  *      Author: yongchao
+ *      Author: tony pan
  */
 
 #ifndef DE_BRUIJN_NODES_DISTRIBUTED_HPP_
@@ -26,8 +27,6 @@
 
 #include "bliss-config.hpp"
 
-#include <unordered_map>  // local storage hash table  // for multimap
-#include <unordered_set>  // local storage hash table  // for multimap
 #include <utility> 			  // for std::pair
 
 //#include <sparsehash/dense_hash_map>  // not a multimap, where we need it most.
@@ -38,9 +37,11 @@
 #include <cstdint>  // for uint8, etc.
 
 #include <type_traits>
+
 #include "debruijn/de_bruijn_node_trait.hpp"	//node trait data structure storing the linkage information to the node
-#include "containers/distributed_map_base.hpp"
-#include "containers/distributed_unordered_map.hpp"
+#include "containers/distributed_densehash_map.hpp"
+
+#include "utils/kmer_utils.hpp"
 
 #include "utils/benchmark_utils.hpp"  // for timing.
 #include "utils/logging.h"
@@ -49,15 +50,53 @@
 namespace bliss{
 	namespace de_bruijn{
 
+    template <typename KMER>
+    struct lex_less {
+        inline KMER operator()(KMER const & x) const  {
+          auto y = x.reverse_complement();
+          return (x < y) ? x : y;
+        }
+        inline KMER operator()(KMER const & x, KMER const & rc) const  {
+          return (x < rc) ? x : rc;
+        }
+        template <typename EdgeEncoding>
+        inline ::std::pair<KMER, ::bliss::common::Kmer<2, EdgeEncoding, uint8_t> >
+        operator()(std::pair<KMER, ::bliss::common::Kmer<2, EdgeEncoding, uint8_t>> const & x) const {
+          auto y = x.first.reverse_complement();
+          return (x.first < y) ? x :   // if already canonical, just return input
+              std::pair<KMER, ::bliss::common::Kmer<2, EdgeEncoding, uint8_t> >(
+                  y, x.second.reverse_complement() );
+        }
+    };
 
-	// NOTE:  DOES NOT work with canonicalized. in other words, input transform should be Identity.
 
-		template<typename Key, typename T,
+	  template <typename Kmer >
+	  using CanonicalDeBruijnHashMapParams = ::dsc::HashMapParams<
+	      Kmer,
+	      ::bliss::de_bruijn::lex_less,  // precanonalizer.  operates on the value as well
+	       ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
+	        ::bliss::index::kmer::DistHashFarm,
+	        ::std::equal_to,
+	         ::bliss::kmer::transform::identity,
+	          ::bliss::index::kmer::StoreHashFarm,
+	          ::std::equal_to
+	        >;
+
+
+
+	  /**
+	   * de bruijn map.  essentially a reduction map, but with slight differences.
+	   */
+		template<typename Kmer, typename Edge,
 			template <typename> class MapParams,
-		class Alloc = ::std::allocator< ::std::pair<const Key, T> >
+		class Alloc = ::std::allocator< ::std::pair<const Kmer, Edge> >
 		  >
-		  class de_bruijn_nodes_distributed : public ::dsc::unordered_map<Key, T, MapParams, Alloc> {
-			  using Base = ::dsc::unordered_map<Key, T, MapParams, Alloc>;
+		  class de_bruijn_map : public ::dsc::densehash_map<Kmer, Edge, MapParams,
+		    typename ::std::conditional<Kmer::nBits == (Kmer::nWords * sizeof(typename Kmer::KmerWordType) * 8),
+		      ::bliss::utils::KmerInLowerSpace<Kmer>, ::fsc::TruePredicate>::type, Alloc> {
+			  using Base = ::dsc::densehash_map<Kmer, Edge, MapParams,
+		        typename ::std::conditional<Kmer::nBits == (Kmer::nWords * sizeof(typename Kmer::KmerWordType) * 8),
+		          ::bliss::utils::KmerInLowerSpace<Kmer>, ::fsc::TruePredicate>::type,  Alloc>;
 
 			public:
 			  using local_container_type = typename Base::local_container_type;
@@ -79,7 +118,7 @@ namespace bliss{
 			  using difference_type       = typename local_container_type::difference_type;
 
 			protected:
-
+			  Edge dummy;
 
 			  /**
 			   * @brief insert new elements in the distributed unordered_multimap.
@@ -88,72 +127,19 @@ namespace bliss{
 			   */
 			  template <class InputIterator>
 			  size_t local_insert(InputIterator first, InputIterator last) {
-				  
-          if (first == last) return 0;
-          
-          int32_t relative_strand;
-				  size_t before = this->c.size();
+          size_t before = this->c.size();
 
-          
+          this->local_reserve(before + ::std::distance(first, last));
 
-				  /*reserve space*/
-				  this->local_reserve(before + ::std::distance(first, last));
+          for (auto it = first; it != last; ++it) {
+            auto result = this->c.insert(::std::make_pair(it->first, Edge()));   // TODO: reduce number of allocations.
+            // failed insertion - means an entry is already there, so reduce
+            result.first->second.update(it->second);
+          }
 
-				  // allocate a node
-          auto node = this->c.find(first->first);
+          if (this->c.size() != before) this->local_changed = true;
 
-          using EdgeType = decltype(node->second);
-          using Alphabet = typename EdgeType::Alphabet;
-
-				  /*iterate each input tuple*/
-				  for (auto it = first; it != last; ++it) {
-
-				    node = this->c.find(it->first);
-
-				    /*tranform from <key, int> to <node, node_info>*/
-					  if(node == this->c.end()){
-						  /*create a new node*/
-						  auto ret = this->c.emplace(::std::make_pair(it->first, T()));
-						  if(ret.second == false){
-							  cerr << "Insertion failed at line " << __LINE__ << " in file " << __FILE__ << endl;
-							  exit(-1);
-						  }
-
-#if 0
-              ::std::cerr << "Not exist in the hash table" << ::std::endl;
-              ::std::cerr << bliss::utils::KmerUtils::toASCIIString(ret.first->first)  << ::std::endl;
-              ::std::cerr << "0x" << std::hex << it->second << ::std::endl;
-              ::std::cerr << bliss::utils::KmerUtils::toASCIIString(it->first) << ::std::endl << ::std::endl;
-#endif
-						  node = ret.first;  // now use it.
-
-	            // determine if the node in the graph has the same orientation as the one being inserted.
-						  relative_strand = bliss::de_bruijn::node::SENSE;
-					  } else {
-#if 0
-             /*update the node*/
-              ::std::cerr << "Exist in the hash table" << ::std::endl;
-              ::std::cerr << bliss::utils::KmerUtils::toASCIIString(node->first)  << ::std::endl;
-              ::std::cerr << "0x" << std::hex << it->second << ::std::endl;
-              ::std::cerr << bliss::utils::KmerUtils::toASCIIString(it->first) << ::std::endl << ::std::endl;
-#endif
-
-              // determine if the node in the graph has the same orientation as the one being inserted.
-              relative_strand = (node->first == it->first) ? bliss::de_bruijn::node::SENSE : bliss::de_bruijn::node::ANTI_SENSE;
-
-					  }
-
-
-					  // if different, swap and reverse complement the edges.  else, use as is.
-					  if (relative_strand == bliss::de_bruijn::node::ANTI_SENSE) {
-              node->second.update(bliss::de_bruijn::node::input_edge_utils::reverse_complement_edges<Alphabet>(it->second));
-
-					  } else {
-              node->second.update(it->second);
-					  }
-
-				  }
-				  return this->c.size() - before;
+          return this->c.size() - before;
 			  }
 
 			  /**
@@ -161,62 +147,31 @@ namespace bliss{
 			   * @param first
 			   * @param last
 			   */
-			  template <class InputIterator, class Predicate>
-			  size_t local_insert(InputIterator first, InputIterator last, Predicate const & pred) {
+        template <class InputIterator, class Predicate>
+        size_t local_insert(InputIterator first, InputIterator last, Predicate const & pred) {
+          size_t before = this->c.size();
 
+          this->local_reserve(before + ::std::distance(first, last));
 
-          if (first == last) return 0;
-				  int32_t relative_strand;
-				  size_t before = this->c.size();
+          for (auto it = first; it != last; ++it) {
+            if (pred(*it)) {
 
-				  this->local_reserve(before + ::std::distance(first, last));
-				  auto node = this->c.find(first->first);
-
-          using EdgeType = decltype(node->second);
-          using Alphabet = typename EdgeType::Alphabet;
-
-				  for (auto it = first; it != last; ++it) {
-					if (pred(*it)) {
-
-					  node = this->c.find(it->first);
-
-					  /*tranform from <key, int> to <node, node_info*/
-					  if(node == this->c.end()){
-						  /*create a new node*/
-						  auto ret = this->c.emplace(::std::make_pair(it->first, T()));
-						  if(ret.second == false){
-							  cerr << "Insertion failed at line " << __LINE__ << " in file " << __FILE__ << endl;
-							  exit(-1);
-						  }
-
-						  node = ret.first;  // now use it.
-
-						  /*update the node*/
-						  relative_strand = bliss::de_bruijn::node::SENSE;
-					  }else{
-						 /*update the node*/
-						  relative_strand = (node->first == it->first) ? bliss::de_bruijn::node::SENSE : bliss::de_bruijn::node::ANTI_SENSE;
-					  }
-
-            // if different, swap and reverse complement the edges.  else, use as is.
-            if (relative_strand == bliss::de_bruijn::node::ANTI_SENSE) {
-              node->second.update(bliss::de_bruijn::node::input_edge_utils::reverse_complement_edges<Alphabet>(it->second));
-
-            } else {
-              node->second.update(it->second);
+              auto result = this->c.insert(::std::make_pair(it->first, Edge()));   // TODO: reduce number of allocations.
+              // failed insertion - means an entry is already there, so reduce
+              result.first->second.update(it->second);
             }
+          }
 
+          if (this->c.size() != before) this->local_changed = true;
 
-					}
-				  }
-				  return this->c.size() - before;
+          return this->c.size() - before;
 
 			  }
 
 			public:
-			  de_bruijn_nodes_distributed(const mxx::comm& _comm) : Base(_comm) {/*do nothing*/}
+			  de_bruijn_map(const mxx::comm& _comm) : Base(_comm) {/*do nothing*/}
 
-			  virtual ~de_bruijn_nodes_distributed() {/*do nothing*/};
+			  virtual ~de_bruijn_map() {/*do nothing*/};
 
 			  /*transform function*/
 
@@ -226,25 +181,27 @@ namespace bliss{
 				* @param last
 				*/
 			   template <typename InputEdgeType, typename Predicate = ::fsc::TruePredicate>
-			   size_t insert(std::vector<::std::pair<Key, InputEdgeType> >& input, bool sorted_input = false, Predicate const & pred = Predicate()) {
+			   size_t insert(std::vector<::std::pair<Kmer, InputEdgeType> >& input, bool sorted_input = false, Predicate const & pred = Predicate()) {
 				 // even if count is 0, still need to participate in mpi calls.  if (input.size() == 0) return;
 				 BL_BENCH_INIT(insert);
 
-//				 BL_BENCH_START(insert);
-//				 this->transform_input(input);
-//				 BL_BENCH_END(insert, "start", input.size());
-				 static_assert(std::is_same<typename Base::Base::Base::InputTransform, ::bliss::kmer::transform::identity<Key>>::value,
-						 "de bruijn graph does not support transform of input Kmers. (e.g. canonicalizing).  Hash can use transformed values, though.");
 
+	        if (::dsc::empty(input, this->comm)) {
+	          BL_BENCH_REPORT_MPI_NAMED(insert, "debruijnmap:insert", this->comm);
+	          return 0;
+	        }
+
+	        BL_BENCH_START(insert);
+				 this->transform_input(input);
+				 BL_BENCH_END(insert, "transform_input", input.size());
 
 				 // communication part
 				 if (this->comm.size() > 1) {
-					 BL_BENCH_COLLECTIVE_START(insert, "distribute", this->comm);
+					 BL_BENCH_START(insert);
 				   ::std::vector<size_t> recv_counts =
 						   ::dsc::distribute(input, this->key_to_rank, sorted_input, this->comm);
 				   BLISS_UNUSED(recv_counts);
-				   BL_BENCH_END(insert, "distribute", input.size());
-
+				   BL_BENCH_END(insert, "dist_data", input.size());
 				 }
 
 				 BL_BENCH_START(insert);
@@ -254,13 +211,24 @@ namespace bliss{
 				   count = this->local_insert(input.begin(), input.end(), pred);
 				 else
 				   count = this->local_insert(input.begin(), input.end());
-				 BL_BENCH_END(insert, "insert", this->c.size());
+				 BL_BENCH_END(insert, "local_insert", this->c.size());
 
-				 BL_BENCH_REPORT_MPI(insert, this->comm.rank(), this->comm);
+				 BL_BENCH_REPORT_MPI_NAMED(insert, "debruijnmap:insert", this->comm);
+
 
 				 return count;
 			   }
 		};
+
+    template<typename Kmer >
+    using simple_hash_de_bruijn_map = ::bliss::de_bruijn::de_bruijn_map<Kmer, ::bliss::de_bruijn::node::edge_exists<::bliss::common::DNA16>,
+        ::bliss::de_bruijn::CanonicalDeBruijnHashMapParams>;
+
+    template<typename Kmer >
+    using count_hash_de_bruijn_map = ::bliss::de_bruijn::de_bruijn_map<Kmer, ::bliss::de_bruijn::node::edge_counts<::bliss::common::DNA16, uint16_t>,
+        ::bliss::de_bruijn::CanonicalDeBruijnHashMapParams>;
+
+
 	}/*de_bruijn*/
 }/*bliss*/
 
