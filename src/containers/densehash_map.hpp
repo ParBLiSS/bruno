@@ -759,6 +759,10 @@ class densehash_map<Key, T, ::fsc::TruePredicate, Hash, Equal, Allocator> {
     }
 
 
+    std::pair<iterator, bool> insert(const value_type& x) {
+      return this->map.insert(std::forward<value_type>(x));
+    }
+
 
     // choices:  sort first, then insert in ranges, or no sort, insert one by one.  second is O(n) but pays the random access and mem realloc cost
     template <class InputIt>

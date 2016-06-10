@@ -656,19 +656,19 @@ public:
 
 	template <typename Predicate>
 	std::vector<TupleType> find_if_overlap(std::vector<KmerType> &query, Predicate const &pred) {
-		return map.find_overlap(query, pred);
+		return map.find_overlap(query, false, pred);
 	}
 	template <typename Predicate>
 	std::vector<TupleType> find_if(std::vector<KmerType> &query, Predicate const &pred) {
-		return map.find(query, pred);
+		return map.find(query, false, pred);
 	}
 	template <typename Predicate>
 	std::vector<TupleType> find_if_collective(std::vector<KmerType> &query, Predicate const &pred) {
-		return map.find_collective(query, pred);
+		return map.find_collective(query, false, pred);
 	}
   template <typename Predicate>
   std::vector<TupleType> find_if_sendrecv(std::vector<KmerType> &query, Predicate const &pred) {
-    return map.find_sendrecv(query, pred);
+    return map.find_sendrecv(query, false, pred);
   }
 	template <typename Predicate>
 	std::vector<TupleType> find_if(Predicate const &pred) {
@@ -677,7 +677,7 @@ public:
 
 	template <typename Predicate>
 	std::vector<std::pair<KmerType, size_t> > count_if(std::vector<KmerType> &query, Predicate const &pred) {
-		return map.count(query, pred);
+		return map.count(query, false, pred);
 	}
 
 	template <typename Predicate>
@@ -688,7 +688,7 @@ public:
 
 	template <typename Predicate>
 	void erase_if(std::vector<KmerType> &query, Predicate const &pred) {
-		map.erase(query, pred);
+		map.erase(query, false, pred);
 	}
 
 	template <typename Predicate>

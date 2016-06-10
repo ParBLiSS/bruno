@@ -1112,7 +1112,8 @@ namespace dsc  // distributed std container
 
           ::fsc::back_emplace_iterator<::std::vector<::std::pair<Key, T> > > emplace_iter(results);
 
-          auto keys = this->keys();
+          std::vector<Key> keys;
+          this->keys(keys);
 
           ::std::vector<::std::pair<Key, size_t> > count_results;
           count_results.reserve(keys.size());
@@ -2071,7 +2072,7 @@ namespace dsc  // distributed std container
 
         BL_BENCH_START(insert);
         this->transform_input(input);
-        BL_BENCH_END(insert, "transform_intput", input.size());
+        BL_BENCH_END(insert, "transform_input", input.size());
 
 
         // communication part
