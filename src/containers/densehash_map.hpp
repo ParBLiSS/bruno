@@ -35,11 +35,7 @@
 #include <memory>  // allocator
 #include <iostream>
 
-#include "iterators/transform_iterator.hpp"
-#include "iterators/filter_iterator.hpp"
-#include "iterators/counting_iterator.hpp"
-#include "iterators/zip_iterator.hpp"
-#include "iterators/unzip_iterator.hpp"
+#include "iterators/concatenating_iterator.hpp"
 
 #include "containers/fsc_container_utils.hpp"
 
@@ -112,152 +108,21 @@ class densehash_map {
 
   protected:
 
-    using supercontainer_type =
+    using container_type =
         ::google::dense_hash_map<Key, T,
                        Hash, Equal, Allocator >;
 
-    supercontainer_type lower_map;
-    supercontainer_type upper_map;
+    container_type lower_map;
+    container_type upper_map;
+
+    using container_iterator = typename container_type::iterator;
+    using container_const_iterator = typename container_type::const_iterator;
+    using container_range = ::std::pair<container_iterator, container_iterator>;
+    using container_const_range = ::std::pair<container_const_iterator, container_const_iterator>;
+
 
     LowerKeySpaceSelector splitter;
 
-    /**
-     * @class    bliss::iterator::ConcatenatingIterator
-     * @brief    this class presents a single/sequential view of a series of underlying iterator ranges
-     * @details  random access iterator is not supported. other iterator categories are okay.
-     *
-     */
-//    template<typename V>
-//    class concat_iter :
-//      public ::std::iterator<
-//        typename ::std::forward_iterator_tag,
-//        V
-//      >
-//    {
-//      protected:
-//        using superiterator_type = typename ::std::conditional<::std::is_const<V>::value,
-//            typename supercontainer_type::const_iterator, typename supercontainer_type::iterator>::type;
-//        using type = concat_iter<V>;
-//
-//      protected:
-//        /// the current position in the ranges list
-//
-//        supercontainer_type & lmap;
-//        supercontainer_type & umap;
-//
-//        superiterator_type curr_iter;
-//
-//        bool at_max;
-//
-//        /// enforce that iterator is at a dereferenceable position
-//        void ensure_dereferenceable() {
-//          if (at_max) return;
-//
-//          if (curr_iter == lmap.end()) {
-//        	  curr_iter = umap.begin();
-//          }
-//
-//          if (curr_iter == umap.end()) {
-//            at_max = true;
-//            return;
-//          }
-//
-//          return;
-//
-//        }
-//
-//      public:
-//        using difference_type = typename ::std::iterator_traits<superiterator_type>::difference_type;
-//
-//
-//        /// constructor for end concat iterator.  _end refers to end of supercontainer.
-//        concat_iter(supercontainer_type & _lmap, supercontainer_type & _umap) : lmap(_lmap), umap(_umap), curr_iter(_umap.end()), at_max(true) {};
-//
-//        /// constructor for end concat iterator.  _end refers to end of supercontainer.
-//        concat_iter(supercontainer_type & _lmap, supercontainer_type & _umap, superiterator_type _iter) :
-//        	lmap(_lmap), umap(_umap), curr_iter(_iter) {
-//        	ensure_dereferenceable();
-//        };
-//
-//        // note that explicit keyword cannot be on copy and move constructors else the constructors are not defined/found.
-//
-//        // copy constructor, assignment operator, move constructor, assignment operator should
-//        // should be default since the member vars are simple.
-//
-//        bool is_at_max() const {
-//          at_max = (curr_iter == umap.end());
-//          return at_max;
-//        }
-//
-//        /**
-//         * @brief increment:  move to the next position in the concatenating iterator, which may cross range boundaries.
-//         * @note  side effect: set at_end variable.
-//         * @return
-//         */
-//        type& operator++() {
-//          // if at end, return
-//          if (!at_max) {
-//            // now increment.  since we are careful to leave iterator at a dereferenceable state, curr_pos is not at a subcontainer's end.
-//            // so just increment.
-//            ++curr_iter;
-//
-//            // now make sure we don't end up at a subcontainer's end.
-//            ensure_dereferenceable();
-//          }
-//          return *this;
-//        }
-//
-//
-//        /**
-//         * post increment.  make a copy then increment that.
-//         */
-//        type operator++(int)
-//        {
-//          type output(*this);
-//          this->operator++();
-//          return output;
-//        }
-//
-//        //=== input iterator specific
-//
-//        /// comparison operator
-//        bool operator==(const type& rhs) const
-//          {
-//          if ((lmap != rhs.lmap) || (umap != rhs.umap)) throw std::logic_error("the iterators being compared do not have the same internal end iterators so they are not comparable.");
-//
-//          if (at_max && rhs.at_max) return true;
-//          if (at_max || rhs.at_max) return false;
-//
-//          return (curr_iter == rhs.curr_iter);
-//          }
-//
-//        /// comparison operator
-//        bool operator!=(const type& rhs) const
-//          {
-//          if ((lmap != rhs.lmap) || (umap != rhs.umap)) throw std::logic_error("the iterators being compared do not have the same internal end iterators so they are not comparable.");
-//
-//          if (at_max && rhs.at_max) return false;
-//          if (at_max || rhs.at_max) return true;
-//
-//          return (curr_iter != rhs.curr_iter);
-//          }
-//
-//
-//        inline V operator*() const {
-//          return *curr_iter;
-//        }
-//
-//        /*=== NOT output iterator.  this is a map, does not make sense to change the  */
-//        /* content via iterator.                                                      */
-//
-//
-//        //=== NOT full forward iterator - no default constructor
-//
-//        //=== NOT bidirectional iterator - no decrement because map produces forward iterator only.
-//
-//        //=== NOT full random access iterator - only have +, += but not -. -=.  no comparison operators. have offset dereference operator [].
-//
-//    };
 
     template <typename InputIt>
     InputIt partition_input(InputIt first, InputIt last) {
@@ -275,10 +140,8 @@ class densehash_map {
     using const_reference       = const value_type&;
     using pointer               = typename std::allocator_traits<Allocator>::pointer;
     using const_pointer         = typename std::allocator_traits<Allocator>::const_pointer;
-//    using iterator              = concat_iter<::std::pair<const Key, T> >;
-//    using const_iterator        = concat_iter<const ::std::pair<const Key, T> >;
-    using iterator              = typename supercontainer_type::iterator;
-    using const_iterator              = typename supercontainer_type::const_iterator;
+    using iterator              = ::bliss::iterator::ConcatenatingIterator<container_iterator >;
+    using const_iterator        = ::bliss::iterator::ConcatenatingIterator<container_const_iterator >;
     using size_type             = size_t;
     using difference_type       = ptrdiff_t;
 
@@ -340,28 +203,32 @@ class densehash_map {
     }
 
 
-//
-//    iterator begin() {
-//    	return concat_iter<value_type>(lower_map, upper_map, lower_map.begin());
-//    }
-//    const_iterator begin() const {
-//      return cbegin();
-//    }
-//    const_iterator cbegin() const {
-//    	return concat_iter<const value_type>(lower_map, upper_map, lower_map.begin());
-//    }
-//
-//
-//
-//    iterator end() {
-//    	return concat_iter<value_type>(lower_map, upper_map);
-//    }
-//    const_iterator end() const {
-//      return cend();
-//    }
-//    const_iterator cend() const {
-//    	return concat_iter<const value_type>(lower_map, upper_map);
-//    }
+
+    iterator begin() {
+    	return iterator(std::vector<container_range> { container_range{lower_map.begin(), lower_map.end()},
+                                                    container_range{upper_map.begin(), upper_map.end()} });
+    }
+    const_iterator begin() const {
+      return cbegin();
+    }
+    const_iterator cbegin() const {
+      return const_iterator(std::vector<container_const_range> { container_const_range{lower_map.begin(), lower_map.end()},
+                                                                 container_const_range{upper_map.begin(), upper_map.end()} });
+    }
+
+
+
+    iterator end() {
+      return iterator( upper_map.end() );
+    }
+    const_iterator end() const {
+      return cend();
+    }
+    const_iterator cend() const {
+      return const_iterator( upper_map.end() );
+    }
+
+
     std::vector<Key> keys() const  {
       std::vector<Key> ks;
 
@@ -369,6 +236,7 @@ class densehash_map {
 
       return ks;
     }
+
     void keys(std::vector<Key> & ks) const  {
       ks.clear();
       ks.reserve(size());
@@ -390,6 +258,7 @@ class densehash_map {
 
       return vs;
     }
+
     void to_vector(  std::vector<std::pair<Key, T>> & vs) const  {
       vs.clear();
       vs.reserve(size());
@@ -456,12 +325,12 @@ class densehash_map {
         upper_map.insert(middle, last);
     }
 
-    /// inserting sorted range
+    /// inserting a vector
     void insert(::std::vector<::std::pair<Key, T> > & input) {
     	insert(input.begin(), input.end());
     }
 
-    std::pair<typename supercontainer_type::iterator, bool> insert(::std::pair<Key, T> const & x) {
+    std::pair<typename container_type::iterator, bool> insert(::std::pair<Key, T> const & x) {
       if (splitter(x.first)) {
         return lower_map.insert(x);
       }
@@ -567,7 +436,7 @@ class densehash_map {
     }
 
 
-    ::std::pair<iterator, iterator> equal_range(Key const & key) {
+    container_range equal_range(Key const & key) {
     	if (splitter(key)) {
     		return lower_map.equal_range(key);
     	}
@@ -576,7 +445,7 @@ class densehash_map {
     	}
 
     }
-    ::std::pair<const_iterator, const_iterator> equal_range(Key const & key) const {
+    container_const_range equal_range(Key const & key) const {
     	if (splitter(key)) {
     		return lower_map.equal_range(key);
     	}
@@ -599,11 +468,11 @@ class densehash_map<Key, T, ::fsc::TruePredicate, Hash, Equal, Allocator> {
 
   protected:
 
-    using supercontainer_type =
+    using container_type =
         ::google::dense_hash_map<Key, T,
                        Hash, Equal, Allocator >;
 
-    supercontainer_type map;
+    container_type map;
 
 
 
@@ -618,8 +487,8 @@ class densehash_map<Key, T, ::fsc::TruePredicate, Hash, Equal, Allocator> {
     using const_reference       = const value_type&;
     using pointer               = typename std::allocator_traits<Allocator>::pointer;
     using const_pointer         = typename std::allocator_traits<Allocator>::const_pointer;
-    using iterator              = typename supercontainer_type::iterator;
-    using const_iterator        = typename supercontainer_type::const_iterator;
+    using iterator              = typename container_type::iterator;
+    using const_iterator        = typename container_type::const_iterator;
     using size_type             = size_t;
     using difference_type       = ptrdiff_t;
 
@@ -679,8 +548,6 @@ class densehash_map<Key, T, ::fsc::TruePredicate, Hash, Equal, Allocator> {
     const_iterator cbegin() const {
       return map.begin();
     }
-
-
 
     iterator end() {
       return map.begin();
@@ -777,7 +644,7 @@ class densehash_map<Key, T, ::fsc::TruePredicate, Hash, Equal, Allocator> {
       insert(input.begin(), input.end());
     }
 
-    std::pair<typename supercontainer_type::iterator, bool> insert(::std::pair<Key, T> const & x) {
+    std::pair<iterator, bool> insert(::std::pair<Key, T> const & x) {
       return map.insert(x);
     }
 
@@ -844,6 +711,7 @@ class densehash_map<Key, T, ::fsc::TruePredicate, Hash, Equal, Allocator> {
     ::std::pair<iterator, iterator> equal_range(Key const & key) {
       return map.equal_range(key);
     }
+
     ::std::pair<const_iterator, const_iterator> equal_range(Key const & key) const {
       return map.equal_range(key);
     }
@@ -909,6 +777,147 @@ class densehash_multimap {
     InputIt partition_input(InputIt first, InputIt last) {
       return ::std::stable_partition(first, last, splitter);
     }
+
+
+
+    /**
+     * @class    bliss::iterator::ConcatenatingIterator
+     * @brief    this class presents a single/sequential view of a series of underlying iterator ranges
+     * @details  random access iterator is not supported. other iterator categories are okay.
+     *
+     */
+//    template<typename V>
+//    class concat_iter :
+//      public ::std::iterator<
+//        typename ::std::forward_iterator_tag,
+//        V
+//      >
+//    {
+//      protected:
+//        using superiterator_type = typename ::std::conditional<::std::is_const<V>::value,
+//            typename supercontainer_type::const_iterator, typename supercontainer_type::iterator>::type;
+//        using type = concat_iter<V>;
+//
+//      protected:
+//        /// the current position in the ranges list
+//
+//        supercontainer_type & lmap;
+//        supercontainer_type & umap;
+//
+//        superiterator_type curr_iter;
+//
+//        bool at_max;
+//
+//        /// enforce that iterator is at a dereferenceable position
+//        void ensure_dereferenceable() {
+//          if (at_max) return;
+//
+//          if (curr_iter == lmap.end()) {
+//            curr_iter = umap.begin();
+//          }
+//
+//          if (curr_iter == umap.end()) {
+//            at_max = true;
+//            return;
+//          }
+//
+//          return;
+//
+//        }
+//
+//      public:
+//        using difference_type = typename ::std::iterator_traits<superiterator_type>::difference_type;
+//
+//
+//        /// constructor for end concat iterator.  _end refers to end of supercontainer.
+//        concat_iter(supercontainer_type & _lmap, supercontainer_type & _umap) : lmap(_lmap), umap(_umap), curr_iter(_umap.end()), at_max(true) {};
+//
+//        /// constructor for end concat iterator.  _end refers to end of supercontainer.
+//        concat_iter(supercontainer_type & _lmap, supercontainer_type & _umap, superiterator_type _iter) :
+//          lmap(_lmap), umap(_umap), curr_iter(_iter) {
+//          ensure_dereferenceable();
+//        };
+//
+//        // note that explicit keyword cannot be on copy and move constructors else the constructors are not defined/found.
+//
+//        // copy constructor, assignment operator, move constructor, assignment operator should
+//        // should be default since the member vars are simple.
+//
+//        bool is_at_max() const {
+//          at_max = (curr_iter == umap.end());
+//          return at_max;
+//        }
+//
+//        /**
+//         * @brief increment:  move to the next position in the concatenating iterator, which may cross range boundaries.
+//         * @note  side effect: set at_end variable.
+//         * @return
+//         */
+//        type& operator++() {
+//          // if at end, return
+//          if (!at_max) {
+//            // now increment.  since we are careful to leave iterator at a dereferenceable state, curr_pos is not at a subcontainer's end.
+//            // so just increment.
+//            ++curr_iter;
+//
+//            // now make sure we don't end up at a subcontainer's end.
+//            ensure_dereferenceable();
+//          }
+//          return *this;
+//        }
+//
+//
+//        /**
+//         * post increment.  make a copy then increment that.
+//         */
+//        type operator++(int)
+//        {
+//          type output(*this);
+//          this->operator++();
+//          return output;
+//        }
+//
+//        //=== input iterator specific
+//
+//        /// comparison operator
+//        bool operator==(const type& rhs) const
+//          {
+//          if ((lmap != rhs.lmap) || (umap != rhs.umap)) throw std::logic_error("the iterators being compared do not have the same internal end iterators so they are not comparable.");
+//
+//          if (at_max && rhs.at_max) return true;
+//          if (at_max || rhs.at_max) return false;
+//
+//          return (curr_iter == rhs.curr_iter);
+//          }
+//
+//        /// comparison operator
+//        bool operator!=(const type& rhs) const
+//          {
+//          if ((lmap != rhs.lmap) || (umap != rhs.umap)) throw std::logic_error("the iterators being compared do not have the same internal end iterators so they are not comparable.");
+//
+//          if (at_max && rhs.at_max) return false;
+//          if (at_max || rhs.at_max) return true;
+//
+//          return (curr_iter != rhs.curr_iter);
+//          }
+//
+//
+//        inline V operator*() const {
+//          return *curr_iter;
+//        }
+//
+//        /*=== NOT output iterator.  this is a map, does not make sense to change the  */
+//        /* content via iterator.                                                      */
+//
+//
+//        //=== NOT full forward iterator - no default constructor
+//
+//        //=== NOT bidirectional iterator - no decrement because map produces forward iterator only.
+//
+//        //=== NOT full random access iterator - only have +, += but not -. -=.  no comparison operators. have offset dereference operator [].
+//
+//    };
+
 
   public:
     using key_type              = Key;
