@@ -239,18 +239,6 @@ using CountType = uint32_t;
 
 
 #else  // hashmap
-		struct MSBSplitter {
-		    template <typename Kmer>
-		    bool operator()(Kmer const & kmer) const {
-		      return (kmer.getData()[Kmer::nWords - 1] & ~(~(static_cast<typename Kmer::KmerWordType>(0)) >> 2)) > 0;
-		    }
-
-		    template <typename Kmer, typename V>
-		    bool operator()(std::pair<Kmer, V> const & x) const {
-		      return (x.first.getData()[Kmer::nWords - 1] & ~(~(static_cast<typename Kmer::KmerWordType>(0)) >> 2)) > 0;
-		    }
-		};
-
 
   // choose a MapParam based on type of map and kmer model (canonical, original, bimolecule)
   #if (pKmerStore == SINGLE)  // single stranded
@@ -264,13 +252,7 @@ using CountType = uint32_t;
     using MapParams = ::bliss::index::kmer::BimoleculeHashMapParams<Key, DistHash, StoreHash>;
   #endif
 
-	#if (pDNA == 5) || (pKmerStore == CANONICAL)
-	using Splitter = ::fsc::TruePredicate;
-	#else
-	using Splitter = typename ::std::conditional<(KmerType::nBits == (KmerType::nWords * sizeof(typename KmerType::KmerWordType) * 8)),
-			MSBSplitter, ::fsc::TruePredicate>::type;
-	#endif
-
+  using SpecialKeys = ::bliss::kmer::hash::sparsehash::special_keys<KmerType>;
 
   // DEFINE THE MAP TYPE base on the type of data to be stored.
   #if (pINDEX == POS) || (pINDEX == POSQUAL)  // multimap
@@ -289,12 +271,12 @@ using CountType = uint32_t;
           KmerType, ValType, MapParams>;
     #elif (pMAP == DENSEHASH)
       using MapType = ::dsc::densehash_multimap<
-          KmerType, ValType, MapParams, Splitter>;
+          KmerType, ValType, MapParams, SpecialKeys>;
     #endif
   #elif (pINDEX == COUNT)  // map
     #if (pMAP == DENSEHASH)
       using MapType = ::dsc::counting_densehash_map<
-        KmerType, ValType, MapParams, Splitter>;
+        KmerType, ValType, MapParams, SpecialKeys>;
     #else
       using MapType = ::dsc::counting_unordered_map<
         KmerType, ValType, MapParams>;
@@ -493,27 +475,7 @@ int main(int argc, char** argv) {
 
 
   // ================  read and get file
-
   IndexType idx(comm);
-
-#if (pMAP == DENSEHASH)
-  KmerType empty_key = ::bliss::kmer::hash::sparsehash::empty_key<KmerType>::generate();
-  KmerType deleted_key = ::bliss::kmer::hash::sparsehash::deleted_key<KmerType>::generate();
-
-  	idx.get_map().reserve_keys(empty_key, deleted_key);
-
-  	// upper key is negation of lower keys
-  	KmerType upper_empty_key = empty_key;
-  	KmerType upper_deleted_key = deleted_key;
-  	for (size_t i = 0; i < KmerType::nWords; ++i) {
-  		upper_empty_key.getDataRef()[i] = ~(upper_empty_key.getDataRef()[i]);
-  		upper_deleted_key.getDataRef()[i] = ~(upper_deleted_key.getDataRef()[i]);
-  	}
-
-  	idx.get_map().reserve_upper_keys(upper_empty_key, upper_deleted_key, Splitter());
-
-
-#endif
 
   BL_BENCH_INIT(test);
 
