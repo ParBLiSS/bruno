@@ -794,13 +794,13 @@ class densehash_map<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator, fals
     }
 
     iterator end() {
-      return map.begin();
+      return map.end();
     }
     const_iterator end() const {
       return cend();
     }
     const_iterator cend() const {
-      return map.begin();
+      return map.end();
     }
 
 

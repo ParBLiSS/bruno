@@ -1102,37 +1102,6 @@ namespace dsc  // distributed std container
 //      }
 
 
-      template <class LocalFind, typename Predicate = ::fsc::TruePredicate>
-      ::std::vector<::std::pair<Key, T> > find(LocalFind & find_element, Predicate const& pred = Predicate()) const {
-          ::std::vector<::std::pair<Key, T> > results;
-
-          if (this->local_empty()) return results;
-
-          ::fsc::back_emplace_iterator<::std::vector<::std::pair<Key, T> > > emplace_iter(results);
-
-          std::vector<Key> keys;
-          this->keys(keys);
-
-          ::std::vector<::std::pair<Key, size_t> > count_results;
-          count_results.reserve(keys.size());
-          ::fsc::back_emplace_iterator<::std::vector<::std::pair<Key, size_t> > > count_emplace_iter(count_results);
-
-          // count now.
-          QueryProcessor::process(c, keys.begin(), keys.end(), count_emplace_iter, count_element, false, pred);
-          size_t count = ::std::accumulate(count_results.begin(), count_results.end(), static_cast<size_t>(0),
-                                           [](size_t v, ::std::pair<Key, size_t> const & x) {
-            return v + x.second;
-          });
-
-          // then reserve
-          results.reserve(count);                   // TODO:  should estimate coverage.
-
-          QueryProcessor::process(c, keys.begin(), keys.end(), emplace_iter, find_element, false, pred);
-
-          return results;
-      }
-
-
       densehash_map_base(const mxx::comm& _comm) :
 		    Base(_comm), key_to_rank(_comm.size()),
 		    local_changed(false) {}
@@ -1549,7 +1518,25 @@ namespace dsc  // distributed std container
 
       template <class Predicate = ::fsc::TruePredicate>
       ::std::vector<::std::pair<Key, T> > find(Predicate const& pred = Predicate()) const {
-          return Base::find(find_element, pred);
+          ::std::vector<::std::pair<Key, T> > results;
+
+          if (this->local_empty()) {
+            printf("local is empty\n");
+            return results;
+          }
+          results.reserve(this->c.size());
+          size_t processed = 0;
+          size_t added = 0;          
+          for (auto it = this->c.begin(); it != this->c.end(); ++it) {
+            ++processed;
+            if (pred(*it))  {
+              results.emplace_back(*it);
+              ++added;
+            }
+          }        
+          printf("container size %ld, processed %ld, added %ld\n", this->c.size(), processed, added);         
+
+          return results;
       }
 
 
@@ -1741,8 +1728,34 @@ namespace dsc  // distributed std container
 
       template <class Predicate = ::fsc::TruePredicate>
       ::std::vector<::std::pair<Key, T> > find(Predicate const& pred = Predicate()) const {
-          return Base::find(find_element, pred);
+          ::std::vector<::std::pair<Key, T> > results;
+
+          if (this->local_empty()) return results;
+
+          ::fsc::back_emplace_iterator<::std::vector<::std::pair<Key, T> > > emplace_iter(results);
+
+          std::vector<Key> keys;
+          this->keys(keys);
+
+          ::std::vector<::std::pair<Key, size_t> > count_results;
+          count_results.reserve(keys.size());
+          ::fsc::back_emplace_iterator<::std::vector<::std::pair<Key, size_t> > > count_emplace_iter(count_results);
+
+          // count now.
+          Base::QueryProcessor::process(this->c, keys.begin(), keys.end(), count_emplace_iter, this->count_element, false, pred);
+          size_t count = ::std::accumulate(count_results.begin(), count_results.end(), static_cast<size_t>(0),
+                                           [](size_t v, ::std::pair<Key, size_t> const & x) {
+            return v + x.second;
+          });
+
+          // then reserve
+          results.reserve(count);                   // TODO:  should estimate coverage.
+
+          Base::QueryProcessor::process(this->c, keys.begin(), keys.end(), emplace_iter, this->find_element, false, pred);
+
+          return results;
       }
+
       /// access the current the multiplicity.  only multimap needs to override this.
       virtual float get_multiplicity() const {
         // multimaps would add a collective function to change the multiplicity
