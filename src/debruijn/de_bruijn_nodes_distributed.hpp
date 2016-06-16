@@ -91,12 +91,13 @@ namespace bliss{
 			template <typename> class MapParams,
 		class Alloc = ::std::allocator< ::std::pair<const Kmer, Edge> >
 		  >
-		  class de_bruijn_map : public ::dsc::densehash_map<Kmer, Edge, MapParams,
-		    typename ::std::conditional<Kmer::nBits == (Kmer::nWords * sizeof(typename Kmer::KmerWordType) * 8),
-		      ::bliss::utils::KmerInLowerSpace<Kmer>, ::fsc::TruePredicate>::type, Alloc> {
+		  class de_bruijn_map : 
+  public ::dsc::densehash_map<Kmer, Edge, MapParams, 
+        ::bliss::kmer::hash::sparsehash::special_keys<Kmer>, 
+		    Alloc> {
 			  using Base = ::dsc::densehash_map<Kmer, Edge, MapParams,
-		        typename ::std::conditional<Kmer::nBits == (Kmer::nWords * sizeof(typename Kmer::KmerWordType) * 8),
-		          ::bliss::utils::KmerInLowerSpace<Kmer>, ::fsc::TruePredicate>::type,  Alloc>;
+        ::bliss::kmer::hash::sparsehash::special_keys<Kmer>, 
+		         Alloc>;
 
 			public:
 			  using local_container_type = typename Base::local_container_type;

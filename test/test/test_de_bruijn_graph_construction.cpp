@@ -201,22 +201,6 @@ int main(int argc, char** argv) {
 
 	  IndexType idx(comm);
 
-    if (true) {
-      KmerType empty_key = ::bliss::kmer::hash::sparsehash::empty_key<KmerType>::generate();
-      KmerType deleted_key = ::bliss::kmer::hash::sparsehash::deleted_key<KmerType>::generate();
-
-	  	idx.get_map().reserve_keys(empty_key, deleted_key);
-
-//	  	// upper key is negation of lower keys
-//	  	KmerType upper_empty_key = empty_key;
-//	  	KmerType upper_deleted_key = deleted_key;
-//	  	for (size_t i = 0; i < KmerType::nWords; ++i) {
-//	  		upper_empty_key.getDataRef()[i] = ~(upper_empty_key.getDataRef()[i]);
-//	  		upper_deleted_key.getDataRef()[i] = ~(upper_deleted_key.getDataRef()[i]);
-//	  	}
-//
-//	  	idx.get_map().reserve_upper_keys(upper_empty_key, upper_deleted_key);
-	  }
 
 	  BL_BENCH_INIT(test);
 

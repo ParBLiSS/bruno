@@ -46,20 +46,37 @@ namespace bliss {
 
         ++histogram[y * 5 + x];
       }
+/*
+        printf("LOCAL Edge Existence Histogram: \n");
+        printf("\t0\t1\t2\t3\t4\n");
+        for (int j = 0; j <= 4; ++j) {
+          printf("%d\t%ld\t%ld\t%ld\t%ld\t%ld\n", j,
+             histogram[j * 5 ],
+             histogram[j * 5 + 1],
+             histogram[j * 5 + 2],
+             histogram[j * 5 + 3],
+             histogram[j * 5 + 4]
+          );
+        }
+*/
 
       // then global reduction
       std::vector<size_t> complete = ::mxx::reduce(histogram, 0, comm);
 
+
+
       // finally, print
       if (comm.rank() == 0) {
-        printf("Edge Existence Histogram: \n");
+        printf("TOTAL Edge Existence Histogram: \n");
         printf("\t0\t1\t2\t3\t4\n");
         for (int j = 0; j <= 4; ++j) {
-          printf("%d", j);
-          for (int i = 0; i <= 4; ++i) {
-            printf("\t%ld", histogram[j * 5 + i]);
-          }
-          printf("\n");
+          printf("%d\t%ld\t%ld\t%ld\t%ld\t%ld\n", j,
+             complete[j * 5 ],
+             complete[j * 5 + 1],
+             complete[j * 5 + 2],
+             complete[j * 5 + 3],
+             complete[j * 5 + 4]
+          );
         }
       }
     }

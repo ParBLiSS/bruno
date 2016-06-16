@@ -745,6 +745,8 @@ class densehash_map<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator, fals
         ::google::dense_hash_map<Key, T,
                        Hash, Equal, Allocator >;
 
+    SpecialKeys specials;
+
     container_type map;
 
   public:
