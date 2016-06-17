@@ -1584,6 +1584,45 @@ namespace dsc  // distributed std container
         return count;
       }
 
+      /**
+       * @brief insert new elements in the distributed densehash_multimap.
+       * @param first
+       * @param last
+       */
+      template <typename V, typename Updater>
+      size_t update(std::vector<::std::pair<Key, V> >& input, bool sorted_input, Updater & op ) {
+        // even if count is 0, still need to participate in mpi calls.  if (input.size() == 0) return;
+        BL_BENCH_INIT(update);
+
+        if (::dsc::empty(input, this->comm)) {
+          BL_BENCH_REPORT_MPI_NAMED(update, "hashmap:update", this->comm);
+          return 0;
+        }
+
+        BL_BENCH_START(update);
+        this->transform_input(input);
+        BL_BENCH_END(update, "transform_intput", input.size());
+
+        // communication part
+        if (this->comm.size() > 1) {
+          BL_BENCH_START(update);
+          // get mapping to proc
+          // TODO: keep unique only may not be needed - comm speed may be faster than we can compute unique.
+          auto recv_counts(::dsc::distribute(input, this->key_to_rank, sorted_input, this->comm));
+          BLISS_UNUSED(recv_counts);
+          BL_BENCH_END(update, "dist_data", input.size());
+        }
+
+
+        BL_BENCH_START(update);
+        // local compute part.
+        size_t count = this->c.update(input, op);
+        BL_BENCH_END(update, "update", count);
+
+        BL_BENCH_REPORT_MPI_NAMED(update, "hashmap:update", this->comm);
+
+        return count;
+      }
 
   };
 
@@ -2064,6 +2103,8 @@ namespace dsc  // distributed std container
       using Base::find;
       using Base::erase;
       using Base::unique_size;
+      using Base::update;
+
 
       /**
        * @brief insert new elements in the distributed densehash_multimap.
@@ -2190,6 +2231,7 @@ namespace dsc  // distributed std container
       using Base::find;
       using Base::erase;
       using Base::unique_size;
+      using Base::update;
 
       /**
        * @brief insert new elements in the distributed densehash_multimap.

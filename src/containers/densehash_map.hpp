@@ -610,6 +610,49 @@ protected:
       }
     }
 
+
+    template <typename V, typename Updater>
+    size_t update(::std::vector<::std::pair<Key, V> > & input, Updater & op) {
+
+      if (input.size() == 0) return 0;
+
+      size_t count = 0;
+
+      auto middle = partition_input(input.begin(), input.end());
+
+      // do update
+      for (auto iit = input.begin(); iit != middle; ++iit) {
+        auto iter = lower_map.find(iit->first);
+        if (iter == lower_map.end()) {
+//          // TONY: temporary.  for testing only
+//          assert(lower_map.find(iit->first.reverse_complement()) == lower_map.end());
+//          assert(upper_map.find(iit->first.reverse_complement()) == upper_map.end());
+          continue;
+        }
+
+        // update the entry
+        op((*iter).second, iit->second );
+        ++count;
+      }
+
+      for (auto iit = middle; iit != input.end(); ++iit) {
+        auto iter = upper_map.find(iit->first);
+        if (iter == upper_map.end()) {
+//          // TONY: temporary.  for testing only
+//          assert(lower_map.find(iit->first.reverse_complement()) == lower_map.end());
+//          assert(upper_map.find(iit->first.reverse_complement()) == upper_map.end());
+          continue;
+        }
+
+        // update the entry
+        op((*iter).second, iit->second );
+        ++count;
+      }
+
+      return count;
+    }
+
+
     template <typename InputIt, typename Pred>
     size_t erase(InputIt first, InputIt last, Pred const & pred) {
         static_assert(::std::is_convertible<Key, typename ::std::iterator_traits<InputIt>::value_type>::value,
@@ -645,6 +688,7 @@ protected:
 
       return count;
     }
+
 
     template <typename InputIt>
     size_t erase(InputIt first, InputIt last) {
@@ -891,6 +935,32 @@ class densehash_map<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator, fals
     std::pair<iterator, bool> insert(::std::pair<Key, T> const & x) {
       return map.insert(x);
     }
+
+
+    template <typename V, typename Updater>
+    size_t update(::std::vector<::std::pair<Key, V> > & input, Updater & op) {
+
+      if (input.size() == 0) return 0;
+
+      size_t count = 0;
+
+      // do update
+      for (auto vv : input) {
+        auto iter = map.find(vv.first);
+        if (iter == map.end()) {
+//          // TONY: temporary.  for testing only
+//          assert(map.find(vv.first.reverse_complement()) == map.end());
+          continue;
+        }
+
+        // update the entry
+        op((*iter).second, vv.second );
+        ++count;
+      }
+
+      return count;
+    }
+
 
 
     template <typename InputIt, typename Pred>
