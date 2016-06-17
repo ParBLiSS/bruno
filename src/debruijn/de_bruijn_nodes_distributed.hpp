@@ -61,7 +61,7 @@ namespace bliss{
         }
         template <typename EdgeEncoding>
         inline ::std::pair<KMER, ::bliss::common::Kmer<2, EdgeEncoding, uint8_t> >
-        operator()(std::pair<KMER, ::bliss::common::Kmer<2, EdgeEncoding, uint8_t>> const & x) const {
+        operator()(std::pair<KMER, ::bliss::common::Kmer<2, EdgeEncoding, uint8_t> > const & x) const {
           auto y = x.first.reverse_complement();
           return (x.first < y) ? x :   // if already canonical, just return input
               std::pair<KMER, ::bliss::common::Kmer<2, EdgeEncoding, uint8_t> >(

@@ -108,9 +108,50 @@ namespace bliss {
 
 
 
+      namespace chain {
 
-    } //namespace filter
-  } //namespace de_bruijn
+        struct IsIsolated {
+            /// does not filter by group of results.
+            template <typename Iter>
+            inline bool operator()(Iter first, Iter last) const {  return true; }
+
+            template <typename Kmer, typename Edge>
+            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+              return (std::get<2>(t.second) == 0) && (std::get<3>(t.second) == 0);
+            }
+        };
+        struct IsTerminus {
+            /// does not filter by group of results.
+            template <typename Iter>
+            inline bool operator()(Iter first, Iter last) const {  return true; }
+
+            template <typename Kmer, typename Edge>
+            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+              return (std::get<2>(t.second) == 0) ^ (std::get<3>(t.second) == 0);
+            }
+        };
+
+
+        struct PointsToTerminus {
+            /// does not filter by group of results.
+            template <typename Iter>
+            inline bool operator()(Iter first, Iter last) const {  return true; }
+
+            template <typename Kmer, typename Edge>
+            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+              return (std::get<2>(t.second) == 0) ^ (std::get<3>(t.second) == 0);
+            }
+
+        };
+
+
+      }  // namespace dbg_chain
+
+
+
+
+  } //namespace filter
+    } //namespace de_bruijn
 } //namespace bliss
 
 
