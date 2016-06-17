@@ -1329,8 +1329,8 @@ using StoreHashIdentity = ::bliss::kmer::hash::identity<Key, false>;
 // NOTE: when using this, need to further alias so that only Key param remains.
 // =================
 template <typename Key,
-			template <typename> class DistHash  = DistHashFarm,
-			template <typename> class StoreHash = StoreHashFarm,
+			template <typename> class DistHash  = DistHashMurmur,
+			template <typename> class StoreHash = StoreHashMurmur,
 			template <typename> class DistTrans = ::bliss::kmer::transform::identity
 			>
 using SingleStrandHashMapParams = ::dsc::HashMapParams<
@@ -1346,8 +1346,8 @@ using SingleStrandHashMapParams = ::dsc::HashMapParams<
 
 
 template <typename Key,
-	template <typename> class DistHash  = DistHashFarm,
-	template <typename> class StoreHash = StoreHashFarm
+	template <typename> class DistHash  = DistHashMurmur,
+	template <typename> class StoreHash = StoreHashMurmur
 >
 using CanonicalHashMapParams = ::dsc::HashMapParams<
 		Key,
@@ -1361,8 +1361,8 @@ using CanonicalHashMapParams = ::dsc::HashMapParams<
 		  >;
 
 template <typename Key,
-	template <typename> class DistHash  = DistHashFarm,
-	template <typename> class StoreHash = StoreHashFarm
+	template <typename> class DistHash  = DistHashMurmur,
+	template <typename> class StoreHash = StoreHashMurmur
 	>
 using BimoleculeHashMapParams = ::dsc::HashMapParams<
 		Key,
@@ -1376,7 +1376,7 @@ using BimoleculeHashMapParams = ::dsc::HashMapParams<
 		  >;
 
 template <typename Key,
-			template <typename> class DistHash = DistHashFarm,
+			template <typename> class DistHash = DistHashMurmur,
 			template <typename> class StoreLess = ::std::less,
 			template <typename> class DistTrans = ::bliss::kmer::transform::identity >
 using SingleStrandOrderedMapParams = ::dsc::OrderedMapParams<
@@ -1392,7 +1392,7 @@ using SingleStrandOrderedMapParams = ::dsc::OrderedMapParams<
 
 
 template <typename Key,
-			template <typename> class DistHash = DistHashFarm,
+			template <typename> class DistHash = DistHashMurmur,
 			template <typename> class StoreLess = ::std::less
 			>
 using CanonicalOrderedMapParams = ::dsc::OrderedMapParams<
@@ -1407,7 +1407,7 @@ using CanonicalOrderedMapParams = ::dsc::OrderedMapParams<
 		  >;
 
 template <typename Key,
-			template <typename> class DistHash = DistHashFarm,
+			template <typename> class DistHash = DistHashMurmur,
 			template <typename> class StoreLess = ::std::less
 			>
 using BimoleculeOrderedMapParams = ::dsc::OrderedMapParams<
