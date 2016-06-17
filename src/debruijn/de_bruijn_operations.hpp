@@ -37,38 +37,150 @@ namespace bliss {
 
         // data type for debruijn graph chain compaction
         // first Kmer is in edge, second Kmer is out edge.  int is distance from end node.
+        // 0 means that this node is a terminus.  negative numbers indicate that the edge is pointing to a terminus
         template <typename Kmer>
         using compaction_metadata = ::std::tuple<Kmer, Kmer, int, int>;
 
-        // k-mer is the source k-mer ON SAME STRAND as the canonical key kmer that this is used with.
-        // int is the indicator for whether the Kmer is an in or out edge from key.
+        // k-mer is the target k-mer ON SAME STRAND as the canonical key kmer that this is used with.
+        //    i.e. if key kmer is canonical, Kmer in field is on same strand (whether Kmer itself is canonical or not)
+        // char is an indicator of edge orientation.  + means OUT edge, - means IN edge.
         template <typename Kmer>
         using terminus_update_md = ::std::pair<Kmer, char>;
 
+
+        /// update the terminal de bruijn chain nodes to indicate it as such.  used on neighbors of branch points.
         template <typename Kmer>
         struct terminus_update {
             void operator()(compaction_metadata<Kmer> & x,
                             terminus_update_md<Kmer> const & y)  {
-              if (y.second == IN) {  // sense
-                if ((std::get<2>(x) == 0) || (y.first != std::get<0>(x))) {
-                  std::cout << "y: " << y.first << ", y ?= x[in] " << std::get<2>(x) << ": " <<   std::get<0>(x) << ", x[out] " << std::get<3>(x) << ": " << std::get<1>(x) << std::endl;
-                }
+              assert(y.second != 0);  // second entry should not be 0.
 
-                assert(std::get<2>(x) != 0);   // just to make sure that the edge we're trying to update is not already "cut".
+              if (y.second < 0) {  // IN edge
+
+//                if ((std::get<2>(x) == 0) || (y.first != std::get<0>(x))) {
+//                  std::cout << "y: " << y.first << ", y ?= x[in] " << std::get<2>(x) << ": " <<   std::get<0>(x) << ", x[out] " << std::get<3>(x) << ": " << std::get<1>(x) << std::endl;
+//                }
+
+                assert(std::get<2>(x) == 1);   // just to make sure that the edge we're trying to update is not already "cut".
                 assert(y.first == std::get<0>(x));   // just to make sure that we are talking about the same kmer.
 
                 std::get<2>(x) = 0;   // mark as terminus
-              } else {
-                if ((std::get<3>(x) == 0) || (y.first != std::get<1>(x))) {
-                  std::cout << "y: " << y.first << ", x[in] " << std::get<2>(x) << ": " <<   std::get<0>(x) << ", y ?= x[out] " << std::get<3>(x) << ": " << std::get<1>(x) <<  std::endl;
-                }
 
-                assert(std::get<3>(x) != 0);   // just to make sure that the edge we're trying to update is not already "cut".
+              } else if (y.second > 0) {  // OUT edge
+//                if ((std::get<3>(x) == 0) || (y.first != std::get<1>(x))) {
+//                  std::cout << "y: " << y.first << ", x[in] " << std::get<2>(x) << ": " <<   std::get<0>(x) << ", y ?= x[out] " << std::get<3>(x) << ": " << std::get<1>(x) <<  std::endl;
+//                }
+
+                assert(std::get<3>(x) == 1);   // just to make sure that the edge we're trying to update is not already "cut".
                 assert(y.first == std::get<1>(x));   // just to make sure that we are talking about the same kmer.
+
                 std::get<3>(x) = 0;   // mark as terminus
+
               }
             }
         };
+
+
+        // k-mer is the target k-mer ON SAME STRAND as the canonical key kmer that this is used with.
+        //    i.e. if key kmer is canonical, Kmer in field is on same strand (whether Kmer itself is canonical or not)
+        // int is the distance between Kmer and key kmer on the key kmer's strand.  - means Kmer is a terminal node, + means it's not..
+        // char is indicator for edge orientation.   + means OUT edge, - means IN edge.
+        template <typename Kmer>
+        using chain_update_md = ::std::tuple<Kmer, int, char>;
+
+
+        /// update the internal chains.  used on chains only.
+        // the update metadata is on the same strand as the kmer key (canonical).  the orientation is adjusted accordingly by lex_less
+        template <typename Kmer>
+        struct chain_update {
+            void operator()(compaction_metadata<Kmer> & x,
+                            chain_update_md<Kmer> const & y)  {
+
+              assert(std::get<2>(y) != 0);   // orientation needs to be 1 or -1
+
+              // ***
+              //  received an update for the current kmer.  check to see if we are jumping sufficiently
+
+              auto dist = abs(std::get<1>(y));
+
+              assert(dist > 0);   // update distance should be larger than 0.
+
+
+              if (std::get<2>(y) < 0) {  // IN edge
+                if (!( ( (std::get<2>(x) < 0) &&
+                    ( (std::get<1>(y) == std::get<2>(x)) &&
+                      (std::get<0>(y) == std::get<0>(x)) ) ) ||
+                  ( (std::get<2>(x) > 0) &&
+                    ( // (dist > std::get<2>(x)) ||
+                      ( (dist == std::get<2>(x)) &&
+                        (std::get<0>(y)  == std::get<0>(x)) ) ) ) )) {
+
+
+                  printf("curr in dist = %d, new dist = %d\n", std::get<2>(x), std::get<1>(y));
+                  std::cout << "curr in kmer: " << std::get<0>(x) << " new  kmer: " << std::get<0>(y) << std::endl;
+                }
+
+
+                // some checks
+                // current node not be a terminus. and if it's negative (finished), the sent update should point to same.
+                // k-mer sending update is between current and end, and should have finished sooner.
+                // terminus (x[3] == 0) should not get an update itself, since nothing is to the right of it to send it update.
+                assert( ( (std::get<2>(x) < 0) &&
+                          ( (std::get<1>(y) == std::get<2>(x)) &&
+                            (std::get<0>(y) == std::get<0>(x)) ) ) ||
+                        ( (std::get<2>(x) > 0) &&
+                          ( // (dist > std::get<2>(x)) ||
+                            ( (dist == std::get<2>(x)) &&
+                              (std::get<0>(y)  == std::get<0>(x)) ) ) ) );
+                // if current node not pointing to terminus, update distance should be larger than current distance,
+                // or if equal, should have same k-mer.
+                // cannot be smaller.
+
+                // update out edge IF new distance is larger than current.
+                if ((std::get<2>(x) > 0) && (dist > std::get<2>(x))) {
+                  std::get<2>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
+                  std::get<0>(x) = std::get<0>(y);
+                }
+
+              } else if (std::get<2>(y) > 0) {  // OUT edge
+
+                if (!( ( (std::get<3>(x) < 0) &&
+                    ( (std::get<1>(y) == std::get<3>(x)) &&
+                      (std::get<0>(y) == std::get<1>(x)) ) ) ||
+                  ( (std::get<3>(x) > 0) &&
+                    ( // (dist > std::get<3>(x)) ||
+                      ( (dist == std::get<3>(x)) &&
+                        (std::get<0>(y)  == std::get<1>(x)) ) ) )) ) {
+                  printf("curr out dist = %d, new dist = %d\n", std::get<3>(x), std::get<1>(y));
+                  std::cout << "curr out kmer: " << std::get<1>(x) << " new kmer: " << std::get<0>(y) << std::endl;
+
+                }
+
+                // some checks
+                // current node not be a terminus. and if it's negative (finished), the sent update should point to same.
+                // k-mer sending update is between current and end, and should have finished sooner.
+                // terminus (x[3] == 0) should not get an update itself, since nothing is to the right of it to send it update.
+                assert( ( (std::get<3>(x) < 0) &&
+                          ( (std::get<1>(y) == std::get<3>(x)) &&
+                            (std::get<0>(y) == std::get<1>(x)) ) ) ||
+                        ( (std::get<3>(x) > 0) &&
+                          ( //(dist > std::get<3>(x)) ||
+                            ( (dist == std::get<3>(x)) &&
+                              (std::get<0>(y)  == std::get<1>(x)) ) ) ) );
+                // if current node not pointing to terminus, update distance should be larger than current distance,
+                // or if equal, should have same k-mer.
+                // cannot be smaller.
+
+                // update out edge IF new distance is larger than current.
+                if ((std::get<3>(x) > 0) && (dist > std::get<3>(x))) {
+                  std::get<3>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
+                  std::get<1>(x) = std::get<0>(y);
+                }
+
+              }
+            }
+        };
+
 
 
         template <typename KMER>
@@ -84,15 +196,29 @@ namespace bliss {
             inline ::std::pair<KMER, ::bliss::de_bruijn::operation::chain::terminus_update_md<KMER> >
             operator()(std::pair<KMER, ::bliss::de_bruijn::operation::chain::terminus_update_md<KMER> > const & x) const {
               auto y = x.first.reverse_complement();
-              if (x.first < y)
+              if (x.first <= y)
             	  return x;   // if already canonical, just return input
               else {
             	  ::bliss::de_bruijn::operation::chain::terminus_update_md<KMER> z(x.second.first.reverse_complement(), -(x.second.second));
-            	  return  std::pair<KMER, ::bliss::de_bruijn::operation::chain::terminus_update_md<KMER> >(
-                          y, z );
+            	  return std::pair<KMER, ::bliss::de_bruijn::operation::chain::terminus_update_md<KMER> >( y, z );
 
               }
             }
+
+            inline ::std::pair<KMER, ::bliss::de_bruijn::operation::chain::chain_update_md<KMER> >
+            operator()(std::pair<KMER, ::bliss::de_bruijn::operation::chain::chain_update_md<KMER> > const & x) const {
+              auto y = x.first.reverse_complement();
+              if (x.first <= y)
+                return x;   // if already canonical, just return input
+              else {
+                // revcomp kmer, keep distance, flip edge orientation
+                ::bliss::de_bruijn::operation::chain::chain_update_md<KMER> z(std::get<0>(x.second).reverse_complement(), std::get<1>(x.second), -(std::get<2>(x.second)));
+                return std::pair<KMER, ::bliss::de_bruijn::operation::chain::chain_update_md<KMER> >( y, z );
+
+              }
+            }
+
+
         };
 
   	  template <typename Kmer >

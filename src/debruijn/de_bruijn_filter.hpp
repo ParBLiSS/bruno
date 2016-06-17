@@ -132,16 +132,30 @@ namespace bliss {
         };
 
 
-        struct PointsToTerminus {
+        struct PointsToTermini {
             /// does not filter by group of results.
             template <typename Iter>
             inline bool operator()(Iter first, Iter last) const {  return true; }
 
+            // if both the node is isolated, (0, 0), both pointing to ends (-x,-y),
+            // or is a terminus and pointing to other terminus (0, -y), then this is a node that's finished.
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              return (std::get<2>(t.second) == 0) ^ (std::get<3>(t.second) == 0);
+              return (std::get<2>(t.second) <= 0) && (std::get<3>(t.second) <= 0);
             }
+        };
 
+
+        struct PointsToInternalNode {
+            /// does not filter by group of results.
+            template <typename Iter>
+            inline bool operator()(Iter first, Iter last) const {  return true; }
+
+            // if both one or both of the edge are not pointing to a terminus, then this is a node that's in progress.
+            template <typename Kmer, typename Edge>
+            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+              return (std::get<2>(t.second) > 0) || (std::get<3>(t.second) > 0);
+            }
         };
 
 

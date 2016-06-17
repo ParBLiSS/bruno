@@ -439,21 +439,15 @@ int main(int argc, char** argv) {
             neighbors.clear();
             bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_out_neighbors(t.first, t.second, neighbors);
             for (auto n : neighbors) {
-//              if (n <= n.reverse_complement())  {  // already canonical.  insert source kmer as is, as in neighbor to n.
-                all_neighbors.emplace_back(n, bliss::de_bruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::de_bruijn::operation::IN));
-//              } else {  // not canonical.  insert revcomp of source kmer, as out neighbor to n.
-//                all_neighbors.emplace_back(n, bliss::de_bruijn::operation::chain::terminus_update_md<KmerType>(t.first.reverse_complement(), bliss::de_bruijn::operation::OUT));
-//              }
+              // insert as is.  let lex_less handle flipping it.
+              all_neighbors.emplace_back(n, bliss::de_bruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::de_bruijn::operation::IN));
             }
 
             neighbors.clear();
             bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_in_neighbors(t.first, t.second, neighbors);
             for (auto n : neighbors) {
-//              if (n <= n.reverse_complement())  {  // already canonical.  insert source kmer as is, as out neighbor to n.
-                all_neighbors.emplace_back(n, bliss::de_bruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::de_bruijn::operation::OUT));
-//              } else {  // not canonical.  insert source kmer revcomp, as in neighbor to n.
-//                all_neighbors.emplace_back(n, bliss::de_bruijn::operation::chain::terminus_update_md<KmerType>(t.first.reverse_complement(), bliss::de_bruijn::operation::IN));
-//              }
+              // insert as is.  let lex_less handle flipping it.
+              all_neighbors.emplace_back(n, bliss::de_bruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::de_bruijn::operation::OUT));
             }
           }
           BL_BENCH_COLLECTIVE_END(test, "branch_neighbors_2", all_neighbors.size(), comm);
@@ -468,27 +462,124 @@ int main(int argc, char** argv) {
           BL_BENCH_COLLECTIVE_END(test, "update_termini", count, comm);
 
           //========= split singleton entries from chainmap.
-          BL_BENCH_START(test);
-          auto single_chains = chainmap.find(::bliss::de_bruijn::filter::chain::IsIsolated());
-          chainmap.erase(::bliss::de_bruijn::filter::chain::IsIsolated());
-          BL_BENCH_COLLECTIVE_END(test, "single_node_chains", single_chains.size(), comm);
+          {
+            BL_BENCH_START(test);
+            auto single_chains = chainmap.find(::bliss::de_bruijn::filter::chain::IsIsolated());
+            BL_BENCH_COLLECTIVE_END(test, "singletons", single_chains.size(), comm);
+            printf("found %lu singletons in %lu chainmap\n", single_chains.size(), chainmap.local_size());
+          }
 
-          auto result = chainmap.find(::bliss::de_bruijn::filter::chain::IsTerminus());
-          printf("chain map now contains %lu chained termini, after removing %lu isolated\n", result.size(), single_chains.size());
+          {
+            BL_BENCH_START(test);
+            auto single_chains = chainmap.find(::bliss::de_bruijn::filter::chain::IsTerminus());
+            BL_BENCH_COLLECTIVE_END(test, "termini", single_chains.size(), comm);
+            printf("found %lu termini in %lu chainmap\n", single_chains.size(), chainmap.local_size());
+          }
         }
 
 
         {
           // NOW: do the list ranking
 
+          // search unfinished
+          BL_BENCH_START(test);
+          auto unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
+          BL_BENCH_COLLECTIVE_END(test, "unfinished", unfinished.size(), comm);
+
+          // get global unfinished count
+          bool all_compacted = (unfinished.size() == 0);
+          all_compacted = ::mxx::all_of(all_compacted, comm);
+
+
+          // while not same, run
+          BL_BENCH_START(test);
+          size_t iterations = 0;
+
+          std::vector<std::pair<KmerType, bliss::de_bruijn::operation::chain::chain_update_md<KmerType> > > updates;
+          updates.reserve(unfinished.size() * 2);
+
+          int dist = 0;
+          KmerType ll, rr;
+          bliss::de_bruijn::operation::chain::compaction_metadata<KmerType> md;
+
+          while (!all_compacted) {
+
+            updates.clear();
+
+            // get left and right edges, generate updates
+
+            std::cout << "iteration " << iterations << " kmer: " << unfinished[0].first <<
+                " in: " << std::get<0>(unfinished[0].second) << " out: " << std::get<1>(unfinished[0].second) <<
+                " in dist " << std::get<2>(unfinished[0].second) << " out dist " << std::get<3>(unfinished[0].second) << std::endl;
+
+
+            for (auto t : unfinished) {
+              md = t.second;
+
+              // each is a pair with kmer, <in kmer, out kmer, in dist, out dist>
+              // constructing 2 edges <in, out> and <out, in>  distance is sum of the 2.
+              // indication of whether edge destination is a terminus depend only on the sign of distance to that node.
+
+              dist = abs(std::get<2>(md)) + abs(std::get<3>(md));   // this double the distance...
+
+              // and below pointer jumps.
+
+              // construct forward edge, from in to out, only if current node is not a terminus for the "in" side
+              if (std::get<2>(md) != 0)  {
+                // send rr to ll.  also let ll know if rr is a terminus.  orientation is OUT
+                updates.emplace_back(std::get<0>(md),
+                                   bliss::de_bruijn::operation::chain::chain_update_md<KmerType>((std::get<3>(md) == 0) ? t.first : std::get<1>(md),
+                                                                                                 ((std::get<3>(md) > 0) ? dist : -dist),
+                                                                                                 bliss::de_bruijn::operation::OUT));
+                // if target is a terminus, then set self as target.  else use right kmer
+                // if target points to a terminus, including self (dist = 0), set update distance to negative to indicate so.
+              }
+
+              // construct backward edge, from out to in, only if current node is not a terminus for the "out" side
+              if (std::get<3>(md) != 0) {
+                // send ll to rr.  also let rr know if ll is a terminus.  orientation is IN
+                updates.emplace_back(std::get<1>(md),
+                                   bliss::de_bruijn::operation::chain::chain_update_md<KmerType>((std::get<2>(md) == 0) ? t.first : std::get<0>(md),
+                                                                                                 ((std::get<2>(md) > 0) ? dist : -dist),
+                                                                                                 bliss::de_bruijn::operation::IN));
+                // if target is a terminus, then set self as target.  else use left kmer
+                // if target points to a terminus, including self (dist = 0), set update distance to negative to indicate so.
+              }
+
+              // if ((std::get<2>(md) == 0) && (std::get<3>(md) == 0)) continue;  // singleton.   next.
+            }
+            printf("iter %ld update size = %ld\n", iterations, updates.size());
+
+
+            // now perform update
+            ::bliss::de_bruijn::operation::chain::chain_update<KmerType> chain_updater;
+            size_t count = chainmap.update(updates, false, chain_updater );
+            printf("iter %ld updated size = %ld\n", iterations, count);
+
+            // search unfinished.
+            unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
+
+
+            // get global unfinished count
+            all_compacted = (unfinished.size() == 0);
+            all_compacted = ::mxx::all_of(all_compacted, comm);
+
+            ++iterations;
+
+          }
+          BL_BENCH_COLLECTIVE_END(test, "compact", iterations, comm);
+
+
+          // ========= check compacted chains.
 
 
 
 
+        }
 
+        {
 
-
-
+          // ========== construct new graph with compacted chains and junction nodes.
 
 
 
