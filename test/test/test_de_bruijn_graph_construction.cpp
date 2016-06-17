@@ -212,6 +212,7 @@ int main(int argc, char** argv) {
 
 	  DBGType idx(comm);
 	  ChainMapType chainmap(comm);
+	  ChainMapType chainmap2(comm);
 
 
 	  BL_BENCH_INIT(test);
@@ -378,7 +379,6 @@ int main(int argc, char** argv) {
 	      }
 
 
-	      ::std::vector<std::pair<typename DBGMapType::key_type, typename DBGMapType::mapped_type> > chain_termini;
         {
           //=== find branching nodes. local computation.
           BL_BENCH_START(test);
@@ -469,11 +469,12 @@ int main(int argc, char** argv) {
 
           //========= split singleton entries from chainmap.
           BL_BENCH_START(test);
-          count = chainmap.erase(::bliss::de_bruijn::filter::chain::IsIsolated());
-          BL_BENCH_COLLECTIVE_END(test, "clear_singleton2", count, comm);
+          auto single_chains = chainmap.find(::bliss::de_bruijn::filter::chain::IsIsolated());
+          chainmap.erase(::bliss::de_bruijn::filter::chain::IsIsolated());
+          BL_BENCH_COLLECTIVE_END(test, "single_node_chains", single_chains.size(), comm);
 
           auto result = chainmap.find(::bliss::de_bruijn::filter::chain::IsTerminus());
-          printf("chain map now contains %lu chained termini, after removing %lu isolated\n", result.size(), count);
+          printf("chain map now contains %lu chained termini, after removing %lu isolated\n", result.size(), single_chains.size());
         }
 
 
