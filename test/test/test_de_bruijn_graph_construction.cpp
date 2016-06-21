@@ -70,9 +70,9 @@
 
 
 
-using Alphabet = bliss::common::DNA5;
+using Alphabet = bliss::common::DNA;
 using KmerType = bliss::common::Kmer<31, Alphabet, WordType>;
-using EdgeEncoding = bliss::common::DNA5;
+using EdgeEncoding = bliss::common::DNA;
 
 #define FileParser ::bliss::io::FASTQParser
 
@@ -463,8 +463,6 @@ int main(int argc, char** argv) {
           }
           BL_BENCH_COLLECTIVE_END(test, "branch_neighbors_2", all_neighbors.size(), comm);
 
-          printf("chainmap size = %ld\n", chainmap.size());
-
           // now check to see which are chain nodes.  these are chain nodes adjacent to branch points.
           // include chain termini that are adjacent to branch points, so we can mark them in the chainmap.
           BL_BENCH_START(test);
@@ -659,7 +657,6 @@ int main(int argc, char** argv) {
 
               // if ((std::get<2>(md) == 0) && (std::get<3>(md) == 0)) continue;  // singleton.   next.
             }
-            printf("iter %ld update size = %ld\n", iterations, updates.size());
 
 //            if (last_updated == updates.size()) {
                 for (auto t : unfinished) {
@@ -686,7 +683,6 @@ int main(int argc, char** argv) {
             // now perform update
             ::bliss::de_bruijn::operation::chain::chain_update<KmerType> chain_updater;
             size_t count = chainmap.update(updates, false, chain_updater );
-            printf("iter %ld updated size = %ld\n", iterations, count);
 
 //            last_updated = count;
 
@@ -751,13 +747,11 @@ int main(int argc, char** argv) {
 				}
 
 			}
-			printf("query size = %ld\n", qq.size());
 
 			comm.barrier();
 
 			// now query.
 			auto results = chainmap.find(qq);
-			printf("query results size = %ld\n", results.size());
 
 
 			// put query results in a map.  key is CANONICAL

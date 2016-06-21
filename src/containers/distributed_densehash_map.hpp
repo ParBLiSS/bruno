@@ -1521,7 +1521,7 @@ namespace dsc  // distributed std container
           ::std::vector<::std::pair<Key, T> > results;
 
           if (this->local_empty()) {
-            printf("local is empty\n");
+            printf("rank %d local is empty\n", this->comm.rank());
             return results;
           }
           results.reserve(this->c.size());
@@ -1533,8 +1533,8 @@ namespace dsc  // distributed std container
               results.emplace_back(*it);
               ++added;
             }
-          }        
-          printf("container size %ld, processed %ld, added %ld\n", this->c.size(), processed, added);         
+          }
+//          printf("container size %ld, processed %ld, added %ld\n", this->c.size(), processed, added);
 
           return results;
       }

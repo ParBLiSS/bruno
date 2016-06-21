@@ -158,6 +158,20 @@ namespace bliss {
             }
         };
 
+        // points to internal node that are not cycles
+        struct PointsToInternalNode {
+            /// does not filter by group of results.
+            template <typename Iter>
+            inline bool operator()(Iter first, Iter last) const {  return true; }
+
+            // if both one or both of the edge are not pointing to a terminus, then this is a node that's in progress.
+            template <typename Kmer, typename Edge>
+            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+              return (std::get<2>(t.second) > 0) || (std::get<3>(t.second) > 0);
+            }
+        };
+
+
 
       }  // namespace dbg_chain
 
