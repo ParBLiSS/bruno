@@ -222,6 +222,8 @@ int main(int argc, char** argv) {
     neighbors.reserve(4);
 
 
+    KmerType testKmer(std::string("CAAGATGGGTGGAATGGCCAGTTAACCACTG"));
+
     // TODO: filter out, or do something, about "N".  May have to add back support for ASCII edge encoding so that we can use DNA5 alphabet
 
 	  {
@@ -247,68 +249,72 @@ int main(int argc, char** argv) {
 	    total = idx.size();
 	    if (comm.rank() == 0) printf("total size after insert/rehash is %lu\n", total);
 
-
-	    // get all possible edges.
-	      //============== testing to ensure that all the possible edges are present.
-	    auto cc = idx.get_map().get_local_container();
-	    for (auto it = cc.begin(); it != cc.end(); ++it) {
-	    	neighbors.clear();
-	    	bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_out_neighbors(it->first, it->second, neighbors);
-	        query.insert(query.end(), neighbors.begin(), neighbors.end());
-
-	        neighbors.clear();
-	        bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_in_neighbors(it->first, it->second, neighbors);
-	        query.insert(query.end(), neighbors.begin(), neighbors.end());
-	    }
-
-	    // =============== check to see if index is superset of query.  (count should have every result entry showing 1.)
-	    {
-	      auto lquery = query;
-	      BL_BENCH_START(test);
-	      auto counts = idx.count(lquery);
-	      BL_BENCH_COLLECTIVE_END(test, "count", counts.size(), comm);
-
-	      auto absent_end = std::partition(counts.begin(), counts.end(), [](std::pair<KmerType, size_t> const & x){
-	    	  return x.second == 0;
-	      });
-	      printf(" total query = %lu, unique query = %lu, unique absent = %lu\n", query.size(), counts.size(), std::distance(counts.begin(), absent_end));
-
-	      for (auto it = counts.begin(); it != absent_end; ++it) {
-	    	  std::cout << "  " << it->first << std::endl;
- 	      }
-	    }
-
-	    comm.barrier();
-
-	    // =============== check to see if query is superset of index.  (erase should result in empty)
-	    {
-	    	auto lquery = query;
-		      BL_BENCH_START(test);
-		      size_t erased = idx.get_map().erase(lquery);
-		      BL_BENCH_COLLECTIVE_END(test, "erase", erased, comm);
-
-		      printf(" total query = %lu, erased = %lu, remaining = %lu\n", query.size(), erased, idx.local_size());
-
-	    }
-
-	      comm.barrier();
-	      idx.get_map().erase(::fsc::TruePredicate());
-	      comm.barrier();
-		  BL_BENCH_START(test);
-		  idx.insert(temp);
-		  BL_BENCH_COLLECTIVE_END(test, "reinsert", idx.local_size(), comm);
+//
+//	    // get all possible edges.
+//	      //============== testing to ensure that all the possible edges are present.
+//    	std::cout << "COMPRESSED MAP" << std::endl;
+//	    auto cc = idx.get_map().get_local_container();
+//	    for (auto it = cc.begin(); it != cc.end(); ++it) {
+//
+////	    	std::cout << "kmer: " << it->first << " edge " << it->second << std::endl;
+//
+//	    	neighbors.clear();
+//	    	bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_out_neighbors(it->first, it->second, neighbors);
+//	        query.insert(query.end(), neighbors.begin(), neighbors.end());
+//
+//	        neighbors.clear();
+//	        bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_in_neighbors(it->first, it->second, neighbors);
+//	        query.insert(query.end(), neighbors.begin(), neighbors.end());
+//	    }
+//
+//	    // =============== check to see if index is superset of query.  (count should have every result entry showing 1.)
+//	    {
+//	      auto lquery = query;
+//	      BL_BENCH_START(test);
+//	      auto counts = idx.count(lquery);
+//	      BL_BENCH_COLLECTIVE_END(test, "count", counts.size(), comm);
+//
+//	      auto absent_end = std::partition(counts.begin(), counts.end(), [](std::pair<KmerType, size_t> const & x){
+//	    	  return x.second == 0;
+//	      });
+//	      printf(" total query = %lu, unique query = %lu, unique absent = %lu\n", query.size(), counts.size(), std::distance(counts.begin(), absent_end));
+//
+//	      for (auto it = counts.begin(); it != absent_end; ++it) {
+//	    	  std::cout << "  " << it->first << std::endl;
+// 	      }
+//	    }
+//
+//	    comm.barrier();
+//
+//	    // =============== check to see if query is superset of index.  (erase should result in empty)
+//	    {
+//	    	auto lquery = query;
+//		      BL_BENCH_START(test);
+//		      size_t erased = idx.get_map().erase(lquery);
+//		      BL_BENCH_COLLECTIVE_END(test, "erase", erased, comm);
+//
+//		      printf(" total query = %lu, erased = %lu, remaining = %lu\n", query.size(), erased, idx.local_size());
+//
+//	    }
+//
+//	      comm.barrier();
+//	      idx.get_map().erase(::fsc::TruePredicate());
+//	      comm.barrier();
+//		  BL_BENCH_START(test);
+//		  idx.insert(temp);
+//		  BL_BENCH_COLLECTIVE_END(test, "reinsert", idx.local_size(), comm);
 	  }
 
 	  {
 
-	      {
-	        auto lquery = query;
-
-	      BL_BENCH_START(test);
-	      auto found = idx.find_overlap(lquery);
-	      BL_BENCH_COLLECTIVE_END(test, "find_overlap", found.size(), comm);
-	      }
-	    // separate test because of it being potentially very slow depending on imbalance.
+//	      {
+//	        auto lquery = query;
+//
+//	      BL_BENCH_START(test);
+//	      auto found = idx.find_overlap(lquery);
+//	      BL_BENCH_COLLECTIVE_END(test, "find_overlap", found.size(), comm);
+//	      }
+//	    // separate test because of it being potentially very slow depending on imbalance.
 
 	      {
 	        // get histogram for the edge types in debruijn graph
@@ -367,7 +373,12 @@ int main(int argc, char** argv) {
               std::get<3>(node) = 1;
             }
 
+
             chainmap.get_local_container().insert(::std::make_pair(::std::move(t.first), ::std::move(node)));
+//            std::cout << "BIEDGE\tin dist\t" << std::get<2>(node) << " kmer: " << std::get<0>(node) << std::endl;
+//            std::cout << "\tKmer bi edge:\t" << t.first << std::endl;
+//            std::cout << "\tout dist\t" << std::get<3>(node) << " kmer: " << std::get<1>(node) << std::endl;
+
           }
           BL_BENCH_COLLECTIVE_END(test, "insert in chainmap.", chainmap.local_size(), comm);
 
@@ -390,44 +401,44 @@ int main(int argc, char** argv) {
           ::bliss::de_bruijn::print_dbg_edge_histogram(nodes, comm);
           BL_BENCH_COLLECTIVE_END(test, "branch_histogram", nodes.size(), comm);
 
-          //=== get the neighbors of the branch points.  for information only.
-          BL_BENCH_START(test);
-          std::vector<KmerType> all_neighbors2;
-          all_neighbors2.reserve(nodes.size() * 4);
-
-          for (auto t : nodes) {
-            neighbors.clear();
-            bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_out_neighbors(t.first, t.second, neighbors);
-            all_neighbors2.insert(all_neighbors2.end(), neighbors.begin(), neighbors.end());
-
-            neighbors.clear();
-            bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_in_neighbors(t.first, t.second, neighbors);
-            all_neighbors2.insert(all_neighbors2.end(), neighbors.begin(), neighbors.end());
-          }
-          BL_BENCH_COLLECTIVE_END(test, "branch_neighbors", all_neighbors2.size(), comm);
-
-          // now check to see which are chain nodes.  these are chain nodes adjacent to branch points.
-          // include chain termini that are adjacent to branch points, so we can mark them in the chainmap.
-          BL_BENCH_START(test);
-          auto found = idx.find_if_overlap(all_neighbors2, ::bliss::de_bruijn::filter::IsChainNode());
-          BL_BENCH_COLLECTIVE_END(test, "terminal_neighbors", found.size(), comm);
-
-          BL_BENCH_START(test);
-          // then compute histogram
-          ::bliss::de_bruijn::print_dbg_edge_histogram(found, comm);
-          BL_BENCH_COLLECTIVE_END(test, "termini_histogram", found.size(), comm);
-
-
-          // now check to see which are chain nodes.  these are chain nodes adjacent to branch points.
-          // include chain termini that are adjacent to branch points, so we can mark them in the chainmap.
-          BL_BENCH_START(test);
-          auto found2 = idx.find_if_overlap(all_neighbors2, ::bliss::de_bruijn::filter::IsTerminus());
-          BL_BENCH_COLLECTIVE_END(test, "stump_termini", found2.size(), comm);
-
-          BL_BENCH_START(test);
-          // then compute histogram
-          ::bliss::de_bruijn::print_dbg_edge_histogram(found2, comm);
-          BL_BENCH_COLLECTIVE_END(test, "stump_histogram", found2.size(), comm);
+//          //=== get the neighbors of the branch points.  for information only.
+//          BL_BENCH_START(test);
+//          std::vector<KmerType> all_neighbors2;
+//          all_neighbors2.reserve(nodes.size() * 4);
+//
+//          for (auto t : nodes) {
+//            neighbors.clear();
+//            bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_out_neighbors(t.first, t.second, neighbors);
+//            all_neighbors2.insert(all_neighbors2.end(), neighbors.begin(), neighbors.end());
+//
+//            neighbors.clear();
+//            bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_in_neighbors(t.first, t.second, neighbors);
+//            all_neighbors2.insert(all_neighbors2.end(), neighbors.begin(), neighbors.end());
+//          }
+//          BL_BENCH_COLLECTIVE_END(test, "branch_neighbors", all_neighbors2.size(), comm);
+//
+//          // now check to see which are chain nodes.  these are chain nodes adjacent to branch points.
+//          // include chain termini that are adjacent to branch points, so we can mark them in the chainmap.
+//          BL_BENCH_START(test);
+//          auto found = idx.find_if_overlap(all_neighbors2, ::bliss::de_bruijn::filter::IsChainNode());
+//          BL_BENCH_COLLECTIVE_END(test, "terminal_neighbors", found.size(), comm);
+//
+//          BL_BENCH_START(test);
+//          // then compute histogram
+//          ::bliss::de_bruijn::print_dbg_edge_histogram(found, comm);
+//          BL_BENCH_COLLECTIVE_END(test, "termini_histogram", found.size(), comm);
+//
+//
+//          // now check to see which are chain nodes.  these are chain nodes adjacent to branch points.
+//          // include chain termini that are adjacent to branch points, so we can mark them in the chainmap.
+//          BL_BENCH_START(test);
+//          auto found2 = idx.find_if_overlap(all_neighbors2, ::bliss::de_bruijn::filter::IsTerminus());
+//          BL_BENCH_COLLECTIVE_END(test, "stump_termini", found2.size(), comm);
+//
+//          BL_BENCH_START(test);
+//          // then compute histogram
+//          ::bliss::de_bruijn::print_dbg_edge_histogram(found2, comm);
+//          BL_BENCH_COLLECTIVE_END(test, "stump_histogram", found2.size(), comm);
 
 
           //=== mark neighbors of branch points.
@@ -461,21 +472,114 @@ int main(int argc, char** argv) {
           size_t count = chainmap.update(all_neighbors, false, updater );
           BL_BENCH_COLLECTIVE_END(test, "update_termini", count, comm);
 
-          //========= split singleton entries from chainmap.
-          {
-            BL_BENCH_START(test);
-            auto single_chains = chainmap.find(::bliss::de_bruijn::filter::chain::IsIsolated());
-            BL_BENCH_COLLECTIVE_END(test, "singletons", single_chains.size(), comm);
-            printf("found %lu singletons in %lu chainmap\n", single_chains.size(), chainmap.local_size());
-          }
+//          for (auto it = chainmap.get_local_container().begin(); it != chainmap.get_local_container().end(); ++it) {
+//              std::cout << "TERMED\tin dist\t" << std::get<2>(it->second) << " kmer: " << std::get<0>(it->second) << std::endl;
+//              std::cout << "\tKmer bi edge:\t" << it->first << std::endl;
+//              std::cout << "\tout dist\t" << std::get<3>(it->second) << " kmer: " << std::get<1>(it->second) << std::endl;
+//          }
 
-          {
-            BL_BENCH_START(test);
-            auto single_chains = chainmap.find(::bliss::de_bruijn::filter::chain::IsTerminus());
-            BL_BENCH_COLLECTIVE_END(test, "termini", single_chains.size(), comm);
-            printf("found %lu termini in %lu chainmap\n", single_chains.size(), chainmap.local_size());
-          }
+//          //========= split singleton entries from chainmap.
+//          {
+//            BL_BENCH_START(test);
+//            auto single_chains = chainmap.find(::bliss::de_bruijn::filter::chain::IsIsolated());
+//            BL_BENCH_COLLECTIVE_END(test, "singletons", single_chains.size(), comm);
+//            printf("found %lu singletons in %lu chainmap\n", single_chains.size(), chainmap.local_size());
+//          }
+//
+//          {
+//            BL_BENCH_START(test);
+//            auto single_chains = chainmap.find(::bliss::de_bruijn::filter::chain::IsTerminus());
+//            BL_BENCH_COLLECTIVE_END(test, "termini", single_chains.size(), comm);
+//            printf("found %lu termini in %lu chainmap\n", single_chains.size(), chainmap.local_size());
+//          }
         }
+
+
+//        {
+//          // NOW: do the list ranking
+//
+//          // search unfinished
+//          BL_BENCH_START(test);
+//          auto unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
+//          BL_BENCH_COLLECTIVE_END(test, "unfinished", unfinished.size(), comm);
+//
+//          // get global unfinished count
+//          bool all_compacted = (unfinished.size() == 0);
+//          all_compacted = ::mxx::all_of(all_compacted, comm);
+//
+//
+//          // while have unfinished,  run
+//          BL_BENCH_START(test);
+//          size_t iterations = 0;
+//
+//          std::vector<KmerType> qq;
+//          qq.reserve(unfinished.size() * 2);
+//
+//
+//          while (!all_compacted) {
+//
+//        	  qq.clear();
+//            // get left and right edges, generate updates
+//
+////            std::cout << "iteration " << iterations << " kmer: " << unfinished[0].first <<
+////                " in: " << std::get<0>(unfinished[0].second) << " out: " << std::get<1>(unfinished[0].second) <<
+////                " in dist " << std::get<2>(unfinished[0].second) << " out dist " << std::get<3>(unfinished[0].second) << std::endl;
+//
+//        	  // get the end points.
+//            for (auto t : unfinished) {
+//                md = t.second;
+//            	std::cout << "it " << iterations;
+//            	std::cout << "\tin dist " << std::get<2>(md) << " kmer: " << std::get<0>(md) << std::endl;
+//            	std::cout << "\tkmer: " << t.first << std::endl;
+//            	std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << std::get<1>(md) << std::endl;
+//
+//            	// add the in edge target if it needs to be updated.
+//            	if (std::get<2>(md) > 0) {
+//            		qq.emplace_back(std::get<0>(md));
+//            	}
+//            	if (std::get<3>(md) > 0) {
+//            		qq.emplace_back(std::get<1>(md));
+//            	}
+//
+//            }
+//            printf("iter %ld query size = %ld\n", iterations, qq.size());
+//
+//            comm.barrier();
+//
+//            // now query.
+//            auto results = chainmap.find(qq);
+//            printf("iter %ld query results size = %ld\n", iterations, results.size());
+//
+//
+//            // now do local updates.
+//            // go throught the unfinished list again
+//            // need info about where the query came from (which k-mer?)
+//            // else use a local map to index the results.
+//
+//
+//
+//
+//            // search unfinished.
+//            unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
+//
+//
+//            // get global unfinished count
+//            all_compacted = (unfinished.size() == 0);
+//            all_compacted = ::mxx::all_of(all_compacted, comm);
+//
+//            ++iterations;
+//
+//          }
+//          BL_BENCH_COLLECTIVE_END(test, "compact", iterations, comm);
+//
+//
+//          // ========= check compacted chains.
+//
+//
+//
+//
+//        }
+
 
 
         {
@@ -502,19 +606,23 @@ int main(int argc, char** argv) {
           KmerType ll, rr;
           bliss::de_bruijn::operation::chain::compaction_metadata<KmerType> md;
 
+          size_t last_updated = 0;
+
           while (!all_compacted) {
 
             updates.clear();
 
             // get left and right edges, generate updates
 
-            std::cout << "iteration " << iterations << " kmer: " << unfinished[0].first <<
-                " in: " << std::get<0>(unfinished[0].second) << " out: " << std::get<1>(unfinished[0].second) <<
-                " in dist " << std::get<2>(unfinished[0].second) << " out dist " << std::get<3>(unfinished[0].second) << std::endl;
+//            std::cout << "iteration " << iterations << " kmer: " << unfinished[0].first <<
+//                " in: " << std::get<0>(unfinished[0].second) << " out: " << std::get<1>(unfinished[0].second) <<
+//                " in dist " << std::get<2>(unfinished[0].second) << " out dist " << std::get<3>(unfinished[0].second) << std::endl;
 
 
             for (auto t : unfinished) {
-              md = t.second;
+                md = t.second;
+
+
 
               // each is a pair with kmer, <in kmer, out kmer, in dist, out dist>
               // constructing 2 edges <in, out> and <out, in>  distance is sum of the 2.
@@ -524,16 +632,17 @@ int main(int argc, char** argv) {
 
               // and below pointer jumps.
 
-              // construct forward edge, from in to out, only if current node is not a terminus for the "in" side
+              // construct forward edge, from ll to rr, only if current node is not a terminus for the "in" side
               if (std::get<2>(md) != 0)  {
                 // send rr to ll.  also let ll know if rr is a terminus.  orientation is OUT
                 updates.emplace_back(std::get<0>(md),
                                    bliss::de_bruijn::operation::chain::chain_update_md<KmerType>((std::get<3>(md) == 0) ? t.first : std::get<1>(md),
                                                                                                  ((std::get<3>(md) > 0) ? dist : -dist),
                                                                                                  bliss::de_bruijn::operation::OUT));
-                // if target is a terminus, then set self as target.  else use right kmer
-                // if target points to a terminus, including self (dist = 0), set update distance to negative to indicate so.
-              }
+                // if out dist is 0, then this node is a terminal node.  sent self as target.  else use right kmer.
+                // if out dist is negative, then out kmer (rr) points to a terminus, including self (dist = 0), set update distance to negative to indicate so.
+
+              }  // else case is same as below
 
               // construct backward edge, from out to in, only if current node is not a terminus for the "out" side
               if (std::get<3>(md) != 0) {
@@ -544,32 +653,165 @@ int main(int argc, char** argv) {
                                                                                                  bliss::de_bruijn::operation::IN));
                 // if target is a terminus, then set self as target.  else use left kmer
                 // if target points to a terminus, including self (dist = 0), set update distance to negative to indicate so.
-              }
+              }  // else case is same as above
+
+
 
               // if ((std::get<2>(md) == 0) && (std::get<3>(md) == 0)) continue;  // singleton.   next.
             }
             printf("iter %ld update size = %ld\n", iterations, updates.size());
 
+//            if (last_updated == updates.size()) {
+                for (auto t : unfinished) {
+                	md = t.second;
+
+                	KmerType tt = testKmer.reverse_complement();
+                	if ( ((t.first == testKmer) || (t.first == tt) ) ||
+                		((std::get<0>(md) == testKmer) || (std::get<0>(md) == tt)) ||
+                			((std::get<1>(md) == testKmer) || (std::get<1>(md) == tt))) {
+
+						std::cout << "it " << iterations;
+						std::cout << "\tin dist " << std::get<2>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md)) <<
+								" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md).reverse_complement()) << std::endl;
+						std::cout << "\tkmer: " << bliss::utils::KmerUtils::toASCIIString(t.first) << " rc: " << bliss::utils::KmerUtils::toASCIIString(t.first.reverse_complement()) << std::endl;
+						std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md)) <<
+								" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md).reverse_complement()) << std::endl;
+                	}
+                }
+//            }
+
+
+            comm.barrier();
 
             // now perform update
             ::bliss::de_bruijn::operation::chain::chain_update<KmerType> chain_updater;
             size_t count = chainmap.update(updates, false, chain_updater );
             printf("iter %ld updated size = %ld\n", iterations, count);
 
+            last_updated = count;
+
             // search unfinished.
             unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
 
 
             // get global unfinished count
-            all_compacted = (unfinished.size() == 0);
+            all_compacted = (count == 0);
             all_compacted = ::mxx::all_of(all_compacted, comm);
 
             ++iterations;
 
           }
           BL_BENCH_COLLECTIVE_END(test, "compact", iterations, comm);
+        }
+
+        // ==== final query to see if at terminus
+		{
+		  // NOW: do the list ranking
+
+		  // search unfinished
+		  BL_BENCH_START(test);
+		  auto unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
+		  BL_BENCH_COLLECTIVE_END(test, "unfinished2", unfinished.size(), comm);
+
+		  // get global unfinished count
+		  bool all_compacted = (unfinished.size() == 0);
+		  all_compacted = ::mxx::all_of(all_compacted, comm);
 
 
+		  // while have unfinished,  run.  qq contains kmers not necessarily canonical
+		  BL_BENCH_START(test);
+
+		  std::vector<KmerType> qq;
+		  qq.reserve(unfinished.size() * 2);
+
+		  if (!all_compacted) {
+
+			  qq.clear();
+			// get left and right edges, generate updates
+
+//            std::cout << "iteration " << iterations << " kmer: " << unfinished[0].first <<
+//                " in: " << std::get<0>(unfinished[0].second) << " out: " << std::get<1>(unfinished[0].second) <<
+//                " in dist " << std::get<2>(unfinished[0].second) << " out dist " << std::get<3>(unfinished[0].second) << std::endl;
+
+			  // get the end points.
+			  bliss::de_bruijn::operation::chain::compaction_metadata<KmerType> md;
+
+			for (auto t : unfinished) {
+				md = t.second;
+//				std::cout << "\tin dist " << std::get<2>(md) << " kmer: " << std::get<0>(md) << std::endl;
+//				std::cout << "\tkmer: " << t.first << std::endl;
+//				std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << std::get<1>(md) << std::endl;
+
+				// add the in edge target if it needs to be updated.
+				if (std::get<2>(md) > 0) {
+					qq.emplace_back(std::get<0>(md));
+				}
+				if (std::get<3>(md) > 0) {
+					qq.emplace_back(std::get<1>(md));
+				}
+
+			}
+			printf("query size = %ld\n", qq.size());
+
+			comm.barrier();
+
+			// now query.
+			auto results = chainmap.find(qq);
+			printf("query results size = %ld\n", results.size());
+
+
+			// put query results in a map.  key is CANONICAL
+			typename ChainMapType::local_container_type res_map(results.begin(), results.end());
+
+			// now update.  for each unfinished
+			KmerType kk;
+			::bliss::kmer::transform::lex_less<KmerType> lexless;
+			for (auto t : unfinished) {
+				// get left (in) kmer.
+				kk = std::get<0>(t.second);
+
+				// lookup left by canonicaliter %ld
+				auto it = res_map.find(lexless(kk));
+
+				// if left is at terminus, and we haven't updated it,
+				if (((std::get<2>(it->second) == 0) || (std::get<3>(it->second) == 0)) &&
+						(std::get<2>(t.second) > 0)) {
+					// update the current left
+					std::get<2>((*(chainmap.get_local_container().find(t.first))).second) = -(std::get<2>(t.second));
+				}
+
+				// get right (out) kmer
+				kk = std::get<1>(t.second);
+
+				// lookup left by canonical
+				it = res_map.find(lexless(kk));
+
+				// if left is at terminus, and we haven't updated it,
+				if (((std::get<2>(it->second) == 0) || (std::get<3>(it->second) == 0)) &&
+						(std::get<3>(t.second) > 0)) {
+					// update the current left
+					std::get<3>((*(chainmap.get_local_container().find(t.first))).second) = -(std::get<3>(t.second));
+				}
+
+			}
+
+		  }
+		  BL_BENCH_COLLECTIVE_END(test, "cleanup", unfinished.size(), comm);
+
+
+			// search unfinished.count
+			unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
+
+
+			// get global unfinished count
+			all_compacted = (unfinished.size() == 0);
+			all_compacted = ::mxx::all_of(all_compacted, comm);
+
+			assert(all_compacted);
+		}
+
+
+		{
           // ========= check compacted chains.
 
 

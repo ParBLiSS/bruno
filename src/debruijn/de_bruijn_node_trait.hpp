@@ -373,6 +373,107 @@ namespace bliss
 
 
 
+//      /*node trait class*/
+//      template<>
+//      class edge_exists<::bliss::common::DNA6> {
+//        public:
+//
+//          using Alphabet = :bliss::common::DNA6;
+//          using CountType = uint8_t;
+//          using EdgeInputType = bliss::common::Kmer<2, EdgeEncoding, uint8_t>;
+//
+//          friend std::ostream& operator<<(std::ostream& ost, const edge_exists<EdgeEncoding> & node)
+//          {
+//            // friend keyword signals that this overrides an externally declared function
+//            ost << " dBGr node: in = [";
+//            for (int i = 4; i < 8; ++i) ost << (((node.counts >> i) & 0x1) == 1 ? 1 : 0) << ",";
+//            ost << "], out = [";
+//            for (int i = 0; i < 4; ++i) ost << (((node.counts >> i) & 0x1) == 1 ? 1 : 0) << ",";
+//            ost << "]";
+//            return ost;
+//          }
+//
+//
+//          /// array of flags.  bit set to 1 if edge exists.  order from low to high bit:  Out A C G T; In A C G T. DNA 16 encoding.
+//          uint8_t counts;
+//
+//        /*constructor*/
+//        edge_exists() : counts(0) {};
+//
+//        /*destructor.  not virtual, so that we don't have virtual lookup table pointer in the structure as well.*/
+//        ~edge_exists() {}
+//
+//        /**
+//         *
+//         * @param relative_strand
+//         * @param exts            2 4bits in 1 uchar.  ordered as [out, in], lower bits being out.  ordered for the input kmer (not necessarily canonical)
+//         */
+////        template <typename A = EdgeEncoding, typename ::std::enable_if<::std::is_same<A, ::bliss::common::DNA>::value, int>::type = 0>
+////        void update(uint8_t exts)
+////        {
+////          // convert to DNA16 first
+////          if (!std::is_same<EdgeEncoding, bliss::common::DNA16>::value) {
+////            exts = (bliss::common::DNA16::FROM_ASCII[EdgeEncoding::TO_ASCII[exts >> 4]] << 4) | bliss::common::DNA16::FROM_ASCII[EdgeEncoding::TO_ASCII[exts & 0x0F]];
+////          }
+////          counts |= exts;
+////        }
+//
+//        template <typename A = EdgeEncoding,
+//            typename ::std::enable_if<::std::is_same<A, ::bliss::common::DNA16>::value, int>::type = 0>
+//        void update(EdgeInputType edges)
+//        {
+//          counts |= edges.getDataRef()[0];
+//        }
+//
+//        void merge(edge_exists const & other) {
+//          counts |= other.counts;
+//        }
+//        /**
+//         *
+//         *
+////         * @param relative_strand
+////         * @param exts              2 byte chars, in [out, in] lower byte being out.  order for the input kmer (not necessarily same as for the canonical)
+////         */
+////        void update(uint16_t exts)
+////        {
+////
+////          // construct a 2x4bit char.  no reordering.
+////          uint8_t temp = (bliss::common::DNA16::FROM_ASCII[exts >> 8] << 4) | bliss::common::DNA16::FROM_ASCII[exts & 0xFF];
+////
+////          // update counts.
+////          counts |= temp;
+////        }
+//
+//
+//        /**
+//         * get the number of frequency of a particular edge
+//         */
+//        uint8_t get_edge_frequency(uint8_t idx) const {
+//          if (idx >= 8) return 0;
+//
+//          return (counts >> idx) & 0x1;
+//        }
+//
+//        uint8_t get_out_edge_count() const {
+//          uint8_t count = (counts & 0x1);
+//          count += ((counts >> 1) & 0x1);
+//          count += ((counts >> 2) & 0x1);
+//          count += ((counts >> 3) & 0x1);
+//          return count;
+//        }
+//        uint8_t get_in_edge_count() const {
+//          uint8_t count = ((counts >> 4) & 0x1);
+//          count += ((counts >> 5) & 0x1);
+//          count += ((counts >> 6) & 0x1);
+//          count += ((counts >> 7) & 0x1);
+//          return count;
+//        }
+//
+//
+//      };
+
+
+
 //      /*define the strand*/
 //      static constexpr unsigned char SENSE = 0;
 //      static constexpr unsigned char ANTI_SENSE = 1;
