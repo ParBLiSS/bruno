@@ -226,6 +226,15 @@ namespace bliss
       do_sanitize();
     }
 
+    explicit Kmer(std::string const & ascii)
+    {
+    	size_t ss = std::min(ascii.length(), static_cast<size_t>(Kmer::size));
+
+    	for (size_t i = 0; i < ss; ++i) {
+    		this->nextFromChar(KmerAlphabet::FROM_ASCII[ascii[i]]);
+    	}
+    }
+
     /// copy constructor  - want result of iterator to be copiable here so no "explicit"
     Kmer(Kmer const& other) {
       memcpy(this->data, other.data, nWords * sizeof(WORD_TYPE));
