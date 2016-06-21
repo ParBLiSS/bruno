@@ -684,7 +684,16 @@ namespace bliss
       do_sanitize();
     }
   
-  
+    /**
+     * @brief accessor to get a particular character in the kmer.
+     * @detail	 using the bitgroup_op's shift operator.  there is a copy involved and therefore may not be the fastest.
+     * @param idx	character index.  (not bit index)
+     */
+//    KMER_INLINE uint8_t operator[](const size_t idx) const {
+//    	return (idx < size) ? ((*this >> idx).getData()[0] & getLeastSignificantBitsMask<KmerWordType>(bitsPerChar)) : 0x0;
+//    }
+
+
     /* equality comparison operators */
   
     /**
@@ -938,7 +947,7 @@ namespace bliss
       result >>= shift_by;
       return result;
     }
-  
+
     /**
      * @brief Shifts the kmer right by the given number of bits.
      * @param shift_by
