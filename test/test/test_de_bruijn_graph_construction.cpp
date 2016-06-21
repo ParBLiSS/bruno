@@ -70,13 +70,13 @@
 
 
 
-using Alphabet = bliss::common::DNA;
+using Alphabet = bliss::common::DNA5;
 using KmerType = bliss::common::Kmer<31, Alphabet, WordType>;
-using EdgeEncoding = bliss::common::DNA16;
+using EdgeEncoding = bliss::common::DNA5;
 
 #define FileParser ::bliss::io::FASTQParser
 
-using DBGNodeParser = bliss::de_bruijn::de_bruijn_parser<KmerType, EdgeEncoding>;
+using DBGNodeParser = bliss::de_bruijn::de_bruijn_parser<KmerType>;
 
 using DBGMapType = ::bliss::de_bruijn::simple_hash_de_bruijn_map<KmerType>;
 using DBGType = ::bliss::index::kmer::Index<DBGMapType, DBGNodeParser>;
@@ -606,7 +606,7 @@ int main(int argc, char** argv) {
           KmerType ll, rr;
           bliss::de_bruijn::operation::chain::compaction_metadata<KmerType> md;
 
-          size_t last_updated = 0;
+//          size_t last_updated = 0;
 
           while (!all_compacted) {
 
@@ -688,7 +688,7 @@ int main(int argc, char** argv) {
             size_t count = chainmap.update(updates, false, chain_updater );
             printf("iter %ld updated size = %ld\n", iterations, count);
 
-            last_updated = count;
+//            last_updated = count;
 
             // search unfinished.
             unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());

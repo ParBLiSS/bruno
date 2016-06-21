@@ -37,28 +37,16 @@ namespace bliss {
 
       // local computation
       // 5 possibilities for number of in or out edges
-      std::vector<size_t> histogram(25, 0UL);   // in count x out count
+      std::vector<size_t> histogram((Edge::maxHalfEdgeCount + 1) * (Edge::maxHalfEdgeCount + 1), 0UL);   // in count x out count
       size_t x, y;
 
       for (auto t : nodes) {
         y = t.second.get_in_edge_count();
         x = t.second.get_out_edge_count();
 
-        ++histogram[y * 5 + x];
+        ++histogram[y * (Edge::maxHalfEdgeCount + 1) + x];
       }
-/*
-        printf("LOCAL Edge Existence Histogram: \n");
-        printf("\t0\t1\t2\t3\t4\n");
-        for (int j = 0; j <= 4; ++j) {
-          printf("%d\t%ld\t%ld\t%ld\t%ld\t%ld\n", j,
-             histogram[j * 5 ],
-             histogram[j * 5 + 1],
-             histogram[j * 5 + 2],
-             histogram[j * 5 + 3],
-             histogram[j * 5 + 4]
-          );
-        }
-*/
+
 
       // then global reduction
       std::vector<size_t> complete = ::mxx::reduce(histogram, 0, comm);
@@ -68,15 +56,17 @@ namespace bliss {
       // finally, print
       if (comm.rank() == 0) {
         printf("TOTAL Edge Existence Histogram: \n");
-        printf("\t0\t1\t2\t3\t4\n");
-        for (int j = 0; j <= 4; ++j) {
-          printf("%d\t%ld\t%ld\t%ld\t%ld\t%ld\n", j,
-             complete[j * 5 ],
-             complete[j * 5 + 1],
-             complete[j * 5 + 2],
-             complete[j * 5 + 3],
-             complete[j * 5 + 4]
-          );
+        for (size_t j = 0; j <= Edge::maxHalfEdgeCount; ++j) {
+          printf("\t%lu", j);
+        }
+        printf("\n");
+
+        for (size_t j = 0; j <= Edge::maxHalfEdgeCount; ++j) {
+          printf("%lu", j);
+          for (size_t k = 0; k <= Edge::maxHalfEdgeCount; ++k) {
+            printf("\t%ld", complete[j * (Edge::maxHalfEdgeCount + 1) + k]);
+          }
+          printf("\n");
         }
       }
     }
