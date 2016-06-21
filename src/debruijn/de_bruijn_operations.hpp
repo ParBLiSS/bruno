@@ -49,9 +49,10 @@ namespace bliss {
 
 
         /// update the terminal de bruijn chain nodes to indicate it as such.  used on neighbors of branch points.
+        /// return 1 if updated, 0 if not updated
         template <typename Kmer>
         struct terminus_update {
-            void operator()(compaction_metadata<Kmer> & x,
+            size_t operator()(compaction_metadata<Kmer> & x,
                             terminus_update_md<Kmer> const & y)  {
               assert(y.second != 0);  // second entry should not be 0.
 
@@ -65,7 +66,7 @@ namespace bliss {
                 assert(y.first == std::get<0>(x));   // just to make sure that we are talking about the same kmer.
 
                 std::get<2>(x) = 0;   // mark as terminus
-
+                return 1;
               } else if (y.second > 0) {  // OUT edge
 //                if ((std::get<3>(x) == 0) || (y.first != std::get<1>(x))) {
 //                  std::cout << "y: " << y.first << ", x[in] " << std::get<2>(x) << ": " <<   std::get<0>(x) << ", y ?= x[out] " << std::get<3>(x) << ": " << std::get<1>(x) <<  std::endl;
@@ -75,8 +76,9 @@ namespace bliss {
                 assert(y.first == std::get<1>(x));   // just to make sure that we are talking about the same kmer.
 
                 std::get<3>(x) = 0;   // mark as terminus
-
+                return 1;
               }
+              return 0;
             }
         };
 
@@ -93,7 +95,9 @@ namespace bliss {
         // the update metadata is on the same strand as the kmer key (canonical).  the orientation is adjusted accordingly by lex_less
         template <typename Kmer>
         struct chain_update {
-            void operator()(compaction_metadata<Kmer> & x,
+
+        	/// update the chain node.  return 1 if updated, 0 if not.
+            size_t operator()(compaction_metadata<Kmer> & x,
                             chain_update_md<Kmer> const & y)  {
 
               assert(std::get<2>(y) != 0);   // orientation needs to be 1 or -1
@@ -107,17 +111,15 @@ namespace bliss {
 
 
               if (std::get<2>(y) < 0) {  // IN edge
-                if (!( ( (std::get<2>(x) < 0) &&
-                    ( (std::get<1>(y) == std::get<2>(x)) &&
-                      (std::get<0>(y) == std::get<0>(x)) ) ) ||
-                  ( (std::get<2>(x) > 0) &&
-                    ( // (dist > std::get<2>(x)) ||
-                      ( (dist == std::get<2>(x)) &&
-                        (std::get<0>(y)  == std::get<0>(x)) ) ) ) )) {
+                if ( ( std::get<2>(x) == 0) ||
+						! ( ( ( std::get<2>(x) < 0 ) && ((dist < -(std::get<2>(x)) ) || ((dist == -(std::get<2>(x))) && (std::get<0>(y) == std::get<0>(x)))) ) ||
+                		( ( std::get<2>(x) > 0 ) && ((dist != std::get<2>(x) ) || ((dist == std::get<2>(x)) && (std::get<0>(y) == std::get<0>(x)))) )) )
+                {
 
+                  std::cout << "NEW:\tin dist " << std::get<1>(y) << " kmer: " << std::get<0>(y) << std::endl;
+				std::cout << "\tin dist " << std::get<2>(x) << " kmer: " << std::get<0>(x) << std::endl;
+				std::cout << "\tout dist " << std::get<3>(x) << " kmer: " << std::get<1>(x) << std::endl;
 
-                  printf("curr in dist = %d, new dist = %d\n", std::get<2>(x), std::get<1>(y));
-                  std::cout << "curr in kmer: " << std::get<0>(x) << " new  kmer: " << std::get<0>(y) << std::endl;
                 }
 
 
@@ -125,34 +127,36 @@ namespace bliss {
                 // current node not be a terminus. and if it's negative (finished), the sent update should point to same.
                 // k-mer sending update is between current and end, and should have finished sooner.
                 // terminus (x[3] == 0) should not get an update itself, since nothing is to the right of it to send it update.
-                assert( ( (std::get<2>(x) < 0) &&
-                          ( (std::get<1>(y) == std::get<2>(x)) &&
-                            (std::get<0>(y) == std::get<0>(x)) ) ) ||
-                        ( (std::get<2>(x) > 0) &&
-                          ( // (dist > std::get<2>(x)) ||
-                            ( (dist == std::get<2>(x)) &&
-                              (std::get<0>(y)  == std::get<0>(x)) ) ) ) );
+                assert( std::get<2>(x) != 0);
+                assert( ( ( std::get<2>(x) < 0 ) && ((dist < -(std::get<2>(x)) ) || ((dist == -(std::get<2>(x))) && (std::get<0>(y) == std::get<0>(x)))) ) ||
+                		( ( std::get<2>(x) > 0 ) && ((dist != std::get<2>(x) ) || ((dist == std::get<2>(x)) && (std::get<0>(y) == std::get<0>(x)))) ));
                 // if current node not pointing to terminus, update distance should be larger than current distance,
                 // or if equal, should have same k-mer.
                 // cannot be smaller.
 
                 // update out edge IF new distance is larger than current.
-                if ((std::get<2>(x) > 0) && (dist > std::get<2>(x))) {
-                  std::get<2>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
-                  std::get<0>(x) = std::get<0>(y);
+//                if ((std::get<2>(x) > 0) && (dist > std::get<2>(x))) {
+//                  std::get<2>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
+//                  std::get<0>(x) = std::get<0>(y);
+//                }
+                if (std::get<2>(x) > 0) {
+                	if (dist > std::get<2>(x)) std::get<0>(x) = std::get<0>(y);
+                	if (dist >= std::get<2>(x)) {
+                		std::get<2>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
+                		return 1;
+                	}
                 }
 
               } else if (std::get<2>(y) > 0) {  // OUT edge
 
-                if (!( ( (std::get<3>(x) < 0) &&
-                    ( (std::get<1>(y) == std::get<3>(x)) &&
-                      (std::get<0>(y) == std::get<1>(x)) ) ) ||
-                  ( (std::get<3>(x) > 0) &&
-                    ( // (dist > std::get<3>(x)) ||
-                      ( (dist == std::get<3>(x)) &&
-                        (std::get<0>(y)  == std::get<1>(x)) ) ) )) ) {
-                  printf("curr out dist = %d, new dist = %d\n", std::get<3>(x), std::get<1>(y));
-                  std::cout << "curr out kmer: " << std::get<1>(x) << " new kmer: " << std::get<0>(y) << std::endl;
+                if ( (std::get<3>(x) == 0) ||
+                		!(( ( std::get<3>(x) < 0 ) && ((dist < -(std::get<3>(x)) ) || ((dist == -(std::get<3>(x))) && (std::get<0>(y) == std::get<1>(x)))) ) ||
+                		  ( ( std::get<3>(x) > 0 ) && ((dist != std::get<3>(x) ) || ((dist == std::get<3>(x)) && (std::get<0>(y) == std::get<1>(x)))) ))
+						) {
+                    std::cout << "NEW:\tout dist " << std::get<1>(y) << " kmer: " << std::get<0>(y) << std::endl;
+  				std::cout << "\tin dist " << std::get<2>(x) << " kmer: " << std::get<0>(x) << std::endl;
+  				std::cout << "\tout dist " << std::get<3>(x) << " kmer: " << std::get<1>(x) << std::endl;
+
 
                 }
 
@@ -160,24 +164,28 @@ namespace bliss {
                 // current node not be a terminus. and if it's negative (finished), the sent update should point to same.
                 // k-mer sending update is between current and end, and should have finished sooner.
                 // terminus (x[3] == 0) should not get an update itself, since nothing is to the right of it to send it update.
-                assert( ( (std::get<3>(x) < 0) &&
-                          ( (std::get<1>(y) == std::get<3>(x)) &&
-                            (std::get<0>(y) == std::get<1>(x)) ) ) ||
-                        ( (std::get<3>(x) > 0) &&
-                          ( //(dist > std::get<3>(x)) ||
-                            ( (dist == std::get<3>(x)) &&
-                              (std::get<0>(y)  == std::get<1>(x)) ) ) ) );
+                assert( std::get<3>(x) != 0);
+                assert( ( ( std::get<3>(x) < 0 ) && ((dist < -(std::get<3>(x)) ) || ((dist == -(std::get<3>(x))) && (std::get<0>(y) == std::get<1>(x)))) ) ||
+                		( ( std::get<3>(x) > 0 ) && ((dist != std::get<3>(x) ) || ((dist == std::get<3>(x)) && (std::get<0>(y) == std::get<1>(x)))) ));
                 // if current node not pointing to terminus, update distance should be larger than current distance,
                 // or if equal, should have same k-mer.
                 // cannot be smaller.
+//            	if (std::get<1>(y) < 0) {
+//            		printf("out terminal old out = %d, new out = %d\n", std::get<3>(x), std::get<1>(y));
+//            		std::cout << "old out kmer " << std::get<1>(x) << " new out kmer " << std::get<0>(y) << std::endl;
+//            	}
 
                 // update out edge IF new distance is larger than current.
-                if ((std::get<3>(x) > 0) && (dist > std::get<3>(x))) {
-                  std::get<3>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
-                  std::get<1>(x) = std::get<0>(y);
+                if (std::get<3>(x) > 0) {
+                	if (dist > std::get<3>(x)) std::get<1>(x) = std::get<0>(y);
+                	if (dist >= std::get<3>(x)) {
+                		std::get<3>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
+                		return 1;
+                	}
                 }
 
               }
+              return 0;
             }
         };
 

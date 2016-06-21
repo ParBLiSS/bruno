@@ -631,8 +631,7 @@ protected:
         }
 
         // update the entry
-        op((*iter).second, iit->second );
-        ++count;
+        count += op((*iter).second, iit->second );
       }
 
       for (auto iit = middle; iit != input.end(); ++iit) {
@@ -645,8 +644,7 @@ protected:
         }
 
         // update the entry
-        op((*iter).second, iit->second );
-        ++count;
+        count += op((*iter).second, iit->second );
       }
 
       return count;
@@ -767,6 +765,25 @@ protected:
     	}
     }
     // NO bucket interfaces
+
+    iterator find(Key const &key) {
+    	if (splitter(key)) {
+    		return lower_map.find(key);
+    	}
+    	else {
+    		return upper_map.find(key);
+    	}
+    }
+
+    const_iterator find(Key const &key) const {
+    	if (splitter(key)) {
+    		return lower_map.find(key);
+    	}
+    	else {
+    		return upper_map.find(key);
+    	}
+    }
+
 
 };
 
@@ -954,8 +971,7 @@ class densehash_map<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator, fals
         }
 
         // update the entry
-        op((*iter).second, vv.second );
-        ++count;
+        count += op((*iter).second, vv.second );
       }
 
       return count;
@@ -1031,11 +1047,21 @@ class densehash_map<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator, fals
     }
     // NO bucket interfaces
 
+
+    iterator find(Key const &key) {
+    	return map.find(key);
+    }
+
+    const_iterator find(Key const &key) const {
+    	return map.find(key);
+    }
+
 };
 
 
 
 
+// lookup new left
 
 
 
