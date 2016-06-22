@@ -37,16 +37,32 @@ namespace bliss {
 
       // local computation
       // 5 possibilities for number of in or out edges
-      std::vector<size_t> histogram((Edge::maxHalfEdgeCount + 1) * (Edge::maxHalfEdgeCount + 1), 0UL);   // in count x out count
+      std::vector<size_t> histogram((Edge::maxEdgeCount + 1) * (Edge::maxEdgeCount + 1), 0UL);   // in count x out count
       size_t x, y;
 
       for (auto t : nodes) {
         y = t.second.get_in_edge_count();
         x = t.second.get_out_edge_count();
 
-        ++histogram[y * (Edge::maxHalfEdgeCount + 1) + x];
+        ++histogram[y * (Edge::maxEdgeCount + 1) + x];
       }
 
+      // finally, print
+      if (comm.rank() == 0) {
+        printf("LOCAL Edge Existence Histogram: \n");
+        for (size_t j = 0; j <= Edge::maxEdgeCount; ++j) {
+          printf("\t%lu", j);
+        }
+        printf("\n");
+
+        for (size_t j = 0; j <= Edge::maxEdgeCount; ++j) {
+          printf("%lu", j);
+          for (size_t k = 0; k <= Edge::maxEdgeCount; ++k) {
+            printf("\t%ld", histogram[j * (Edge::maxEdgeCount + 1) + k]);
+          }
+          printf("\n");
+        }
+      }
 
       // then global reduction
       std::vector<size_t> complete = ::mxx::reduce(histogram, 0, comm);
@@ -56,15 +72,15 @@ namespace bliss {
       // finally, print
       if (comm.rank() == 0) {
         printf("TOTAL Edge Existence Histogram: \n");
-        for (size_t j = 0; j <= Edge::maxHalfEdgeCount; ++j) {
+        for (size_t j = 0; j <= Edge::maxEdgeCount; ++j) {
           printf("\t%lu", j);
         }
         printf("\n");
 
-        for (size_t j = 0; j <= Edge::maxHalfEdgeCount; ++j) {
+        for (size_t j = 0; j <= Edge::maxEdgeCount; ++j) {
           printf("%lu", j);
-          for (size_t k = 0; k <= Edge::maxHalfEdgeCount; ++k) {
-            printf("\t%ld", complete[j * (Edge::maxHalfEdgeCount + 1) + k]);
+          for (size_t k = 0; k <= Edge::maxEdgeCount; ++k) {
+            printf("\t%ld", complete[j * (Edge::maxEdgeCount + 1) + k]);
           }
           printf("\n");
         }

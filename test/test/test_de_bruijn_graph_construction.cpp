@@ -239,6 +239,10 @@ int main(int argc, char** argv) {
 			idx.read_file_posix<FileParser, DBGNodeParser>(filename, temp, comm);
 		  BL_BENCH_COLLECTIVE_END(test, "read", temp.size(), comm);
 
+//		  for (auto t : temp) {
+//		    std::cout << "input kmer " << bliss::utils::KmerUtils::toASCIIString(t.first) << " edges " << t.second << std::endl;
+//		  }
+//
 
 		  // all possible k-mers from input should already be present, so no need to test.
 
@@ -254,24 +258,24 @@ int main(int argc, char** argv) {
 	    total = idx.size();
 	    if (comm.rank() == 0) printf("total size after insert/rehash is %lu\n", total);
 
-//
-//	    // get all possible edges.
-//	      //============== testing to ensure that all the possible edges are present.
+
+	    // get all possible edges.
+	      //============== testing to ensure that all the possible edges are present.
 //    	std::cout << "COMPRESSED MAP" << std::endl;
 //	    auto cc = idx.get_map().get_local_container();
 //	    for (auto it = cc.begin(); it != cc.end(); ++it) {
 //
-////	    	std::cout << "kmer: " << it->first << " edge " << it->second << std::endl;
+//	    	std::cout << "kmer: " << it->first << " edge " << it->second << std::endl;
 //
 //	    	neighbors.clear();
-//	    	bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_out_neighbors(it->first, it->second, neighbors);
+//	    	it->second.get_out_neighbors(it->first, neighbors);
 //	        query.insert(query.end(), neighbors.begin(), neighbors.end());
 //
 //	        neighbors.clear();
-//	        bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_in_neighbors(it->first, it->second, neighbors);
+//	        it->second.get_in_neighbors(it->first, neighbors);
 //	        query.insert(query.end(), neighbors.begin(), neighbors.end());
 //	    }
-//
+
 //	    // =============== check to see if index is superset of query.  (count should have every result entry showing 1.)
 //	    {
 //	      auto lquery = query;
@@ -362,7 +366,7 @@ int main(int argc, char** argv) {
 
             // get the in neighbor
             neighbors.clear();
-            bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_in_neighbors(t.first, t.second, neighbors);
+            t.second.get_in_neighbors(t.first, neighbors);
             assert(neighbors.size() < 2);   // should not have more than 1 neighbors.
             if (neighbors.size() == 1) {
               std::get<0>(node) = neighbors[0];
@@ -371,7 +375,7 @@ int main(int argc, char** argv) {
 
             // get the out neighbor
             neighbors.clear();
-            bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_out_neighbors(t.first, t.second, neighbors);
+            t.second.get_out_neighbors(t.first, neighbors);
             assert(neighbors.size() < 2);   // should not have more than 1 neighbors.
             if (neighbors.size() == 1) {
               std::get<1>(node) = neighbors[0];
@@ -413,11 +417,11 @@ int main(int argc, char** argv) {
 //
 //          for (auto t : nodes) {
 //            neighbors.clear();
-//            bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_out_neighbors(t.first, t.second, neighbors);
+//            t.second.get_out_neighbors(t.first, neighbors);
 //            all_neighbors2.insert(all_neighbors2.end(), neighbors.begin(), neighbors.end());
 //
 //            neighbors.clear();
-//            bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_in_neighbors(t.first, t.second, neighbors);
+//            t.second.get_in_neighbors(t.first, neighbors);
 //            all_neighbors2.insert(all_neighbors2.end(), neighbors.begin(), neighbors.end());
 //          }
 //          BL_BENCH_COLLECTIVE_END(test, "branch_neighbors", all_neighbors2.size(), comm);
@@ -453,14 +457,14 @@ int main(int argc, char** argv) {
 
           for (auto t : nodes) {
             neighbors.clear();
-            bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_out_neighbors(t.first, t.second, neighbors);
+            t.second.get_out_neighbors(t.first, neighbors);
             for (auto n : neighbors) {
               // insert as is.  let lex_less handle flipping it.
               all_neighbors.emplace_back(n, bliss::de_bruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::de_bruijn::operation::IN));
             }
 
             neighbors.clear();
-            bliss::de_bruijn::node::node_utils<KmerType, typename DBGMapType::mapped_type>::get_in_neighbors(t.first, t.second, neighbors);
+            t.second.get_in_neighbors(t.first, neighbors);
             for (auto n : neighbors) {
               // insert as is.  let lex_less handle flipping it.
               all_neighbors.emplace_back(n, bliss::de_bruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::de_bruijn::operation::OUT));
@@ -712,7 +716,7 @@ int main(int argc, char** argv) {
             // get global unfinished count
             cycle_nodes = std::count_if(unfinished.begin(), unfinished.end(),
             		::bliss::de_bruijn::filter::chain::IsCycleNode(iterations));
-//            printf("iter %lu unfinished %lu noncycle %lu\n", iterations, count, count2);
+            if (comm.rank() < 4) printf("rank %d iter %lu updated %lu, unfinished %lu noncycle %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_nodes);
             all_compacted = (count == 0) || (cycle_nodes == unfinished.size());
             all_compacted = ::mxx::all_of(all_compacted, comm);
 
