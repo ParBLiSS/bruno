@@ -59,12 +59,11 @@ namespace bliss{
         inline KMER operator()(KMER const & x, KMER const & rc) const  {
           return (x < rc) ? x : rc;
         }
-        template <typename EdgeEncoding>
-        inline ::std::pair<KMER, ::bliss::common::Kmer<2, EdgeEncoding, uint8_t> >
-        operator()(std::pair<KMER, ::bliss::common::Kmer<2, EdgeEncoding, uint8_t> > const & x) const {
+        inline ::std::pair<KMER, ::bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t> >
+        operator()(std::pair<KMER, ::bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t> > const & x) const {
           auto y = x.first.reverse_complement();
           return (x.first < y) ? x :   // if already canonical, just return input
-              std::pair<KMER, ::bliss::common::Kmer<2, EdgeEncoding, uint8_t> >(
+              std::pair<KMER, ::bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t> >(
                   y, x.second.reverse_complement() );
         }
     };
@@ -222,11 +221,13 @@ namespace bliss{
 		};
 
     template<typename Kmer >
-    using simple_hash_de_bruijn_map = ::bliss::de_bruijn::de_bruijn_map<Kmer, ::bliss::de_bruijn::node::edge_exists<::bliss::common::DNA>,
+    using simple_hash_de_bruijn_map = ::bliss::de_bruijn::de_bruijn_map<Kmer,
+    		::bliss::de_bruijn::node::edge_exists<typename Kmer::KmerAlphabet>,
         ::bliss::de_bruijn::CanonicalDeBruijnHashMapParams>;
 
     template<typename Kmer >
-    using count_hash_de_bruijn_map = ::bliss::de_bruijn::de_bruijn_map<Kmer, ::bliss::de_bruijn::node::edge_counts<::bliss::common::DNA, uint16_t>,
+    using count_hash_de_bruijn_map = ::bliss::de_bruijn::de_bruijn_map<Kmer,
+    		::bliss::de_bruijn::node::edge_counts<typename Kmer::KmerAlphabet, uint16_t>,
         ::bliss::de_bruijn::CanonicalDeBruijnHashMapParams>;
 
 

@@ -68,11 +68,17 @@
 #include "mxx/env.hpp"
 #include "mxx/comm.hpp"
 
-
-
+#if (pDNA == 16)
+using Alphabet = bliss::common::DNA16;
+#elif (pDNA == 5)
+using Alphabet = bliss::common::DNA5;
+#elif (pDNA == 4)
 using Alphabet = bliss::common::DNA;
+#endif
+
+
 using KmerType = bliss::common::Kmer<31, Alphabet, WordType>;
-using EdgeEncoding = bliss::common::DNA;
+using EdgeEncoding = Alphabet;
 
 #define FileParser ::bliss::io::FASTQParser
 
@@ -212,7 +218,6 @@ int main(int argc, char** argv) {
 
 	  DBGType idx(comm);
 	  ChainMapType chainmap(comm);
-	  ChainMapType chainmap2(comm);
 
 
 	  BL_BENCH_INIT(test);
@@ -579,6 +584,8 @@ int main(int argc, char** argv) {
 //        }
 
 
+        size_t iterations = 0;
+        size_t cycle_nodes = 0;
 
         {
           // NOW: do the list ranking
@@ -595,7 +602,6 @@ int main(int argc, char** argv) {
 
           // while not same, run
           BL_BENCH_START(test);
-          size_t iterations = 0;
 
           std::vector<std::pair<KmerType, bliss::de_bruijn::operation::chain::chain_update_md<KmerType> > > updates;
           updates.reserve(unfinished.size() * 2);
@@ -658,24 +664,24 @@ int main(int argc, char** argv) {
               // if ((std::get<2>(md) == 0) && (std::get<3>(md) == 0)) continue;  // singleton.   next.
             }
 
-//            if (last_updated == updates.size()) {
-                for (auto t : unfinished) {
-                	md = t.second;
-
-                	KmerType tt = testKmer.reverse_complement();
-                	if ( ((t.first == testKmer) || (t.first == tt) ) ||
-                		((std::get<0>(md) == testKmer) || (std::get<0>(md) == tt)) ||
-                			((std::get<1>(md) == testKmer) || (std::get<1>(md) == tt))) {
-
-						std::cout << "it " << iterations;
-						std::cout << "\tin dist " << std::get<2>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md)) <<
-								" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md).reverse_complement()) << std::endl;
-						std::cout << "\tkmer: " << bliss::utils::KmerUtils::toASCIIString(t.first) << " rc: " << bliss::utils::KmerUtils::toASCIIString(t.first.reverse_complement()) << std::endl;
-						std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md)) <<
-								" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md).reverse_complement()) << std::endl;
-                	}
-                }
-//            }
+////            if (last_updated == updates.size()) {
+//                for (auto t : unfinished) {
+//                	md = t.second;
+//
+//                	KmerType tt = testKmer.reverse_complement();
+//                	if ( ((t.first == testKmer) || (t.first == tt) ) ||
+//                		((std::get<0>(md) == testKmer) || (std::get<0>(md) == tt)) ||
+//                			((std::get<1>(md) == testKmer) || (std::get<1>(md) == tt))) {
+//
+//						std::cout << "it " << iterations;
+//						std::cout << "\tin dist " << std::get<2>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md)) <<
+//								" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md).reverse_complement()) << std::endl;
+//						std::cout << "\tkmer: " << bliss::utils::KmerUtils::toASCIIString(t.first) << " rc: " << bliss::utils::KmerUtils::toASCIIString(t.first.reverse_complement()) << std::endl;
+//						std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md)) <<
+//								" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md).reverse_complement()) << std::endl;
+//                	}
+//                }
+////            }
 
 
             comm.barrier();
@@ -689,15 +695,29 @@ int main(int argc, char** argv) {
             // search unfinished.
             unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
 
+//            {
+//              auto t = unfinished[0];
+//              auto md = t.second;
+//  			std::cout << "it " << iterations;
+//  			std::cout << "\tin dist " << std::get<2>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md)) <<
+//  					" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md).reverse_complement()) << std::endl;
+//  			std::cout << "\tkmer: " << bliss::utils::KmerUtils::toASCIIString(t.first) << " rc: " << bliss::utils::KmerUtils::toASCIIString(t.first.reverse_complement()) << std::endl;
+//  			std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md)) <<
+//  					" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md).reverse_complement()) << std::endl;
+//            }
 
-            // get global unfinished count
-            all_compacted = (count == 0);
-            all_compacted = ::mxx::all_of(all_compacted, comm);
-
+            // at this point, the new distances in lists are 2^(iterations + 1)
             ++iterations;
 
+            // get global unfinished count
+            cycle_nodes = std::count_if(unfinished.begin(), unfinished.end(),
+            		::bliss::de_bruijn::filter::chain::IsCycleNode(iterations));
+//            printf("iter %lu unfinished %lu noncycle %lu\n", iterations, count, count2);
+            all_compacted = (count == 0) || (cycle_nodes == unfinished.size());
+            all_compacted = ::mxx::all_of(all_compacted, comm);
+
           }
-          BL_BENCH_COLLECTIVE_END(test, "compact", iterations, comm);
+          BL_BENCH_COLLECTIVE_END(test, "compact", cycle_nodes, comm);
         }
 
         // ==== final query to see if at terminus
@@ -794,7 +814,7 @@ int main(int argc, char** argv) {
 
 
 			// search unfinished.count
-			unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
+			unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::IsUncompactedNode(iterations));
 
 
 			// get global unfinished count

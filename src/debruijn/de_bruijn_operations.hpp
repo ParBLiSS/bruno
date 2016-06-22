@@ -58,9 +58,11 @@ namespace bliss {
 
               if (y.second < 0) {  // IN edge
 
-//                if ((std::get<2>(x) == 0) || (y.first != std::get<0>(x))) {
-//                  std::cout << "y: " << y.first << ", y ?= x[in] " << std::get<2>(x) << ": " <<   std::get<0>(x) << ", x[out] " << std::get<3>(x) << ": " << std::get<1>(x) << std::endl;
-//                }
+                if ((std::get<2>(x) == 0) || (y.first != std::get<0>(x))) {
+                  std::cout << "y: " << bliss::utils::KmerUtils::toASCIIString(y.first) <<
+                		  ", y ?= x[in] " << std::get<2>(x) << ": " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) <<
+						  ", x[out] " << std::get<3>(x) << ": " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << std::endl;
+                }
 
                 assert(std::get<2>(x) == 1);   // just to make sure that the edge we're trying to update is not already "cut".
                 assert(y.first == std::get<0>(x));   // just to make sure that we are talking about the same kmer.
@@ -68,9 +70,11 @@ namespace bliss {
                 std::get<2>(x) = 0;   // mark as terminus
                 return 1;
               } else if (y.second > 0) {  // OUT edge
-//                if ((std::get<3>(x) == 0) || (y.first != std::get<1>(x))) {
-//                  std::cout << "y: " << y.first << ", x[in] " << std::get<2>(x) << ": " <<   std::get<0>(x) << ", y ?= x[out] " << std::get<3>(x) << ": " << std::get<1>(x) <<  std::endl;
-//                }
+                if ((std::get<3>(x) == 0) || (y.first != std::get<1>(x))) {
+                  std::cout << "y: " << bliss::utils::KmerUtils::toASCIIString(y.first) <<
+                		  ", x[in] " << std::get<2>(x) << ": " <<  bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) <<
+						  ", y ?= x[out] " << std::get<3>(x) << ": " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) <<  std::endl;
+                }
 
                 assert(std::get<3>(x) == 1);   // just to make sure that the edge we're trying to update is not already "cut".
                 assert(y.first == std::get<1>(x));   // just to make sure that we are talking about the same kmer.
