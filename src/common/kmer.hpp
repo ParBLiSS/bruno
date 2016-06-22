@@ -1031,7 +1031,7 @@ namespace bliss
       ss << ": MSB [";
       for (int64_t i = nWords - 1; i >=0; --i)
       {
-        ss << "0x" << std::hex << data[i] << " ";
+        ss << "0x" << std::hex << static_cast<size_t>(data[i]) << " ";
       }
       ss << "]";
       return ss.str();
