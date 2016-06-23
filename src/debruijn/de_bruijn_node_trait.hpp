@@ -77,76 +77,6 @@ namespace bliss
       constexpr std::array<uint8_t, 16> pop_cnt<DUMMY>::LUT;
 
 
-//
-//      // utilities operating on nodes
-//      template <typename Kmer, typename EdgeType>
-//      class node_utils {
-//        public:
-//
-//          // construct a new kmer from a known edge, if that edge's count is non-zero
-//          static void get_out_neighbors(Kmer const & kmer, EdgeType const & edge, std::vector<Kmer> & neighbors) {
-//            static_assert(std::is_same<typename Kmer::KmerAlphabet, typename EdgeType::Alphabet>::value,
-//                          "kmer and edge should use the same alphabet.");
-//            neighbors.clear();
-//
-//            for (size_t i = 0; i < EdgeType::maxEdgeCount; ++i) {
-//              if (edge.get_out_edge_frequency(i) > 0) {
-//                neighbors.emplace_back(kmer);
-//                neighbors.back().nextFromChar(EdgeType::BIT_IDX_TO_CHAR[i]);
-//              }
-//            }
-//          }
-//
-//          // construct a new kmer from a known edge, if that edge's count is non-zero
-//          static void get_in_neighbors(Kmer const & kmer, EdgeType const & edge, std::vector<Kmer> & neighbors) {
-//            static_assert(std::is_same<typename Kmer::KmerAlphabet, typename EdgeType::Alphabet>::value,
-//                          "kmer and edge should use the same alphabet.");
-//            neighbors.clear();
-//
-//            for (size_t i = 0; i < EdgeType::maxEdgeCount; ++i) {
-//              if (edge.get_in_edge_frequency(i) > 0) {
-//                neighbors.emplace_back(kmer);
-//                neighbors.back().nextReverseFromChar(EdgeType::BIT_IDX_TO_CHAR[i]);
-//              }
-//            }
-//          }
-//
-//          // construct a new kmer from a known edge, if that edge's count is non-zero
-//          static void get_out_neighbors(Kmer const & kmer, EdgeType const & edge, std::vector<std::pair<Kmer, typename EdgeType::CountType> > & neighbors) {
-//            static_assert(std::is_same<typename Kmer::KmerAlphabet, typename EdgeType::Alphabet>::value,
-//                          "kmer and edge should use the same alphabet.");
-//            neighbors.clear();
-//
-//            typename EdgeType::CountType count;
-//            for (size_t i = 0; i < EdgeType::maxEdgeCount; ++i) {
-//              count = edge.get_out_edge_frequency(i);
-//              if (count > 0) {
-//                neighbors.emplace_back(kmer, count);
-//                neighbors.back().first.nextFromChar(EdgeType::BIT_IDX_TO_CHAR[i]);
-//              }
-//            }
-//          }
-//
-//          // construct a new kmer from a known edge, if that edge's count is non-zero
-//          static void get_in_neighbors(Kmer const & kmer, EdgeType const & edge, std::vector<std::pair<Kmer, typename EdgeType::CountType> > & neighbors) {
-//            static_assert(std::is_same<typename Kmer::KmerAlphabet, typename EdgeType::Alphabet>::value,
-//                          "kmer and edge should use the same alphabet.");
-//            neighbors.clear();
-//
-//            typename EdgeType::CountType count;
-//            for (size_t i = 0; i < EdgeType::maxEdgeCount; ++i) {
-//              count = edge.get_in_edge_frequency(i);
-//              if (count > 0) {
-//                neighbors.emplace_back(kmer, count);
-//                neighbors.back().first.nextReverseFromChar(EdgeType::BIT_IDX_TO_CHAR[i]);
-//              }
-//            }
-//          }
-//
-//
-//      };
-//
-
       template <typename EdgeEncoding, typename COUNT = uint32_t>
       class edge_counts;
 
@@ -200,28 +130,7 @@ namespace bliss
             8    // 1111 N     // 0x00000000
           }};
 
-//			  public:
-//          static constexpr std::array<uint8_t, 16> BIT_IDX_TO_CHAR =
-//          {{   //DNA  //DNA16    // bitvec
-//            0, // 00  // 0001 A     // 0x00000001
-//            1, // 01  // 0010 C     // 0x00000010
-//            2, // 10  // 0100 G     // 0x00000100
-//            3, // 11  // 1000 T     // 0x00001000
-//            8, // 00  // 1111 N     // 0x00000000
-//            8, // 00  // 0000 .     // 0x00000000
-//            8, // 00  // 0011       // 0x00000000
-//            8, // 00  // 0101       // 0x00000000
-//            8, // 00  // 0110       // 0x00000000
-//            8, // 00  // 0111       // 0x00000000
-//            8, // 00  // 1001       // 0x00000000
-//            8, // 00  // 1010       // 0x00000000
-//            8, // 00  // 1011       // 0x00000000
-//            8, // 00  // 1100       // 0x00000000
-//            8, // 00  // 1101       // 0x00000000
-//            8  // 00  // 1110       // 0x00000000
-//          }};
-//
-//			  protected:
+
           /// array of counts.  format:  [out A C G T; in A C G T], ordered for the canonical strand, not necessarily same as for the input kmer..
           std::array<COUNT, 2 * maxEdgeCount> counts;
 
@@ -343,9 +252,6 @@ namespace bliss
 			};
       template <typename COUNT>
       constexpr std::array<uint8_t, 16> edge_counts<bliss::common::DNA, COUNT>::DNA16_TO_BIT_IDX;
-//      template <typename COUNT>
-//      constexpr std::array<uint8_t, 16> edge_counts<bliss::common::DNA, COUNT>::BIT_IDX_TO_CHAR;
-
 
       /*node trait class*/
       template<typename EdgeEncoding, typename DUMMY = void>
@@ -378,29 +284,6 @@ namespace bliss
             8    // 1111 N     // --
           }}; // all unknowns are thrown away.
 
-//        public:
-//
-//          static constexpr std::array<uint8_t, 16> BIT_IDX_TO_CHAR =
-//          {{   //DNA  //DNA16    // bitvec
-//            0, // 00  // 0001 A     // 0x00000001
-//            1, // 01  // 0010 C     // 0x00000010
-//            2, // 10  // 0100 G     // 0x00000100
-//            3, // 11  // 1000 T     // 0x00001000
-//            8, // 00  // 1111 N     // 0x00000000
-//            8, // 00  // 0000 .     // 0x00000000
-//            8, // 00  // 0011       // 0x00000000
-//            8, // 00  // 0101       // 0x00000000
-//            8, // 00  // 0110       // 0x00000000
-//            8, // 00  // 0111       // 0x00000000
-//            8, // 00  // 1001       // 0x00000000
-//            8, // 00  // 1010       // 0x00000000
-//            8, // 00  // 1011       // 0x00000000
-//            8, // 00  // 1100       // 0x00000000
-//            8, // 00  // 1101       // 0x00000000
-//            8  // 00  // 1110       // 0x00000000
-//          }};
-//
-//        protected:
           /// array of flags.  bit set to 1 if edge exists.  order from low to high bit:  Out A C G T; In A C G T. DNA 16 encoding.
           uint8_t counts;
 
@@ -539,28 +422,6 @@ namespace bliss
             7      // 1111 N    // 111
           }};
 
-//        public:
-//          static constexpr std::array<uint8_t, 16> BIT_IDX_TO_CHAR =
-//          {{    //DNA6   //DNA16    // bitvec
-//            1,  //001    // 0001 A     // 0x00000001
-//            3,  //011    // 0010 C     // 0x00000010
-//            6,  //110    // 0100 G     // 0x00000100
-//            4,  //100    // 1000 T     // 0x00001000
-//            7,  //111    // 1111 N     // 0x00010000
-//            0,  //000    // 0000 .     // 0x00100000
-//            2,  //010    // 0011       // 0x00000000
-//            2,  //010    // 0101       // 0x00000000
-//            2,  //010    // 0110       // 0x00000000
-//            2,  //010    // 0111       // 0x00000000
-//            2,  //010    // 1001       // 0x00000000
-//            2,  //010    // 1010       // 0x00000000
-//            2,  //010    // 1011       // 0x00000000
-//            2,  //010    // 1100       // 0x00000000
-//            2,  //010    // 1101       // 0x00000000
-//            2   //010    // 1110       // 0x00000000
-//          }};
-//
-//        protected:
           /// array of flags.  bit set to 1 if edge exists.  order from low to high bit:  Out A C G T; In A C G T. DNA 16 encoding.
           ::std::array<uint8_t, 2> counts;
 
@@ -673,9 +534,6 @@ namespace bliss
       };
       template <typename DUMMY>
       constexpr std::array<uint8_t, 16> edge_exists<bliss::common::DNA6, DUMMY>::DNA16_TO_DNA5;
-//      template <typename DUMMY>
-//      constexpr std::array<uint8_t, 16> edge_exists<bliss::common::DNA6, DUMMY>::BIT_IDX_TO_CHAR;
-
 
 
       /*node trait class*/
@@ -706,29 +564,6 @@ namespace bliss
             15     // 1111 N
           }};
 
-//        public:
-//
-//          static constexpr std::array<uint8_t, 16> BIT_IDX_TO_CHAR =
-//          {{       //DNA16    // bitvec
-//            1,     // 0001 A     // 0x00000000 00000001
-//            2,     // 0010 C     // 0x00000000 00000010
-//            4,     // 0100 G     // 0x00000000 00000100
-//            8,     // 1000 T     // 0x00000000 00001000
-//            15,    // 1111 N     // 0x00000000 00010000
-//            0,     // 0000 .     // 0x00000000 00100000
-//            3,     // 0011       // 0x00000000 01000000
-//            5,     // 0101       // 0x00000000 10000000
-//            6,     // 0110       // 0x00000001 00000000
-//            9,     // 1001       // 0x00000010 00000000
-//            10,    // 1010       // 0x00000100 00000000
-//            12,    // 1100       // 0x00001000 00000000
-//            7,     // 0111       // 0x00010000 00000000
-//            11,    // 1011       // 0x00100000 00000000
-//            13,    // 1101       // 0x01000000 00000000
-//            14,    // 1110       // 0x10000000 00000000
-//          }};
-//
-//        protected:
 
           /// array of flags.  bit set to 1 if edge exists.  order from low to high bit:  Out A C G T; In A C G T. DNA 16 encoding.
           ::std::array<uint16_t, 2> counts;
@@ -838,8 +673,6 @@ namespace bliss
       };
       template <typename DUMMY>
       constexpr std::array<uint8_t, 16> edge_exists<bliss::common::DNA16, DUMMY>::DNA16_TO_DNA16;
-      //      template <typename DUMMY>
-      //      constexpr std::array<uint8_t, 16> edge_exists<bliss::common::DNA16, DUMMY>::BIT_IDX_TO_CHAR;
 
 
 
