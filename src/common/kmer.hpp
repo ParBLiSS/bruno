@@ -776,6 +776,11 @@ namespace bliss
       return rhs < *this;
     }
   
+
+    KMER_INLINE int8_t compare(const Kmer& rhs) const {
+      return ::bliss::utils::bit_ops::compare<WORD_TYPE, nWords>(data, rhs.data);
+    }
+
     /* bit operators */
   
     /**
