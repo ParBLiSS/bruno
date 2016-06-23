@@ -222,12 +222,12 @@ namespace bliss{
 
     template<typename Kmer >
     using simple_hash_de_bruijn_map = ::bliss::de_bruijn::de_bruijn_map<Kmer,
-    		::bliss::de_bruijn::node::edge_exists<typename Kmer::KmerAlphabet>,
+    		::bliss::debruijn::graph::compact_edge<typename Kmer::KmerAlphabet, bool>,
         ::bliss::de_bruijn::CanonicalDeBruijnHashMapParams>;
 
     template<typename Kmer >
     using count_hash_de_bruijn_map = ::bliss::de_bruijn::de_bruijn_map<Kmer,
-    		::bliss::de_bruijn::node::edge_counts<typename Kmer::KmerAlphabet, uint16_t>,
+    		::bliss::debruijn::graph::compact_edge<typename Kmer::KmerAlphabet, uint16_t>,
         ::bliss::de_bruijn::CanonicalDeBruijnHashMapParams>;
 
 

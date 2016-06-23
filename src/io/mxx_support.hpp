@@ -179,10 +179,10 @@ namespace mxx {
 
 
   template<typename A, typename T>
-    struct datatype_builder<::bliss::de_bruijn::node::edge_counts<A, T> > :
-    public datatype_builder<decltype(::bliss::de_bruijn::node::edge_counts<A, T>::counts) > {
+    struct datatype_builder<::bliss::debruijn::graph::compact_edge<A, T> > :
+    public datatype_builder<decltype(::bliss::debruijn::graph::compact_edge<A, T>::counts) > {
 
-      typedef datatype_builder<decltype(::bliss::de_bruijn::node::edge_counts<A, T>::counts) > baseType;
+      typedef datatype_builder<decltype(::bliss::debruijn::graph::compact_edge<A, T>::counts) > baseType;
 
       static MPI_Datatype get_type(){ 
         return baseType::get_type(); 
@@ -195,26 +195,10 @@ namespace mxx {
 
 
   template<typename A, typename T>
-    struct datatype_builder<const bliss::de_bruijn::node::edge_counts<A, T> > : 
-    public datatype_builder<decltype(bliss::de_bruijn::node::edge_counts<A, T>::counts) > {
+    struct datatype_builder<const ::bliss::debruijn::graph::compact_edge<A, T> > :
+    public datatype_builder<decltype(::bliss::debruijn::graph::compact_edge<A, T>::counts) > {
 
-      typedef datatype_builder<decltype(bliss::de_bruijn::node::edge_counts<A, T>::counts) > baseType;
-
-      static MPI_Datatype get_type(){ 
-        return baseType::get_type(); 
-      }
-
-      static size_t num_basic_elements() {
-        return baseType::num_basic_elements();
-      }
-    };
-
-
-  template<typename A>
-    struct datatype_builder<bliss::de_bruijn::node::edge_exists<A> > : 
-    public datatype_builder<decltype(bliss::de_bruijn::node::edge_exists<A>::counts) > {
-
-      typedef datatype_builder<decltype(bliss::de_bruijn::node::edge_exists<A>::counts) > baseType;
+      typedef datatype_builder<decltype(::bliss::debruijn::graph::compact_edge<A, T>::counts) > baseType;
 
       static MPI_Datatype get_type(){ 
         return baseType::get_type(); 
@@ -225,21 +209,37 @@ namespace mxx {
       }
     };
 
-
-  template<typename A>
-    struct datatype_builder<const bliss::de_bruijn::node::edge_exists<A> > : 
-    public datatype_builder<decltype(bliss::de_bruijn::node::edge_exists<A>::counts) > {
-
-      typedef datatype_builder<decltype(bliss::de_bruijn::node::edge_exists<A>::counts) > baseType;
-
-      static MPI_Datatype get_type(){ 
-        return baseType::get_type(); 
-      }
-
-      static size_t num_basic_elements() {
-        return baseType::num_basic_elements();
-      }
-    };
+//
+//  template<typename A>
+//    struct datatype_builder<bliss::de_bruijn::node::edge_exists<A> > :
+//    public datatype_builder<decltype(bliss::de_bruijn::node::edge_exists<A>::counts) > {
+//
+//      typedef datatype_builder<decltype(bliss::de_bruijn::node::edge_exists<A>::counts) > baseType;
+//
+//      static MPI_Datatype get_type(){
+//        return baseType::get_type();
+//      }
+//
+//      static size_t num_basic_elements() {
+//        return baseType::num_basic_elements();
+//      }
+//    };
+//
+//
+//  template<typename A>
+//    struct datatype_builder<const bliss::de_bruijn::node::edge_exists<A> > :
+//    public datatype_builder<decltype(bliss::de_bruijn::node::edge_exists<A>::counts) > {
+//
+//      typedef datatype_builder<decltype(bliss::de_bruijn::node::edge_exists<A>::counts) > baseType;
+//
+//      static MPI_Datatype get_type(){
+//        return baseType::get_type();
+//      }
+//
+//      static size_t num_basic_elements() {
+//        return baseType::num_basic_elements();
+//      }
+//    };
 }
 
 //std::ostream &operator<<(std::ostream &os, uint8_t const &t) {

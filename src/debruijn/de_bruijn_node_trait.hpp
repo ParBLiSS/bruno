@@ -45,40 +45,19 @@
 #include "utils/logging.h"
 #include "common/alphabets.hpp"
 #include "common/kmer.hpp"
+#include "utils/bit_ops.hpp"
 
 namespace bliss
 {
-	namespace de_bruijn
+	namespace debruijn
 	{
-		namespace node
+		namespace graph
 		{
-      static constexpr unsigned char SENSE = 0;
-      static constexpr unsigned char ANTI_SENSE = 1;
-
-      template <typename DUMMY = void>
-      struct pop_cnt {
-          static constexpr std::array<uint8_t, 16> LUT =
-          {{
-            0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4
-          }};
-
-          template <typename T>
-          uint8_t operator()(T const & x) const {
-            uint8_t cnt = 0;
-            T v = x;
-            for (; v; v >>= 4) {
-              // while v is not 0
-              cnt += LUT[v & static_cast<T>(0xF)];  // get lowest 4 bits, then look up
-            }
-            return cnt;
-          }
-      };
-      template <typename DUMMY>
-      constexpr std::array<uint8_t, 16> pop_cnt<DUMMY>::LUT;
 
 
-      template <typename EdgeEncoding, typename COUNT = uint32_t>
-      class edge_counts;
+
+      template <typename EdgeEncoding, typename COUNT = bool, typename DUMMY = void>
+      class compact_edge;
 
 			/**
 			 * @brief kmer metadata holding the incoming and outgoing edge counts in a de bruijn graph.
@@ -86,8 +65,8 @@ namespace bliss
 			 *        the out and in edges are relative to the kmer's orientation.
 			 * @tparam EdgeEncoding  alphabet used for edge encoding.
 			 */
-			template<typename COUNT>
-			class edge_counts<::bliss::common::DNA, COUNT> {
+			template<typename COUNT, typename DUMMY>
+			class compact_edge<::bliss::common::DNA, COUNT, DUMMY> {
 
 			    static_assert(!::std::is_signed<COUNT>::value &&
 			                  ::std::is_integral<COUNT>::value, "only supports unsigned integer types for count");
@@ -110,7 +89,7 @@ namespace bliss
 
           // convert DNA16 value to bit array index.  not strictly needed here but have it for consistency
           // any unmapped gets shifted out to bit 8.
-          static constexpr std::array<uint8_t, 16> DNA16_TO_BIT_IDX =
+          static constexpr std::array<uint8_t, 16> FROM_DNA16 =
           {{     //DNA16    // bitvec
             8,   // 0000 .     // 0x00000000
             0,   // 0001 A     // 0x00000001
@@ -143,7 +122,7 @@ namespace bliss
           using EdgeInputType = bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t>;   // hardcoded to DNA16 because of N
 
 
-	        friend std::ostream& operator<<(std::ostream& ost, const edge_counts<EdgeEncoding, COUNT> & node)
+	        friend std::ostream& operator<<(std::ostream& ost, const compact_edge<EdgeEncoding, COUNT, DUMMY> & node)
 	        {
 	          // friend keyword signals that this overrides an externally declared function
 	          ost << " dBGr node: counts in = [";
@@ -156,10 +135,10 @@ namespace bliss
 
 
 				/*constructor*/
-				edge_counts() { counts.fill(0); };
+				compact_edge() { counts.fill(0); };
 
 				/*destructor.  not virtual, so that we don't have virtual lookup table pointer in the structure as well.*/
-				~edge_counts() {}
+				~compact_edge() {}
 
 
 				/**
@@ -170,16 +149,16 @@ namespace bliss
         {
           // take care of out
           uint8_t out = edges.getData()[0] & 0xF;
-          sat_incr(counts[DNA16_TO_BIT_IDX[out]]);
+          sat_incr(counts[FROM_DNA16[out]]);
 
           // take care of in.
           uint8_t in = edges.getData()[0] >> 4;
-          sat_incr(counts[DNA16_TO_BIT_IDX[in] + maxEdgeCount]);
+          sat_incr(counts[FROM_DNA16[in] + maxEdgeCount]);
         }
 
 
 
-        void merge(edge_counts const & other) {
+        void merge(compact_edge const & other) {
           for (int i = 0; i < 2 * maxEdgeCount; ++i) {
             counts[i] = sat_add(counts[i], other.counts[i]);
           }
@@ -250,21 +229,16 @@ namespace bliss
         }
 
 			};
-      template <typename COUNT>
-      constexpr std::array<uint8_t, 16> edge_counts<bliss::common::DNA, COUNT>::DNA16_TO_BIT_IDX;
 
-      /*node trait class*/
-      template<typename EdgeEncoding, typename DUMMY = void>
-      class edge_exists;
 
       template <typename DUMMY>
-      class edge_exists<::bliss::common::DNA, DUMMY> {
+      class compact_edge<::bliss::common::DNA, bool, DUMMY> {
         protected:
-          pop_cnt<uint8_t> pcnt;
+          ::bliss::utils::bit_ops::pop_cnt<uint8_t> pcnt;
 
           // convert DNA16 value to bit array index.  not strictly needed here but have it for consistency
           // any unmapped gets shifted out to bit 8.
-          static constexpr std::array<uint8_t, 16> DNA16_TO_DNA =
+          static constexpr std::array<uint8_t, 16> FROM_DNA16 =
           {{     //DNA16       // DNA
             8,   // 0000 .     // --
             0,   // 0001 A     // 00
@@ -295,7 +269,7 @@ namespace bliss
 
           static constexpr size_t maxEdgeCount = EdgeEncoding::SIZE;
 
-          friend std::ostream& operator<<(std::ostream& ost, const edge_exists<EdgeEncoding> & node)
+          friend std::ostream& operator<<(std::ostream& ost, const compact_edge<EdgeEncoding, bool, DUMMY> & node)
           {
             // friend keyword signals that this overrides an externally declared function
             ost << " dBGr node: in = [";
@@ -309,10 +283,10 @@ namespace bliss
 
 
         /*constructor*/
-        edge_exists() : counts(0) {};
+        compact_edge() : counts(0) {};
 
         /*destructor.  not virtual, so that we don't have virtual lookup table pointer in the structure as well.*/
-        ~edge_exists() {}
+        ~compact_edge() {}
 
 
         void update(EdgeInputType edges)
@@ -324,12 +298,12 @@ namespace bliss
 //
 //          printf("edge Alphabet %s val->index->bitvec: in: %u->%u->%u, out %u->%u->%u. \n",
 //                 typeid(EdgeEncoding).name(),
-//                 in, DNA16_TO_DNA[in], 0x1 << (DNA16_TO_DNA[in]),
-//                 out, DNA16_TO_DNA[out], 0x1 << (DNA16_TO_DNA[out]));
+//                 in, FROM_DNA16[in], 0x1 << (FROM_DNA16[in]),
+//                 out, FROM_DNA16[out], 0x1 << (FROM_DNA16[out]));
 
         }
 
-        void merge(edge_exists const & other) {
+        void merge(compact_edge const & other) {
           counts |= other.counts;
         }
 
@@ -386,23 +360,19 @@ namespace bliss
 
 
       };
-      template <typename DUMMY>
-      constexpr std::array<uint8_t, 16> edge_exists<bliss::common::DNA, DUMMY>::DNA16_TO_DNA;
-//      template <typename DUMMY>
-//      constexpr std::array<uint8_t, 16> edge_exists<bliss::common::DNA, DUMMY>::BIT_IDX_TO_CHAR;
 
 
 
       /*node trait class*/
-      template<typename DUMMY>
-      class edge_exists<::bliss::common::DNA6, DUMMY> {
+      template <typename DUMMY>
+      class compact_edge<::bliss::common::DNA6, bool, DUMMY> {
         protected:
-          pop_cnt<uint8_t> pcnt;
+          ::bliss::utils::bit_ops::pop_cnt<uint8_t> pcnt;
 
 
           // convert DNA16 value to bit array index.  not strictly needed here but have it for consistency
           // any unmapped gets shifted out to bit 8.
-          static constexpr std::array<uint8_t, 16> DNA16_TO_DNA5 =
+          static constexpr std::array<uint8_t, 16> FROM_DNA16 =
           {{       //DNA16      // DNA5
             8,     // 0000 .    // 000   // has a mapping, but throw away gap and invalid characters.
             1,     // 0001 A    // 001
@@ -436,7 +406,7 @@ namespace bliss
           static constexpr size_t maxEdgeCount = EdgeEncoding::SIZE;
 
 
-          friend std::ostream& operator<<(std::ostream& ost, const edge_exists<EdgeEncoding> & node)
+          friend std::ostream& operator<<(std::ostream& ost, const compact_edge<EdgeEncoding, bool, DUMMY> & node)
           {
             // friend keyword signals that this overrides an externally declared function
             ost << " dBGr node: in = [";
@@ -449,10 +419,10 @@ namespace bliss
 
 
         /*constructor*/
-        edge_exists() { counts.fill(0); };
+        compact_edge() { counts.fill(0); };
 
         /*destructor.  not virtual, so that we don't have virtual lookup table pointer in the structure as well.*/
-        ~edge_exists() {}
+        ~compact_edge() {}
 
         /**
          *
@@ -463,19 +433,19 @@ namespace bliss
         {
           // take care of out
           uint8_t out = edges.getData()[0] & 0xF;
-          counts[0] |= 0x1 << (DNA16_TO_DNA5[out]);
+          counts[0] |= 0x1 << (FROM_DNA16[out]);
 
           // take care of in.
           uint8_t in = (edges.getData()[0] >> 4) & 0xF;
-          counts[1] |= 0x1 << (DNA16_TO_DNA5[in]);
+          counts[1] |= 0x1 << (FROM_DNA16[in]);
 
 //          printf("edge Alphabet %s val->index->bitvec: in: %u->%u->%u, out %u->%u->%u. \n",
 //                 typeid(EdgeEncoding).name(),
-//                 in, DNA16_TO_DNA5[in], 0x1 << (DNA16_TO_DNA5[in]),
-//                 out, DNA16_TO_DNA5[out], 0x1 << (DNA16_TO_DNA5[out]));
+//                 in, FROM_DNA16[in], 0x1 << (FROM_DNA16[in]),
+//                 out, FROM_DNA16[out], 0x1 << (FROM_DNA16[out]));
         }
 
-        void merge(edge_exists const & other) {
+        void merge(compact_edge const & other) {
           counts[0] |= other.counts[0];
           counts[1] |= other.counts[1];
         }
@@ -532,19 +502,17 @@ namespace bliss
 
 
       };
-      template <typename DUMMY>
-      constexpr std::array<uint8_t, 16> edge_exists<bliss::common::DNA6, DUMMY>::DNA16_TO_DNA5;
 
 
       /*node trait class*/
-      template<typename DUMMY>
-      class edge_exists<::bliss::common::DNA16, DUMMY> {
+      template <typename DUMMY>
+      class compact_edge<::bliss::common::DNA16, bool, DUMMY> {
         protected:
-          pop_cnt<uint8_t> pcnt;
+          ::bliss::utils::bit_ops::pop_cnt<uint8_t> pcnt;
 
           // convert DNA16 value to bit array index.  not strictly needed here but have it for consistency
           // any unmapped gets shifted out to bit 8.
-          static constexpr std::array<uint8_t, 16> DNA16_TO_DNA16 =
+          static constexpr std::array<uint8_t, 16> FROM_DNA16 =
           {{       //DNA16
             16,    // 0000 .      // gap is sent to bitbucket.
             1,     // 0001 A
@@ -576,7 +544,7 @@ namespace bliss
 
           static constexpr size_t maxEdgeCount = EdgeEncoding::SIZE;
 
-          friend std::ostream& operator<<(std::ostream& ost, const edge_exists<EdgeEncoding> & node)
+          friend std::ostream& operator<<(std::ostream& ost, const compact_edge<EdgeEncoding, bool, DUMMY> & node)
           {
             // friend keyword signals that this overrides an externally declared function
             ost << " dBGr node: in = [";
@@ -589,10 +557,10 @@ namespace bliss
 
 
         /*constructor*/
-        edge_exists() { counts.fill(0); };
+        compact_edge() { counts.fill(0); };
 
         /*destructor.  not virtual, so that we don't have virtual lookup table pointer in the structure as well.*/
-        ~edge_exists() {}
+        ~compact_edge() {}
 
         /**
          *
@@ -603,20 +571,20 @@ namespace bliss
         {
           // take care of out
           uint8_t out = edges.getData()[0] & 0xF;
-          counts[0] |= (0x1 << (DNA16_TO_DNA16[out]));
+          counts[0] |= (0x1 << (FROM_DNA16[out]));
 
           // take care of in.
           uint8_t in = (edges.getData()[0] >> 4) & 0xF;
-          counts[1] |= (0x1 << (DNA16_TO_DNA16[in]));
+          counts[1] |= (0x1 << (FROM_DNA16[in]));
 
 //          printf("edge Alphabet %s val->index->bitvec: in: %u->%u->%u, out %u->%u->%u. \n",
 //                 typeid(EdgeEncoding).name(),
-//                 in, DNA16_TO_DNA16[in], 0x1 << (DNA16_TO_DNA16[in]),
-//                 out, DNA16_TO_DNA16[out], 0x1 << (DNA16_TO_DNA16[out]));
+//                 in, FROM_DNA16[in], 0x1 << (FROM_DNA16[in]),
+//                 out, FROM_DNA16[out], 0x1 << (FROM_DNA16[out]));
 
         }
 
-        void merge(edge_exists const & other) {
+        void merge(compact_edge const & other) {
           counts[0] |= other.counts[0];
           counts[1] |= other.counts[1];
         }
@@ -671,13 +639,20 @@ namespace bliss
         }
 
       };
+
       template <typename DUMMY>
-      constexpr std::array<uint8_t, 16> edge_exists<bliss::common::DNA16, DUMMY>::DNA16_TO_DNA16;
+      constexpr std::array<uint8_t, 16> compact_edge<::bliss::common::DNA, bool, DUMMY>::FROM_DNA16;
+      template <typename DUMMY>
+      constexpr std::array<uint8_t, 16> compact_edge<::bliss::common::DNA6, bool, DUMMY>::FROM_DNA16;
+      template <typename DUMMY>
+      constexpr std::array<uint8_t, 16> compact_edge<::bliss::common::DNA16, bool, DUMMY>::FROM_DNA16;
+      template <typename COUNT_TYPE, typename DUMMY>
+      constexpr std::array<uint8_t, 16> compact_edge<::bliss::common::DNA, COUNT_TYPE, DUMMY>::FROM_DNA16;
 
 
 
-		}/*namespace node*/
-	}/*namespace de_bruijn*/
+		}/*namespace graph*/
+	}/*namespace debruijn*/
 }/*namespace bliss*/
 
 
