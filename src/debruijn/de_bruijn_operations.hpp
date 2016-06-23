@@ -230,6 +230,61 @@ namespace bliss {
 
         };
 
+
+
+        /**
+         * @brief a node in a compacted chain.  The KMER field points to the lex smaller terminus.
+         *                      int is distance to that terminus.  char is the character along the chain at that position.
+         */
+        template <typename KMER>
+        using compacted_chain_node = ::std::tuple<KMER, int, char>;
+
+        template <typename KMER>
+        struct chain_node_to_char_transform {
+            // convert a chain node to a compacted node (for print out).
+            inline compacted_chain_node<KMER> operator()(::std::pair<KMER, compaction_metadata<KMER> > const & x) const {
+              ::bliss::de_bruijn::operation::chain::lex_less<KMER> lexlt;
+
+              compacted_chain_node<KMER> output;
+
+              // if this is end node, L is set to node k-mer.  else canonical left edge k-mer.
+              KMER L = (std::get<2>(x.second) == 0) ? x.first : lexlt(std::get<0>(x.second));
+              KMER R = (std::get<3>(x.second) == 0) ? x.first : lexlt(std::get<1>(x.second));
+
+              // now compare L and R, both are canonical.
+              bool choose_left = (L < R);
+              int dist = choose_left ? abs(std::get<2>(x.second)) : abs(std::get<3>(x.second));
+
+              // figure out if the chosen Kmer was already canonical or not.
+              bool was_canonical = (dist == 0) ? true :
+                  (choose_left ? (L == std::get<0>(x.second)) : (R == std::get<1>(x.second)));
+
+              // get the character from the node k-mer.  if the chosen L/R was canonical, then no revcomp is needed.  else revcomp the node k-mer.
+              // get the lowest word, then mask for a single character.  finally, map to ASCII
+              char ch = KMER::KmerAlphabet::TO_ASCII[(was_canonical ? x.first : x.first.reverse_complement()).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1)];
+
+              return compacted_chain_node<KMER>(choose_left ? L : R, dist, ch);
+            }
+        };
+
+        template <typename KMER>
+        struct chain_node_less {
+            inline bool operator()(compacted_chain_node<KMER> const & x, compacted_chain_node<KMER> const & y) {
+              int8_t cmp = std::get<0>(x).compare(std::get<0>(y));
+              return (cmp < 0) ? true :
+                  ((cmp == 0) ? (std::get<1>(x) < std::get<1>(y)) : false);
+            }
+        };
+
+        template <typename KMER>
+        struct print_chain_node {
+            inline void operator()(compacted_chain_node<KMER> const & x) {
+              if (std::get<1>(x) == 0) printf("\n[CHAIN]%s", bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)).c_str());
+              else printf("%c", std::get<2>(x));
+            }
+        };
+
+
   	  template <typename Kmer >
   	  using CanonicalDeBruijnChainMapParams = ::dsc::HashMapParams<
   	      Kmer,
