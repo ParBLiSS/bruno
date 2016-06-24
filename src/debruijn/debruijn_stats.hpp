@@ -25,6 +25,8 @@
 #define DEBRUIJN_STATS_HPP_
 
 #include <vector>
+#include <utility>   // pair
+
 #include <mxx/comm.hpp>
 #include <mxx/reduction.hpp>
 
@@ -35,40 +37,39 @@ namespace bliss {
     namespace graph {
 
       template <typename Kmer, typename Edge>
-      void print_compact_edge_histogram(::std::vector<::std::pair<Kmer, Edge> > const & nodes, mxx::comm const & comm) {
+      void print_compact_multi_biedge_histogram(::std::vector<::std::pair<Kmer, Edge> > const & nodes, mxx::comm const & comm) {
 
-      // local computation
-      // 5 possibilities for number of in or out edges
-      std::vector<size_t> histogram((Edge::maxEdgeCount + 1) * (Edge::maxEdgeCount + 1), 0UL);   // in count x out count
-      size_t x, y;
+        std::vector<size_t> complete;
+        {
+          // local computation
+          // 5 possibilities for number of in or out edges
+          std::vector<size_t> histogram((Edge::maxEdgeCount + 1) * (Edge::maxEdgeCount + 1), 0UL);   // in count x out count
 
-      for (auto t : nodes) {
-        y = t.second.get_in_edge_count();
-        x = t.second.get_out_edge_count();
+          for (auto t : nodes) {
+            ++histogram[t.second.get_in_edge_count() * (Edge::maxEdgeCount + 1) + t.second.get_out_edge_count()];
+          }
 
-        ++histogram[y * (Edge::maxEdgeCount + 1) + x];
-      }
-
-      // then global reduction
-      std::vector<size_t> complete = ::mxx::reduce(histogram, 0, comm);
-
-      // finally, print
-      if (comm.rank() == 0) {
-        printf("TOTAL Edge Existence Histogram: \n");
-        for (size_t j = 0; j <= Edge::maxEdgeCount; ++j) {
-          printf("\t%lu", j);
+          // then global reduction
+          ::mxx::reduce(histogram, 0, comm).swap(complete);
         }
-        printf("\n");
 
-        for (size_t j = 0; j <= Edge::maxEdgeCount; ++j) {
-          printf("%lu", j);
-          for (size_t k = 0; k <= Edge::maxEdgeCount; ++k) {
-            printf("\t%ld", complete[j * (Edge::maxEdgeCount + 1) + k]);
+        // finally, print
+        if (comm.rank() == 0) {
+          printf("TOTAL Edge Existence Histogram: \n");
+          for (size_t j = 0; j <= Edge::maxEdgeCount; ++j) {
+            printf("\t%lu", j);
           }
           printf("\n");
+
+          for (size_t j = 0; j <= Edge::maxEdgeCount; ++j) {
+            printf("%lu", j);
+            for (size_t k = 0; k <= Edge::maxEdgeCount; ++k) {
+              printf("\t%ld", complete[j * (Edge::maxEdgeCount + 1) + k]);
+            }
+            printf("\n");
+          }
         }
       }
-    }
 
     } // ns graph
 

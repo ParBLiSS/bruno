@@ -179,10 +179,10 @@ namespace mxx {
 
 
   template<typename A, typename T>
-    struct datatype_builder<::bliss::debruijn::graph::compact_edge<A, T> > :
-    public datatype_builder<decltype(::bliss::debruijn::graph::compact_edge<A, T>::counts) > {
+    struct datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<A, T> > :
+    public datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T>::counts) > {
 
-      typedef datatype_builder<decltype(::bliss::debruijn::graph::compact_edge<A, T>::counts) > baseType;
+      typedef datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T>::counts) > baseType;
 
       static MPI_Datatype get_type(){ 
         return baseType::get_type(); 
@@ -195,10 +195,10 @@ namespace mxx {
 
 
   template<typename A, typename T>
-    struct datatype_builder<const ::bliss::debruijn::graph::compact_edge<A, T> > :
-    public datatype_builder<decltype(::bliss::debruijn::graph::compact_edge<A, T>::counts) > {
+    struct datatype_builder<const ::bliss::debruijn::graph::compact_multi_biedge<A, T> > :
+    public datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T>::counts) > {
 
-      typedef datatype_builder<decltype(::bliss::debruijn::graph::compact_edge<A, T>::counts) > baseType;
+      typedef datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T>::counts) > baseType;
 
       static MPI_Datatype get_type(){ 
         return baseType::get_type(); 

@@ -21,10 +21,12 @@
  *      Author: Tony Pan
  */
 
-#ifndef DEBRUIJN_CHAIN_PERATIONS_HPP_
-#define DEBRUIJN_CHAIN_PERATIONS_HPP_
+#ifndef DEBRUIJN_CHAIN_OPERATIONS_HPP_
+#define DEBRUIJN_CHAIN_OPERATIONS_HPP_
 
 #include <tuple>
+#include <utility>
+#include "debruijn/debruijn_chain_node.hpp"
 
 namespace bliss {
   namespace debruijn {
@@ -35,11 +37,6 @@ namespace bliss {
 
       namespace chain {
 
-        // data type for debruijn graph chain compaction
-        // first Kmer is in edge, second Kmer is out edge.  int is distance from end node.
-        // 0 means that this node is a terminus.  negative numbers indicate that the edge is pointing to a terminus
-        template <typename Kmer>
-        using compaction_metadata = ::std::tuple<Kmer, Kmer, int, int>;
 
         // k-mer is the target k-mer ON SAME STRAND as the canonical key kmer that this is used with.
         //    i.e. if key kmer is canonical, Kmer in field is on same strand (whether Kmer itself is canonical or not)
@@ -52,16 +49,16 @@ namespace bliss {
         /// return 1 if updated, 0 if not updated
         template <typename Kmer>
         struct terminus_update {
-            size_t operator()(compaction_metadata<Kmer> & x,
-                            terminus_update_md<Kmer> const & y)  {
+            size_t operator()(::bliss::debruijn::simple_biedge<Kmer> & x,
+                              terminus_update_md<Kmer> const & y)  {
               assert(y.second != 0);  // second entry should not be 0.
 
               if (y.second < 0) {  // IN edge
 
                 if ((std::get<2>(x) == 0) || (y.first != std::get<0>(x))) {
                   std::cout << "y: " << bliss::utils::KmerUtils::toASCIIString(y.first) <<
-                		  ", y ?= x[in] " << std::get<2>(x) << ": " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) <<
-						  ", x[out] " << std::get<3>(x) << ": " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << std::endl;
+                      ", y ?= x[in] " << std::get<2>(x) << ": " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) <<
+                      ", x[out] " << std::get<3>(x) << ": " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << std::endl;
                 }
 
                 assert(std::get<2>(x) == 1);   // just to make sure that the edge we're trying to update is not already "cut".
@@ -72,8 +69,8 @@ namespace bliss {
               } else if (y.second > 0) {  // OUT edge
                 if ((std::get<3>(x) == 0) || (y.first != std::get<1>(x))) {
                   std::cout << "y: " << bliss::utils::KmerUtils::toASCIIString(y.first) <<
-                		  ", x[in] " << std::get<2>(x) << ": " <<  bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) <<
-						  ", y ?= x[out] " << std::get<3>(x) << ": " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) <<  std::endl;
+                      ", x[in] " << std::get<2>(x) << ": " <<  bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) <<
+                      ", y ?= x[out] " << std::get<3>(x) << ": " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) <<  std::endl;
                 }
 
                 assert(std::get<3>(x) == 1);   // just to make sure that the edge we're trying to update is not already "cut".
@@ -100,9 +97,9 @@ namespace bliss {
         template <typename Kmer>
         struct chain_update {
 
-        	/// update the chain node.  return 1 if updated, 0 if not.
-            size_t operator()(compaction_metadata<Kmer> & x,
-                            chain_update_md<Kmer> const & y)  {
+            /// update the chain node.  return 1 if updated, 0 if not.
+            size_t operator()(::bliss::debruijn::simple_biedge<Kmer> & x,
+                              chain_update_md<Kmer> const & y)  {
 
               assert(std::get<2>(y) != 0);   // orientation needs to be 1 or -1
 
@@ -116,8 +113,8 @@ namespace bliss {
 
               if (std::get<2>(y) < 0) {  // IN edge
                 if ( ( std::get<2>(x) == 0) ||
-						! ( ( ( std::get<2>(x) < 0 ) && ((dist < -(std::get<2>(x)) ) || ((dist == -(std::get<2>(x))) && (std::get<0>(y) == std::get<0>(x)))) ) ||
-                		( ( std::get<2>(x) > 0 ) && ((dist != std::get<2>(x) ) || ((dist == std::get<2>(x)) && (std::get<0>(y) == std::get<0>(x)))) )) )
+                    ! ( ( ( std::get<2>(x) < 0 ) && ((dist < -(std::get<2>(x)) ) || ((dist == -(std::get<2>(x))) && (std::get<0>(y) == std::get<0>(x)))) ) ||
+                        ( ( std::get<2>(x) > 0 ) && ((dist != std::get<2>(x) ) || ((dist == std::get<2>(x)) && (std::get<0>(y) == std::get<0>(x)))) )) )
                 {
 
                   std::cout << "NEW:\tin dist " << std::get<1>(y) << " kmer: " << std::get<0>(y) << std::endl;
@@ -132,33 +129,33 @@ namespace bliss {
                 // terminus (x[3] == 0) should not get an update itself, since nothing is to the right of it to send it update.
                 assert( std::get<2>(x) != 0);
                 assert( ( ( std::get<2>(x) < 0 ) && ((dist < -(std::get<2>(x)) ) || ((dist == -(std::get<2>(x))) && (std::get<0>(y) == std::get<0>(x)))) ) ||
-                		( ( std::get<2>(x) > 0 ) && ((dist != std::get<2>(x) ) || ((dist == std::get<2>(x)) && (std::get<0>(y) == std::get<0>(x)))) ));
+                        ( ( std::get<2>(x) > 0 ) && ((dist != std::get<2>(x) ) || ((dist == std::get<2>(x)) && (std::get<0>(y) == std::get<0>(x)))) ));
                 // if current node not pointing to terminus, update distance should be larger than current distance,
                 // or if equal, should have same k-mer.
                 // cannot be smaller.
 
                 // update out edge IF new distance is larger than current.
-//                if ((std::get<2>(x) > 0) && (dist > std::get<2>(x))) {
-//                  std::get<2>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
-//                  std::get<0>(x) = std::get<0>(y);
-//                }
+                //                if ((std::get<2>(x) > 0) && (dist > std::get<2>(x))) {
+                //                  std::get<2>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
+                //                  std::get<0>(x) = std::get<0>(y);
+                //                }
                 if (std::get<2>(x) > 0) {
-                	if (dist > std::get<2>(x)) std::get<0>(x) = std::get<0>(y);
-                	if (dist >= std::get<2>(x)) {
-                		std::get<2>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
-                		return 1;
-                	}
+                  if (dist > std::get<2>(x)) std::get<0>(x) = std::get<0>(y);
+                  if (dist >= std::get<2>(x)) {
+                    std::get<2>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
+                    return 1;
+                  }
                 }
 
               } else if (std::get<2>(y) > 0) {  // OUT edge
 
                 if ( (std::get<3>(x) == 0) ||
-                		!(( ( std::get<3>(x) < 0 ) && ((dist < -(std::get<3>(x)) ) || ((dist == -(std::get<3>(x))) && (std::get<0>(y) == std::get<1>(x)))) ) ||
-                		  ( ( std::get<3>(x) > 0 ) && ((dist != std::get<3>(x) ) || ((dist == std::get<3>(x)) && (std::get<0>(y) == std::get<1>(x)))) ))
-                    ) {
-                    std::cout << "NEW:\tout dist " << std::get<1>(y) << " kmer: " << std::get<0>(y) << std::endl;
-                    std::cout << "\tin dist " << std::get<2>(x) << " kmer: " << std::get<0>(x) << std::endl;
-                    std::cout << "\tout dist " << std::get<3>(x) << " kmer: " << std::get<1>(x) << std::endl;
+                    !(( ( std::get<3>(x) < 0 ) && ((dist < -(std::get<3>(x)) ) || ((dist == -(std::get<3>(x))) && (std::get<0>(y) == std::get<1>(x)))) ) ||
+                        ( ( std::get<3>(x) > 0 ) && ((dist != std::get<3>(x) ) || ((dist == std::get<3>(x)) && (std::get<0>(y) == std::get<1>(x)))) ))
+                ) {
+                  std::cout << "NEW:\tout dist " << std::get<1>(y) << " kmer: " << std::get<0>(y) << std::endl;
+                  std::cout << "\tin dist " << std::get<2>(x) << " kmer: " << std::get<0>(x) << std::endl;
+                  std::cout << "\tout dist " << std::get<3>(x) << " kmer: " << std::get<1>(x) << std::endl;
                 }
 
                 // some checks
@@ -167,22 +164,22 @@ namespace bliss {
                 // terminus (x[3] == 0) should not get an update itself, since nothing is to the right of it to send it update.
                 assert( std::get<3>(x) != 0);
                 assert( ( ( std::get<3>(x) < 0 ) && ((dist < -(std::get<3>(x)) ) || ((dist == -(std::get<3>(x))) && (std::get<0>(y) == std::get<1>(x)))) ) ||
-                		( ( std::get<3>(x) > 0 ) && ((dist != std::get<3>(x) ) || ((dist == std::get<3>(x)) && (std::get<0>(y) == std::get<1>(x)))) ));
+                        ( ( std::get<3>(x) > 0 ) && ((dist != std::get<3>(x) ) || ((dist == std::get<3>(x)) && (std::get<0>(y) == std::get<1>(x)))) ));
                 // if current node not pointing to terminus, update distance should be larger than current distance,
                 // or if equal, should have same k-mer.
                 // cannot be smaller.
-//            	if (std::get<1>(y) < 0) {
-//            		printf("out terminal old out = %d, new out = %d\n", std::get<3>(x), std::get<1>(y));
-//            		std::cout << "old out kmer " << std::get<1>(x) << " new out kmer " << std::get<0>(y) << std::endl;
-//            	}
+                //            	if (std::get<1>(y) < 0) {
+                //            		printf("out terminal old out = %d, new out = %d\n", std::get<3>(x), std::get<1>(y));
+                //            		std::cout << "old out kmer " << std::get<1>(x) << " new out kmer " << std::get<0>(y) << std::endl;
+                //            	}
 
                 // update out edge IF new distance is larger than current.
                 if (std::get<3>(x) > 0) {
-                	if (dist > std::get<3>(x)) std::get<1>(x) = std::get<0>(y);
-                	if (dist >= std::get<3>(x)) {
-                		std::get<3>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
-                		return 1;
-                	}
+                  if (dist > std::get<3>(x)) std::get<1>(x) = std::get<0>(y);
+                  if (dist >= std::get<3>(x)) {
+                    std::get<3>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
+                    return 1;
+                  }
                 }
 
               }
@@ -190,62 +187,55 @@ namespace bliss {
             }
         };
 
+//
+//
+//        template <typename KMER>
+//        struct lex_less {
+//            inline KMER operator()(KMER const & x) const  {
+//              auto y = x.reverse_complement();
+//              return (x < y) ? x : y;
+//            }
+//            inline KMER operator()(KMER const & x, KMER const & rc) const  {
+//              return (x < rc) ? x : rc;
+//            }
+//
+//            inline ::std::pair<KMER, ::bliss::debruijn::operation::chain::terminus_update_md<KMER> >
+//            operator()(std::pair<KMER, ::bliss::debruijn::operation::chain::terminus_update_md<KMER> > const & x) const {
+//              auto y = x.first.reverse_complement();
+//              if (x.first <= y)
+//                return x;   // if already canonical, just return input
+//              else {
+//                ::bliss::debruijn::operation::chain::terminus_update_md<KMER> z(x.second.first.reverse_complement(), -(x.second.second));
+//                return std::pair<KMER, ::bliss::debruijn::operation::chain::terminus_update_md<KMER> >( y, z );
+//
+//              }
+//            }
+//
+//            inline ::std::pair<KMER, ::bliss::debruijn::operation::chain::chain_update_md<KMER> >
+//            operator()(std::pair<KMER, ::bliss::debruijn::operation::chain::chain_update_md<KMER> > const & x) const {
+//              auto y = x.first.reverse_complement();
+//              if (x.first <= y)
+//                return x;   // if already canonical, just return input
+//              else {
+//                // revcomp kmer, keep distance, flip edge orientation
+//                ::bliss::debruijn::operation::chain::chain_update_md<KMER> z(std::get<0>(x.second).reverse_complement(), std::get<1>(x.second), -(std::get<2>(x.second)));
+//                return std::pair<KMER, ::bliss::debruijn::operation::chain::chain_update_md<KMER> >( y, z );
+//
+//              }
+//            }
+//
+//        };
+//
 
 
-        template <typename KMER>
-        struct lex_less {
-            inline KMER operator()(KMER const & x) const  {
-              auto y = x.reverse_complement();
-              return (x < y) ? x : y;
-            }
-            inline KMER operator()(KMER const & x, KMER const & rc) const  {
-              return (x < rc) ? x : rc;
-            }
-
-            inline ::std::pair<KMER, ::bliss::debruijn::operation::chain::terminus_update_md<KMER> >
-            operator()(std::pair<KMER, ::bliss::debruijn::operation::chain::terminus_update_md<KMER> > const & x) const {
-              auto y = x.first.reverse_complement();
-              if (x.first <= y)
-            	  return x;   // if already canonical, just return input
-              else {
-            	  ::bliss::debruijn::operation::chain::terminus_update_md<KMER> z(x.second.first.reverse_complement(), -(x.second.second));
-            	  return std::pair<KMER, ::bliss::debruijn::operation::chain::terminus_update_md<KMER> >( y, z );
-
-              }
-            }
-
-            inline ::std::pair<KMER, ::bliss::debruijn::operation::chain::chain_update_md<KMER> >
-            operator()(std::pair<KMER, ::bliss::debruijn::operation::chain::chain_update_md<KMER> > const & x) const {
-              auto y = x.first.reverse_complement();
-              if (x.first <= y)
-                return x;   // if already canonical, just return input
-              else {
-                // revcomp kmer, keep distance, flip edge orientation
-                ::bliss::debruijn::operation::chain::chain_update_md<KMER> z(std::get<0>(x.second).reverse_complement(), std::get<1>(x.second), -(std::get<2>(x.second)));
-                return std::pair<KMER, ::bliss::debruijn::operation::chain::chain_update_md<KMER> >( y, z );
-
-              }
-            }
-
-
-        };
-
-
-
-        /**
-         * @brief a node in a compacted chain.  The KMER field points to the lex smaller terminus.
-         *                      int is distance to that terminus.  char is the character along the chain at that position.
-         */
-        template <typename KMER>
-        using compacted_chain_node = ::std::tuple<KMER, int, char>;
 
         template <typename KMER>
         struct chain_node_to_char_transform {
             // convert a chain node to a compacted node (for print out).
-            inline compacted_chain_node<KMER> operator()(::std::pair<KMER, compaction_metadata<KMER> > const & x) const {
-              ::bliss::debruijn::operation::chain::lex_less<KMER> lexlt;
+            inline ::bliss::debruijn::chain::compacted_chain_node<KMER> operator()(::std::pair<KMER, ::bliss::debruijn::simple_biedge<KMER> > const & x) const {
+              ::bliss::debruijn::lex_less<KMER> lexlt;
 
-              compacted_chain_node<KMER> output;
+              ::bliss::debruijn::chain::compacted_chain_node<KMER> output;
 
               // if this is end node, L is set to node k-mer.  else canonical left edge k-mer.
               KMER L = (std::get<2>(x.second) == 0) ? x.first : lexlt(std::get<0>(x.second));
@@ -261,15 +251,15 @@ namespace bliss {
 
               // get the character from the node k-mer.  if the chosen L/R was canonical, then no revcomp is needed.  else revcomp the node k-mer.
               // get the lowest word, then mask for a single character.  finally, map to ASCII
-              char ch = KMER::KmerAlphabet::TO_ASCII[(was_canonical ? x.first : x.first.reverse_complement()).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1)];
+              char ch = (was_canonical ? x.first : x.first.reverse_complement()).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1);
 
-              return compacted_chain_node<KMER>(choose_left ? L : R, dist, ch);
+              return ::bliss::debruijn::chain::compacted_chain_node<KMER>(choose_left ? L : R, dist, ch);
             }
         };
 
         template <typename KMER>
         struct chain_node_less {
-            inline bool operator()(compacted_chain_node<KMER> const & x, compacted_chain_node<KMER> const & y) {
+            inline bool operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x, ::bliss::debruijn::chain::compacted_chain_node<KMER> const & y) {
               int8_t cmp = std::get<0>(x).compare(std::get<0>(y));
               return (cmp < 0) ? true :
                   ((cmp == 0) ? (std::get<1>(x) < std::get<1>(y)) : false);
@@ -278,28 +268,47 @@ namespace bliss {
 
         template <typename KMER>
         struct print_chain_node {
-            inline void operator()(compacted_chain_node<KMER> const & x) {
+            inline void operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x) {
               if (std::get<1>(x) == 0) printf("\n[CHAIN]%s", bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)).c_str());
-              else printf("%c", std::get<2>(x));
+              else printf("%c", KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
             }
         };
 
 
-  	  template <typename Kmer >
-  	  using CanonicalDeBruijnChainMapParams = ::dsc::HashMapParams<
-  	      Kmer,
-  	      ::bliss::debruijn::operation::chain::lex_less,  // precanonalizer.  operates on the value as well
-  	       ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
-  	        ::bliss::index::kmer::DistHashMurmur,
-  	        ::std::equal_to,
-  	         ::bliss::kmer::transform::identity,
-  	          ::bliss::index::kmer::StoreHashMurmur,
-  	          ::std::equal_to
-  	        >;
+//        template <typename Kmer >
+//        using CanonicalDeBruijnChainMapParams = ::dsc::HashMapParams<
+//            Kmer,
+//            ::bliss::debruijn::operation::chain::lex_less,  // precanonalizer.  operates on the value as well
+//             ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
+//              ::bliss::index::kmer::DistHashMurmur,
+//               ::std::equal_to,
+//                ::bliss::kmer::transform::identity,
+//                 ::bliss::index::kmer::StoreHashMurmur,
+//                  ::std::equal_to
+//                   >;
 
       } // namespace chain
 
     } //namespace operation
+
+    namespace transform {
+      /// standard companion function (used by lex_less) to compact_simple_biedge to get reverse complement of edge.
+      template <typename KMER>
+      inline ::bliss::debruijn::operation::chain::terminus_update_md<KMER>
+      reverse_complement(::bliss::debruijn::operation::chain::terminus_update_md<KMER> const & x) {
+        return ::bliss::debruijn::operation::chain::terminus_update_md<KMER>(x.second.first.reverse_complement(), -(x.second.second));
+      }
+
+
+      template <typename KMER>
+      inline ::bliss::debruijn::operation::chain::chain_update_md<KMER>
+      reverse_complement(::bliss::debruijn::operation::chain::chain_update_md<KMER> const & x) {
+        return ::bliss::debruijn::operation::chain::chain_update_md<KMER>(std::get<0>(x.second).reverse_complement(), std::get<1>(x.second), -(std::get<2>(x.second)));
+      }
+    }  // ns transform
+
+
+
   } //namespace debruijn
 } //namespace bliss
 

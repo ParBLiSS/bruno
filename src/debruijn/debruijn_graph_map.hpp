@@ -29,58 +29,18 @@
 
 #include <utility> 			  // for std::pair
 
-//#include <sparsehash/dense_hash_map>  // not a multimap, where we need it most.
-#include <functional> 		// for std::function and std::hash
-#include <algorithm> 		// for sort, stable_sort, unique, is_sorted
-#include <iterator>  // advance, distance
-
-#include <cstdint>  // for uint8, etc.
-
-#include <type_traits>
-
-#include "debruijn/debruijn_graph_node.hpp"	//node trait data structure storing the linkage information to the node
 #include "containers/distributed_densehash_map.hpp"
 
-#include "utils/kmer_utils.hpp"
+#include "debruijn/debruijn_common.hpp"
+#include "debruijn/debruijn_graph_node.hpp"	//node trait data structure storing the linkage information to the node
 
 #include "utils/benchmark_utils.hpp"  // for timing.
+
 #include "utils/logging.h"
 
 
 namespace bliss {
 	namespace debruijn {
-
-    template <typename KMER>
-    struct lex_less {
-        inline KMER operator()(KMER const & x) const  {
-          auto y = x.reverse_complement();
-          return (x < y) ? x : y;
-        }
-        inline KMER operator()(KMER const & x, KMER const & rc) const  {
-          return (x < rc) ? x : rc;
-        }
-        inline ::std::pair<KMER, ::bliss::debruijn::SimpleBiEdgeType >
-        operator()(std::pair<KMER, ::bliss::debruijn::SimpleBiEdgeType > const & x) const {
-          auto y = x.first.reverse_complement();
-          return (x.first < y) ? x :   // if already canonical, just return input
-              std::pair<KMER, ::bliss::debruijn::SimpleBiEdgeType >(
-                  y, x.second.reverse_complement() );
-        }
-    };
-
-
-	  template <typename Kmer >
-	  using CanonicalDeBruijnHashMapParams = ::dsc::HashMapParams<
-	      Kmer,
-	      ::bliss::debruijn::lex_less,  // precanonalizer.  operates on the value as well
-	       ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
-	        ::bliss::index::kmer::DistHashMurmur,
-	        ::std::equal_to,
-	         ::bliss::kmer::transform::identity,
-	          ::bliss::index::kmer::StoreHashMurmur,
-	          ::std::equal_to
-	        >;
-
 
 	  namespace graph {
 	  /**
@@ -222,12 +182,12 @@ namespace bliss {
 
     template<typename Kmer >
     using simple_hash_compact_debruijn_graph_map = ::bliss::debruijn::graph::compact_debruijn_graph_map<Kmer,
-    		::bliss::debruijn::graph::compact_edge<typename Kmer::KmerAlphabet, bool>,
+    		::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, bool>,
         ::bliss::debruijn::CanonicalDeBruijnHashMapParams>;
 
     template<typename Kmer >
     using count_hash_compact_debruijn_graph_map = ::bliss::debruijn::graph::compact_debruijn_graph_map<Kmer,
-    		::bliss::debruijn::graph::compact_edge<typename Kmer::KmerAlphabet, uint16_t>,
+    		::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, uint16_t>,
         ::bliss::debruijn::CanonicalDeBruijnHashMapParams>;
 
 	  } // namespace graph

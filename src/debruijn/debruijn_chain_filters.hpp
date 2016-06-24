@@ -26,6 +26,8 @@
 
 #include <vector>
 
+#include "debruijn/debruijn_chain_node.hpp"
+
 namespace bliss {
   namespace debruijn {
     namespace filter {
@@ -42,6 +44,7 @@ namespace bliss {
               return (std::get<2>(t.second) == 0) && (std::get<3>(t.second) == 0);
             }
         };
+
         struct IsTerminus {
             /// does not filter by group of results.
             template <typename Iter>
@@ -82,9 +85,9 @@ namespace bliss {
 
         // points to internal node that are not cycles
         struct IsCycleNode {
-        	int max_distance;
+            int max_distance;
 
-        	IsCycleNode(size_t const iter) : max_distance(0x1 << iter) {};
+            IsCycleNode(size_t const iter) : max_distance(0x1 << iter) {};
 
             /// does not filter by group of results.
             template <typename Iter>
@@ -94,15 +97,15 @@ namespace bliss {
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
               return (std::get<2>(t.second) == max_distance) &&
-            		  (std::get<3>(t.second) == max_distance);
+                  (std::get<3>(t.second) == max_distance);
             }
         };
 
         // points to internal node that are not cycles
         struct IsUncompactedNode {
-        	int max_distance;
+            int max_distance;
 
-        	IsUncompactedNode(size_t const iter) : max_distance(0x1 << iter) {};
+            IsUncompactedNode(size_t const iter) : max_distance(0x1 << iter) {};
 
             /// does not filter by group of results.
             template <typename Iter>
@@ -112,7 +115,7 @@ namespace bliss {
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
               return ((std::get<2>(t.second) > 0) || (std::get<3>(t.second) > 0)) && // at least 1 is positive
-            		  !((std::get<2>(t.second) == max_distance) && (std::get<3>(t.second) == max_distance));  // not both are at max_distance.
+                  !((std::get<2>(t.second) == max_distance) && (std::get<3>(t.second) == max_distance));  // not both are at max_distance.
             }
         };
 

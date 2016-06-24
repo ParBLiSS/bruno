@@ -35,8 +35,17 @@ namespace bliss
 
   namespace debruijn
   {
-    using SimpleBiEdgeType = bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t>;
+    /// simple biedge type. packed in and out edge character (adjacent to current k-mer.)  e.g. x-Kmer-y would be have xy as the biedge representation.  simple because it's not compound.
+    using compact_simple_biedge = bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t>;
 
+    namespace transform {
+      /// standard companion function (used by lex_less) to compact_simple_biedge to get reverse complement of edge.
+      template <typename Kmer = ::bliss::debruijn::compact_simple_biedge>
+      inline ::bliss::debruijn::compact_simple_biedge
+      reverse_complement(::bliss::debruijn::compact_simple_biedge const & x) {
+        return x.reverse_complement();
+      }
+    }
 
   namespace iterator
   {
@@ -50,10 +59,10 @@ namespace bliss
     //  e.g. template< class c = C; typename std::enable_if<std::is_same<c, std::string>::value, int>::type x = 0>
 
   	  template<typename IT, typename Alphabet = bliss::common::DNA16>
-  	  class edge_iterator;
+  	  class biedge_generating_iterator;
 
     /**
-     * @class   edge_iterator
+     * @class   biedge_generating_iterator
      * @brief   given a k-mer position, retrieve its left and right bases, including the dummy bases at both ends of read
      * @details specializations of this class uses a byte to manage the edge info.
      *          upper 4 bits holds the left base (encoded.  correspond to in edge)
@@ -66,8 +75,8 @@ namespace bliss
      *          using DNA16 because it is the most encompassing, also it supports 'N'
      */
   	template<typename IT>
-  	class edge_iterator<IT, bliss::common::DNA16> :
-  	  public ::std::iterator<::std::forward_iterator_tag, ::bliss::debruijn::SimpleBiEdgeType >
+  	class biedge_generating_iterator<IT, bliss::common::DNA16> :
+  	  public ::std::iterator<::std::forward_iterator_tag, ::bliss::debruijn::compact_simple_biedge >
   	{
       protected:
 
@@ -85,8 +94,8 @@ namespace bliss
         public:
 
           using Alphabet = bliss::common::DNA16;
-          using self_type = edge_iterator<IT, Alphabet>; /*define edge iterator type*/
-          using edge_type = ::bliss::debruijn::SimpleBiEdgeType; //type to represent an edge
+          using self_type = biedge_generating_iterator<IT, Alphabet>; /*define edge iterator type*/
+          using edge_type = ::bliss::debruijn::compact_simple_biedge; //type to represent an edge
 
           // accessors
           IT& getBase()
@@ -95,7 +104,7 @@ namespace bliss
           }
 
           //constructor
-          edge_iterator(IT data_start, IT data_end, const uint32_t k)
+          biedge_generating_iterator(IT data_start, IT data_end, const uint32_t k)
             : _curr (data_start), _left(data_end), _right(data_start), _data_start(data_start), _data_end(data_end)
           {
             /*compute the offset*/
@@ -103,12 +112,12 @@ namespace bliss
             _right = _curr;
             ::std::advance(_right, 1);
           }
-          edge_iterator(IT data_end)
+          biedge_generating_iterator(IT data_end)
             : _curr(data_end), _left(data_end), _right(data_end), _data_start(data_end), _data_end(data_end)
           {}
 
           /// copy constructor
-          edge_iterator(const self_type& Other)
+          biedge_generating_iterator(const self_type& Other)
             : _curr (Other._curr), _left(Other._left), _right(Other._right),
               _data_start(Other._data_start), _data_end(Other._data_end)
           { /*do nothing*/ }
@@ -191,7 +200,7 @@ namespace bliss
       };
 
   	template<typename IT>
-  	using DNA16_edge_iterator = edge_iterator<IT, bliss::common::DNA16>;
+  	using DNA16_biedge_generating_iterator = biedge_generating_iterator<IT, bliss::common::DNA16>;
 
 
   } // iterator

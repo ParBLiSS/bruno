@@ -19,6 +19,10 @@
  *
  *  Created on: Aug 17, 2015
  *      Author: yongchao
+ *
+ *  Rewrote: June 10, 2016
+ *      Author: tony pan
+ *
  */
 
 #include "bliss-config.hpp"
@@ -59,7 +63,9 @@
 #include "debruijn/debruijn_stats.hpp"
 #include "debruijn/debruijn_graph_filters.hpp"
 #include "debruijn/debruijn_chain_filters.hpp"
+#include "debruijn/debruijn_chain_node.hpp"
 #include "debruijn/debruijn_chain_operations.hpp"
+#include "debruijn/debruijn_common.hpp"
 
 #include "utils/benchmark_utils.hpp"
 #include "utils/exception_handling.hpp"
@@ -88,48 +94,48 @@ using DBGNodeParser = bliss::debruijn::debruijn_graph_parser<KmerType>;
 using DBGMapType = ::bliss::debruijn::graph::simple_hash_compact_debruijn_graph_map<KmerType>;
 using DBGType = ::bliss::index::kmer::Index<DBGMapType, DBGNodeParser>;
 
-using ChainNodeType = ::bliss::debruijn::operation::chain::compaction_metadata<KmerType>;
+using ChainNodeType = ::bliss::debruijn::simple_biedge<KmerType>;
 //template <typename K>
 //using ChainMapParams = ::bliss::index::kmer::CanonicalHashMapParams<K>;
 using ChainMapType = ::dsc::densehash_map<KmerType, ChainNodeType,
-    ::bliss::debruijn::operation::chain::CanonicalDeBruijnChainMapParams,
+    ::bliss::debruijn::CanonicalDeBruijnHashMapParams,
      ::bliss::kmer::hash::sparsehash::special_keys<KmerType> >;
 
 using ChainVecType = ::std::vector<std::pair<KmerType, ChainNodeType> >;
 
-
-template <typename IndexType, typename KmerType = typename IndexType::KmerType>
-std::vector<KmerType> readForQuery_posix(const std::string & filename, MPI_Comm comm) {
-
-  ::std::vector<KmerType> query;
-
-  // default to including quality score iterators.
-  IndexType::template read_file_posix<FileParser, ::bliss::index::kmer::KmerParser<KmerType> >(filename, query, comm);
-
-  return query;
-}
-
-template<typename KmerType>
-void sample(std::vector<KmerType> &query, size_t n, unsigned int seed, mxx::comm const & comm) {
-  std::shuffle(query.begin(), query.end(), std::default_random_engine(seed));
-
-  size_t n_p = (n / comm.size());
-  std::vector<size_t> send_counts(comm.size(), n_p);
-
-  if (n < static_cast<size_t>(comm.size())) {
-    n_p = 1;
-
-    for (size_t i = 0; i < n; ++i) {
-      send_counts[(i + comm.rank()) % comm.size()] = 1;
-    }
-    for (int i = n; i < comm.size(); ++i) {
-      send_counts[(i + comm.rank()) % comm.size()] = 0;
-    }
-  }
-
-  std::vector<KmerType> out = ::mxx::all2allv(query, send_counts, comm);
-  query.swap(out);
-}
+//
+//template <typename IndexType, typename KmerType = typename IndexType::KmerType>
+//std::vector<KmerType> readForQuery_posix(const std::string & filename, MPI_Comm comm) {
+//
+//  ::std::vector<KmerType> query;
+//
+//  // default to including quality score iterators.
+//  IndexType::template read_file_posix<FileParser, ::bliss::index::kmer::KmerParser<KmerType> >(filename, query, comm);
+//
+//  return query;
+//}
+//
+//template<typename KmerType>
+//void sample(std::vector<KmerType> &query, size_t n, unsigned int seed, mxx::comm const & comm) {
+//  std::shuffle(query.begin(), query.end(), std::default_random_engine(seed));
+//
+//  size_t n_p = (n / comm.size());
+//  std::vector<size_t> send_counts(comm.size(), n_p);
+//
+//  if (n < static_cast<size_t>(comm.size())) {
+//    n_p = 1;
+//
+//    for (size_t i = 0; i < n; ++i) {
+//      send_counts[(i + comm.rank()) % comm.size()] = 1;
+//    }
+//    for (int i = n; i < comm.size(); ++i) {
+//      send_counts[(i + comm.rank()) % comm.size()] = 0;
+//    }
+//  }
+//
+//  std::vector<KmerType> out = ::mxx::all2allv(query, send_counts, comm);
+//  query.swap(out);
+//}
 
 /**
  *
@@ -338,7 +344,7 @@ int main(int argc, char** argv) {
 
       BL_BENCH_START(test);
       // then compute histogram
-      ::bliss::debruijn::graph::print_compact_edge_histogram(nodes, comm);
+      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(nodes, comm);
       BL_BENCH_COLLECTIVE_END(test, "histogram", nodes.size(), comm);
     }
 
@@ -353,7 +359,7 @@ int main(int argc, char** argv) {
 
       BL_BENCH_START(test);
       // then compute histogram
-      ::bliss::debruijn::graph::print_compact_edge_histogram(chain_nodes, comm);
+      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(chain_nodes, comm);
       BL_BENCH_COLLECTIVE_END(test, "chain_histogram", chain_nodes.size(), comm);
 
 
@@ -408,7 +414,7 @@ int main(int argc, char** argv) {
 
       BL_BENCH_START(test);
       // then compute histogram
-      ::bliss::debruijn::graph::print_compact_edge_histogram(nodes, comm);
+      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(nodes, comm);
       BL_BENCH_COLLECTIVE_END(test, "branch_histogram", nodes.size(), comm);
 
       //          //=== get the neighbors of the branch points.  for information only.
@@ -435,7 +441,7 @@ int main(int argc, char** argv) {
       //
       //          BL_BENCH_START(test);
       //          // then compute histogram
-      //          ::bliss::debruijn::graph::print_compact_edge_histogram(found, comm);
+      //          ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(found, comm);
       //          BL_BENCH_COLLECTIVE_END(test, "termini_histogram", found.size(), comm);
       //
       //
@@ -447,7 +453,7 @@ int main(int argc, char** argv) {
       //
       //          BL_BENCH_START(test);
       //          // then compute histogram
-      //          ::bliss::debruijn::graph::print_compact_edge_histogram(found2, comm);
+      //          ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(found2, comm);
       //          BL_BENCH_COLLECTIVE_END(test, "stump_histogram", found2.size(), comm);
 
 
@@ -613,7 +619,7 @@ int main(int argc, char** argv) {
 
       int dist = 0;
       KmerType ll, rr;
-      bliss::debruijn::operation::chain::compaction_metadata<KmerType> md;
+      bliss::debruijn::simple_biedge<KmerType> md;
 
       //          size_t last_updated = 0;
 
@@ -755,7 +761,7 @@ int main(int argc, char** argv) {
         //                " in dist " << std::get<2>(unfinished[0].second) << " out dist " << std::get<3>(unfinished[0].second) << std::endl;
 
         // get the end points.
-        bliss::debruijn::operation::chain::compaction_metadata<KmerType> md;
+        bliss::debruijn::simple_biedge<KmerType> md;
 
         for (auto t : unfinished) {
           md = t.second;
@@ -853,9 +859,9 @@ int main(int argc, char** argv) {
       // ========== construct new graph with compacted chains and junction nodes.
 
       BL_BENCH_START(test);
-      std::vector<::bliss::debruijn::operation::chain::compacted_chain_node<KmerType> > result;
+      std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > result;
       result.reserve(chainmap.size());
-      ::fsc::back_emplace_iterator<std::vector<::bliss::debruijn::operation::chain::compacted_chain_node<KmerType> > > back_emplacer(result);
+      ::fsc::back_emplace_iterator<std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > > back_emplacer(result);
 
       // first transform nodes so that we are pointing to canonical terminus k-mers.
       std::transform(chainmap.get_local_container().begin(), chainmap.get_local_container().end(), back_emplacer, ::bliss::debruijn::operation::chain::chain_node_to_char_transform<KmerType>());
