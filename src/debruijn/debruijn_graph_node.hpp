@@ -15,7 +15,7 @@
  */
 
 /*
- * de_bruijn_node_trait.hpp
+ * debruijn_graph_node.hpp
  *
  *  Created on: Jul 31, 2015
  *      Author: yongchao

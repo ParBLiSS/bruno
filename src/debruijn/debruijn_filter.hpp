@@ -15,7 +15,7 @@
  */
 
 /*
- * de_bruijn_filter.hpp
+ * debruijn_filter.hpp
  *
  *  Created on: June 10, 2016
  *      Author: Tony Pan
@@ -27,7 +27,7 @@
 #include <vector>
 
 namespace bliss {
-  namespace de_bruijn {
+  namespace debruijn {
     namespace filter {
 
       //============= predicates for global filter operations.
@@ -201,7 +201,7 @@ namespace bliss {
 
 
   } //namespace filter
-    } //namespace de_bruijn
+    } //namespace debruijn
 } //namespace bliss
 
 

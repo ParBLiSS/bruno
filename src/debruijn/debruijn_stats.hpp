@@ -15,7 +15,7 @@
  */
 
 /*
- * de_bruijn_stats.hpp
+ * debruijn_stats.hpp
  *
  *  Created on: June 10, 2016
  *      Author: Tony Pan
@@ -30,7 +30,7 @@
 
 namespace bliss {
 
-  namespace de_bruijn {
+  namespace debruijn {
 
     template <typename Kmer, typename Edge>
     void print_dbg_edge_histogram(::std::vector<::std::pair<Kmer, Edge> > const & nodes, mxx::comm const & comm) {
@@ -89,7 +89,7 @@ namespace bliss {
 
 
 
-  } // namespace de_bruijn
+  } // namespace debruijn
 
 } // namespace bliss
 

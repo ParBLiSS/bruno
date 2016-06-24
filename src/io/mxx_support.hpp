@@ -37,7 +37,7 @@
 
 #include "partition/range.hpp"
 #include "common/sequence.hpp"
-#include "debruijn/de_bruijn_node_trait.hpp"
+#include "debruijn/debruijn_graph_node.hpp"
 
 namespace mxx {
 

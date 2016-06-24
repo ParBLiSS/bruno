@@ -15,7 +15,7 @@
  */
 
 /*
- * de_bruijn_operations.hpp
+ * debruijn_operations.hpp
  *
  *  Created on: June 10, 2016
  *      Author: Tony Pan
@@ -27,7 +27,7 @@
 #include <tuple>
 
 namespace bliss {
-  namespace de_bruijn {
+  namespace debruijn {
     namespace operation {
 
       static constexpr char IN = -1;
@@ -202,27 +202,27 @@ namespace bliss {
               return (x < rc) ? x : rc;
             }
 
-            inline ::std::pair<KMER, ::bliss::de_bruijn::operation::chain::terminus_update_md<KMER> >
-            operator()(std::pair<KMER, ::bliss::de_bruijn::operation::chain::terminus_update_md<KMER> > const & x) const {
+            inline ::std::pair<KMER, ::bliss::debruijn::operation::chain::terminus_update_md<KMER> >
+            operator()(std::pair<KMER, ::bliss::debruijn::operation::chain::terminus_update_md<KMER> > const & x) const {
               auto y = x.first.reverse_complement();
               if (x.first <= y)
             	  return x;   // if already canonical, just return input
               else {
-            	  ::bliss::de_bruijn::operation::chain::terminus_update_md<KMER> z(x.second.first.reverse_complement(), -(x.second.second));
-            	  return std::pair<KMER, ::bliss::de_bruijn::operation::chain::terminus_update_md<KMER> >( y, z );
+            	  ::bliss::debruijn::operation::chain::terminus_update_md<KMER> z(x.second.first.reverse_complement(), -(x.second.second));
+            	  return std::pair<KMER, ::bliss::debruijn::operation::chain::terminus_update_md<KMER> >( y, z );
 
               }
             }
 
-            inline ::std::pair<KMER, ::bliss::de_bruijn::operation::chain::chain_update_md<KMER> >
-            operator()(std::pair<KMER, ::bliss::de_bruijn::operation::chain::chain_update_md<KMER> > const & x) const {
+            inline ::std::pair<KMER, ::bliss::debruijn::operation::chain::chain_update_md<KMER> >
+            operator()(std::pair<KMER, ::bliss::debruijn::operation::chain::chain_update_md<KMER> > const & x) const {
               auto y = x.first.reverse_complement();
               if (x.first <= y)
                 return x;   // if already canonical, just return input
               else {
                 // revcomp kmer, keep distance, flip edge orientation
-                ::bliss::de_bruijn::operation::chain::chain_update_md<KMER> z(std::get<0>(x.second).reverse_complement(), std::get<1>(x.second), -(std::get<2>(x.second)));
-                return std::pair<KMER, ::bliss::de_bruijn::operation::chain::chain_update_md<KMER> >( y, z );
+                ::bliss::debruijn::operation::chain::chain_update_md<KMER> z(std::get<0>(x.second).reverse_complement(), std::get<1>(x.second), -(std::get<2>(x.second)));
+                return std::pair<KMER, ::bliss::debruijn::operation::chain::chain_update_md<KMER> >( y, z );
 
               }
             }
@@ -243,7 +243,7 @@ namespace bliss {
         struct chain_node_to_char_transform {
             // convert a chain node to a compacted node (for print out).
             inline compacted_chain_node<KMER> operator()(::std::pair<KMER, compaction_metadata<KMER> > const & x) const {
-              ::bliss::de_bruijn::operation::chain::lex_less<KMER> lexlt;
+              ::bliss::debruijn::operation::chain::lex_less<KMER> lexlt;
 
               compacted_chain_node<KMER> output;
 
@@ -288,7 +288,7 @@ namespace bliss {
   	  template <typename Kmer >
   	  using CanonicalDeBruijnChainMapParams = ::dsc::HashMapParams<
   	      Kmer,
-  	      ::bliss::de_bruijn::operation::chain::lex_less,  // precanonalizer.  operates on the value as well
+  	      ::bliss::debruijn::operation::chain::lex_less,  // precanonalizer.  operates on the value as well
   	       ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
   	        ::bliss::index::kmer::DistHashMurmur,
   	        ::std::equal_to,
@@ -300,7 +300,7 @@ namespace bliss {
       } // namespace chain
 
     } //namespace operation
-  } //namespace de_bruijn
+  } //namespace debruijn
 } //namespace bliss
 
 

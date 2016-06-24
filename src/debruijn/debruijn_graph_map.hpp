@@ -15,7 +15,7 @@
  */
 
 /*
- * de_bruijn_nodes_distributed.hpp
+ * debruijn_graph_map.hpp
  *
  *  Created on: Aug 6, 2015
  *      Author: yongchao
@@ -38,7 +38,7 @@
 
 #include <type_traits>
 
-#include "debruijn/de_bruijn_node_trait.hpp"	//node trait data structure storing the linkage information to the node
+#include "debruijn/debruijn_graph_node.hpp"	//node trait data structure storing the linkage information to the node
 #include "containers/distributed_densehash_map.hpp"
 
 #include "utils/kmer_utils.hpp"
@@ -47,8 +47,8 @@
 #include "utils/logging.h"
 
 
-namespace bliss{
-	namespace de_bruijn{
+namespace bliss {
+	namespace debruijn {
 
     template <typename KMER>
     struct lex_less {
@@ -72,7 +72,7 @@ namespace bliss{
 	  template <typename Kmer >
 	  using CanonicalDeBruijnHashMapParams = ::dsc::HashMapParams<
 	      Kmer,
-	      ::bliss::de_bruijn::lex_less,  // precanonalizer.  operates on the value as well
+	      ::bliss::debruijn::lex_less,  // precanonalizer.  operates on the value as well
 	       ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
 	        ::bliss::index::kmer::DistHashMurmur,
 	        ::std::equal_to,
@@ -90,7 +90,7 @@ namespace bliss{
 			template <typename> class MapParams,
 		class Alloc = ::std::allocator< ::std::pair<const Kmer, Edge> >
 		  >
-		  class de_bruijn_map : 
+		  class compact_debruijn_graph_map : 
   public ::dsc::densehash_map<Kmer, Edge, MapParams, 
         ::bliss::kmer::hash::sparsehash::special_keys<Kmer>, 
 		    Alloc> {
@@ -169,9 +169,9 @@ namespace bliss{
 			  }
 
 			public:
-			  de_bruijn_map(const mxx::comm& _comm) : Base(_comm) {/*do nothing*/}
+			  compact_debruijn_graph_map(const mxx::comm& _comm) : Base(_comm) {/*do nothing*/}
 
-			  virtual ~de_bruijn_map() {/*do nothing*/};
+			  virtual ~compact_debruijn_graph_map() {/*do nothing*/};
 
 			  /*transform function*/
 
@@ -221,17 +221,17 @@ namespace bliss{
 		};
 
     template<typename Kmer >
-    using simple_hash_de_bruijn_map = ::bliss::de_bruijn::de_bruijn_map<Kmer,
+    using simple_hash_compact_debruijn_graph_map = ::bliss::debruijn::compact_debruijn_graph_map<Kmer,
     		::bliss::debruijn::graph::compact_edge<typename Kmer::KmerAlphabet, bool>,
-        ::bliss::de_bruijn::CanonicalDeBruijnHashMapParams>;
+        ::bliss::debruijn::CanonicalDeBruijnHashMapParams>;
 
     template<typename Kmer >
-    using count_hash_de_bruijn_map = ::bliss::de_bruijn::de_bruijn_map<Kmer,
+    using count_hash_compact_debruijn_graph_map = ::bliss::debruijn::compact_debruijn_graph_map<Kmer,
     		::bliss::debruijn::graph::compact_edge<typename Kmer::KmerAlphabet, uint16_t>,
-        ::bliss::de_bruijn::CanonicalDeBruijnHashMapParams>;
+        ::bliss::debruijn::CanonicalDeBruijnHashMapParams>;
 
 
-	}/*de_bruijn*/
+	}/*debruijn*/
 }/*bliss*/
 
 #endif /* DE_BRUIJN_NODES_DISTRIBUTED_HPP_ */

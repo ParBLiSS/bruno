@@ -54,11 +54,11 @@
 #include "index/kmer_index.hpp"
 #include "index/kmer_hash.hpp"
 #include "debruijn/edge_iterator.hpp"
-#include "debruijn/de_bruijn_construct_engine.hpp"
-#include "debruijn/de_bruijn_nodes_distributed.hpp"
-#include "debruijn/de_bruijn_stats.hpp"
-#include "debruijn/de_bruijn_filter.hpp"
-#include "debruijn/de_bruijn_operations.hpp"
+#include "debruijn/debruijn_graph_loader.hpp"
+#include "debruijn/debruijn_graph_map.hpp"
+#include "debruijn/debruijn_stats.hpp"
+#include "debruijn/debruijn_filter.hpp"
+#include "debruijn/debruijn_operations.hpp"
 
 #include "utils/benchmark_utils.hpp"
 #include "utils/exception_handling.hpp"
@@ -82,16 +82,16 @@ using EdgeEncoding = Alphabet;
 
 #define FileParser ::bliss::io::FASTQParser
 
-using DBGNodeParser = bliss::de_bruijn::de_bruijn_parser<KmerType>;
+using DBGNodeParser = bliss::debruijn::debruijn_graph_parser<KmerType>;
 
-using DBGMapType = ::bliss::de_bruijn::simple_hash_de_bruijn_map<KmerType>;
+using DBGMapType = ::bliss::debruijn::simple_hash_compact_debruijn_graph_map<KmerType>;
 using DBGType = ::bliss::index::kmer::Index<DBGMapType, DBGNodeParser>;
 
-using ChainNodeType = ::bliss::de_bruijn::operation::chain::compaction_metadata<KmerType>;
+using ChainNodeType = ::bliss::debruijn::operation::chain::compaction_metadata<KmerType>;
 //template <typename K>
 //using ChainMapParams = ::bliss::index::kmer::CanonicalHashMapParams<K>;
 using ChainMapType = ::dsc::densehash_map<KmerType, ChainNodeType,
-    ::bliss::de_bruijn::operation::chain::CanonicalDeBruijnChainMapParams,
+    ::bliss::debruijn::operation::chain::CanonicalDeBruijnChainMapParams,
      ::bliss::kmer::hash::sparsehash::special_keys<KmerType> >;
 
 using ChainVecType = ::std::vector<std::pair<KmerType, ChainNodeType> >;
@@ -337,7 +337,7 @@ int main(int argc, char** argv) {
 
       BL_BENCH_START(test);
       // then compute histogram
-      ::bliss::de_bruijn::print_dbg_edge_histogram(nodes, comm);
+      ::bliss::debruijn::print_dbg_edge_histogram(nodes, comm);
       BL_BENCH_COLLECTIVE_END(test, "histogram", nodes.size(), comm);
     }
 
@@ -347,12 +347,12 @@ int main(int argc, char** argv) {
 
       BL_BENCH_START(test);
       // find chain nodes
-      chain_nodes = idx.find_if(::bliss::de_bruijn::filter::IsChainNode());
+      chain_nodes = idx.find_if(::bliss::debruijn::filter::IsChainNode());
       BL_BENCH_COLLECTIVE_END(test, "get_chains", chain_nodes.size(), comm);
 
       BL_BENCH_START(test);
       // then compute histogram
-      ::bliss::de_bruijn::print_dbg_edge_histogram(chain_nodes, comm);
+      ::bliss::debruijn::print_dbg_edge_histogram(chain_nodes, comm);
       BL_BENCH_COLLECTIVE_END(test, "chain_histogram", chain_nodes.size(), comm);
 
 
@@ -392,8 +392,8 @@ int main(int argc, char** argv) {
       BL_BENCH_COLLECTIVE_END(test, "insert in chainmap.", chainmap.local_size(), comm);
 
       //========= report.
-      auto result = chainmap.find(::bliss::de_bruijn::filter::chain::IsTerminus());
-      auto result2 = chainmap.find(::bliss::de_bruijn::filter::chain::IsIsolated());
+      auto result = chainmap.find(::bliss::debruijn::filter::chain::IsTerminus());
+      auto result2 = chainmap.find(::bliss::debruijn::filter::chain::IsIsolated());
       printf("chain map contains %lu chained termini and  %lu isolated\n", result.size(), result2.size());
 
     }
@@ -402,12 +402,12 @@ int main(int argc, char** argv) {
     {
       //=== find branching nodes. local computation.
       BL_BENCH_START(test);
-      auto nodes = idx.find_if(::bliss::de_bruijn::filter::IsBranchPoint());
+      auto nodes = idx.find_if(::bliss::debruijn::filter::IsBranchPoint());
       BL_BENCH_COLLECTIVE_END(test, "get_branches", nodes.size(), comm);
 
       BL_BENCH_START(test);
       // then compute histogram
-      ::bliss::de_bruijn::print_dbg_edge_histogram(nodes, comm);
+      ::bliss::debruijn::print_dbg_edge_histogram(nodes, comm);
       BL_BENCH_COLLECTIVE_END(test, "branch_histogram", nodes.size(), comm);
 
       //          //=== get the neighbors of the branch points.  for information only.
@@ -429,30 +429,30 @@ int main(int argc, char** argv) {
       //          // now check to see which are chain nodes.  these are chain nodes adjacent to branch points.
       //          // include chain termini that are adjacent to branch points, so we can mark them in the chainmap.
       //          BL_BENCH_START(test);
-      //          auto found = idx.find_if_overlap(all_neighbors2, ::bliss::de_bruijn::filter::IsChainNode());
+      //          auto found = idx.find_if_overlap(all_neighbors2, ::bliss::debruijn::filter::IsChainNode());
       //          BL_BENCH_COLLECTIVE_END(test, "terminal_neighbors", found.size(), comm);
       //
       //          BL_BENCH_START(test);
       //          // then compute histogram
-      //          ::bliss::de_bruijn::print_dbg_edge_histogram(found, comm);
+      //          ::bliss::debruijn::print_dbg_edge_histogram(found, comm);
       //          BL_BENCH_COLLECTIVE_END(test, "termini_histogram", found.size(), comm);
       //
       //
       //          // now check to see which are chain nodes.  these are chain nodes adjacent to branch points.
       //          // include chain termini that are adjacent to branch points, so we can mark them in the chainmap.
       //          BL_BENCH_START(test);
-      //          auto found2 = idx.find_if_overlap(all_neighbors2, ::bliss::de_bruijn::filter::IsTerminus());
+      //          auto found2 = idx.find_if_overlap(all_neighbors2, ::bliss::debruijn::filter::IsTerminus());
       //          BL_BENCH_COLLECTIVE_END(test, "stump_termini", found2.size(), comm);
       //
       //          BL_BENCH_START(test);
       //          // then compute histogram
-      //          ::bliss::de_bruijn::print_dbg_edge_histogram(found2, comm);
+      //          ::bliss::debruijn::print_dbg_edge_histogram(found2, comm);
       //          BL_BENCH_COLLECTIVE_END(test, "stump_histogram", found2.size(), comm);
 
 
       //=== mark neighbors of branch points.
       BL_BENCH_START(test);
-      std::vector<std::pair<KmerType, bliss::de_bruijn::operation::chain::terminus_update_md<KmerType> > > all_neighbors;
+      std::vector<std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > > all_neighbors;
       all_neighbors.reserve(nodes.size() * 4);
 
       for (auto t : nodes) {
@@ -460,14 +460,14 @@ int main(int argc, char** argv) {
         t.second.get_out_neighbors(t.first, neighbors);
         for (auto n : neighbors) {
           // insert as is.  let lex_less handle flipping it.
-          all_neighbors.emplace_back(n, bliss::de_bruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::de_bruijn::operation::IN));
+          all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
         }
 
         neighbors.clear();
         t.second.get_in_neighbors(t.first, neighbors);
         for (auto n : neighbors) {
           // insert as is.  let lex_less handle flipping it.
-          all_neighbors.emplace_back(n, bliss::de_bruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::de_bruijn::operation::OUT));
+          all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
         }
       }
       BL_BENCH_COLLECTIVE_END(test, "branch_neighbors_2", all_neighbors.size(), comm);
@@ -475,7 +475,7 @@ int main(int argc, char** argv) {
       // now check to see which are chain nodes.  these are chain nodes adjacent to branch points.
       // include chain termini that are adjacent to branch points, so we can mark them in the chainmap.
       BL_BENCH_START(test);
-      ::bliss::de_bruijn::operation::chain::terminus_update<KmerType> updater;
+      ::bliss::debruijn::operation::chain::terminus_update<KmerType> updater;
       size_t count = chainmap.update(all_neighbors, false, updater );
       BL_BENCH_COLLECTIVE_END(test, "update_termini", count, comm);
 
@@ -488,14 +488,14 @@ int main(int argc, char** argv) {
       //          //========= split singleton entries from chainmap.
       //          {
       //            BL_BENCH_START(test);
-      //            auto single_chains = chainmap.find(::bliss::de_bruijn::filter::chain::IsIsolated());
+      //            auto single_chains = chainmap.find(::bliss::debruijn::filter::chain::IsIsolated());
       //            BL_BENCH_COLLECTIVE_END(test, "singletons", single_chains.size(), comm);
       //            printf("found %lu singletons in %lu chainmap\n", single_chains.size(), chainmap.local_size());
       //          }
       //
       //          {
       //            BL_BENCH_START(test);
-      //            auto single_chains = chainmap.find(::bliss::de_bruijn::filter::chain::IsTerminus());
+      //            auto single_chains = chainmap.find(::bliss::debruijn::filter::chain::IsTerminus());
       //            BL_BENCH_COLLECTIVE_END(test, "termini", single_chains.size(), comm);
       //            printf("found %lu termini in %lu chainmap\n", single_chains.size(), chainmap.local_size());
       //          }
@@ -507,7 +507,7 @@ int main(int argc, char** argv) {
     //
     //          // search unfinished
     //          BL_BENCH_START(test);
-    //          auto unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
+    //          auto unfinished = chainmap.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
     //          BL_BENCH_COLLECTIVE_END(test, "unfinished", unfinished.size(), comm);
     //
     //          // get global unfinished count
@@ -567,7 +567,7 @@ int main(int argc, char** argv) {
     //
     //
     //            // search unfinished.
-    //            unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
+    //            unfinished = chainmap.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
     //
     //
     //            // get global unfinished count
@@ -596,7 +596,7 @@ int main(int argc, char** argv) {
 
       // search unfinished
       BL_BENCH_START(test);
-      auto unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
+      auto unfinished = chainmap.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
       BL_BENCH_COLLECTIVE_END(test, "unfinished", unfinished.size(), comm);
 
       // get global unfinished count
@@ -607,12 +607,12 @@ int main(int argc, char** argv) {
       // while not same, run
       BL_BENCH_START(test);
 
-      std::vector<std::pair<KmerType, bliss::de_bruijn::operation::chain::chain_update_md<KmerType> > > updates;
+      std::vector<std::pair<KmerType, bliss::debruijn::operation::chain::chain_update_md<KmerType> > > updates;
       updates.reserve(unfinished.size() * 2);
 
       int dist = 0;
       KmerType ll, rr;
-      bliss::de_bruijn::operation::chain::compaction_metadata<KmerType> md;
+      bliss::debruijn::operation::chain::compaction_metadata<KmerType> md;
 
       //          size_t last_updated = 0;
 
@@ -644,9 +644,9 @@ int main(int argc, char** argv) {
           if (std::get<2>(md) != 0)  {
             // send rr to ll.  also let ll know if rr is a terminus.  orientation is OUT
             updates.emplace_back(std::get<0>(md),
-                                 bliss::de_bruijn::operation::chain::chain_update_md<KmerType>((std::get<3>(md) == 0) ? t.first : std::get<1>(md),
+                                 bliss::debruijn::operation::chain::chain_update_md<KmerType>((std::get<3>(md) == 0) ? t.first : std::get<1>(md),
                                      ((std::get<3>(md) > 0) ? dist : -dist),
-                                     bliss::de_bruijn::operation::OUT));
+                                     bliss::debruijn::operation::OUT));
             // if out dist is 0, then this node is a terminal node.  sent self as target.  else use right kmer.
             // if out dist is negative, then out kmer (rr) points to a terminus, including self (dist = 0), set update distance to negative to indicate so.
 
@@ -656,9 +656,9 @@ int main(int argc, char** argv) {
           if (std::get<3>(md) != 0) {
             // send ll to rr.  also let rr know if ll is a terminus.  orientation is IN
             updates.emplace_back(std::get<1>(md),
-                                 bliss::de_bruijn::operation::chain::chain_update_md<KmerType>((std::get<2>(md) == 0) ? t.first : std::get<0>(md),
+                                 bliss::debruijn::operation::chain::chain_update_md<KmerType>((std::get<2>(md) == 0) ? t.first : std::get<0>(md),
                                      ((std::get<2>(md) > 0) ? dist : -dist),
-                                     bliss::de_bruijn::operation::IN));
+                                     bliss::debruijn::operation::IN));
             // if target is a terminus, then set self as target.  else use left kmer
             // if target points to a terminus, including self (dist = 0), set update distance to negative to indicate so.
           }  // else case is same as above
@@ -691,13 +691,13 @@ int main(int argc, char** argv) {
         comm.barrier();
 
         // now perform update
-        ::bliss::de_bruijn::operation::chain::chain_update<KmerType> chain_updater;
+        ::bliss::debruijn::operation::chain::chain_update<KmerType> chain_updater;
         size_t count = chainmap.update(updates, false, chain_updater );
 
         //            last_updated = count;
 
         // search unfinished.
-        unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
+        unfinished = chainmap.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
 
         //            {
         //              auto t = unfinished[0];
@@ -715,7 +715,7 @@ int main(int argc, char** argv) {
 
         // get global unfinished count
         cycle_nodes = std::count_if(unfinished.begin(), unfinished.end(),
-                                    ::bliss::de_bruijn::filter::chain::IsCycleNode(iterations));
+                                    ::bliss::debruijn::filter::chain::IsCycleNode(iterations));
         if (comm.rank() < 4) printf("rank %d iter %lu updated %lu, unfinished %lu noncycle %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_nodes);
         all_compacted = (count == 0) || (cycle_nodes == unfinished.size());
         all_compacted = ::mxx::all_of(all_compacted, comm);
@@ -730,7 +730,7 @@ int main(int argc, char** argv) {
 
       // search unfinished
       BL_BENCH_START(test);
-      auto unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::PointsToInternalNode());
+      auto unfinished = chainmap.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
       BL_BENCH_COLLECTIVE_END(test, "unfinished2", unfinished.size(), comm);
 
       // get global unfinished count
@@ -754,7 +754,7 @@ int main(int argc, char** argv) {
         //                " in dist " << std::get<2>(unfinished[0].second) << " out dist " << std::get<3>(unfinished[0].second) << std::endl;
 
         // get the end points.
-        bliss::de_bruijn::operation::chain::compaction_metadata<KmerType> md;
+        bliss::debruijn::operation::chain::compaction_metadata<KmerType> md;
 
         for (auto t : unfinished) {
           md = t.second;
@@ -818,7 +818,7 @@ int main(int argc, char** argv) {
 
 
       // search unfinished.count
-      unfinished = chainmap.find(::bliss::de_bruijn::filter::chain::IsUncompactedNode(iterations));
+      unfinished = chainmap.find(::bliss::debruijn::filter::chain::IsUncompactedNode(iterations));
 
 
       // get global unfinished count
@@ -834,11 +834,11 @@ int main(int argc, char** argv) {
 
       // remove cycle nodes
       BL_BENCH_START(test);
-      size_t cycle_node_count = chainmap.erase(::bliss::de_bruijn::filter::chain::IsCycleNode(iterations));
+      size_t cycle_node_count = chainmap.erase(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
       BL_BENCH_COLLECTIVE_END(test, "erase cycle", cycle_node_count, comm);
 
       BL_BENCH_START(test);
-      auto termini = chainmap.find(::bliss::de_bruijn::filter::chain::IsTerminus());
+      auto termini = chainmap.find(::bliss::debruijn::filter::chain::IsTerminus());
       BL_BENCH_COLLECTIVE_END(test, "chain termini", termini.size(), comm);
 
       std::cout << "COMPACTED CHAIN END POINTS" << std::endl;
@@ -852,24 +852,24 @@ int main(int argc, char** argv) {
       // ========== construct new graph with compacted chains and junction nodes.
 
       BL_BENCH_START(test);
-      std::vector<::bliss::de_bruijn::operation::chain::compacted_chain_node<KmerType> > result;
+      std::vector<::bliss::debruijn::operation::chain::compacted_chain_node<KmerType> > result;
       result.reserve(chainmap.size());
-      ::fsc::back_emplace_iterator<std::vector<::bliss::de_bruijn::operation::chain::compacted_chain_node<KmerType> > > back_emplacer(result);
+      ::fsc::back_emplace_iterator<std::vector<::bliss::debruijn::operation::chain::compacted_chain_node<KmerType> > > back_emplacer(result);
 
       // first transform nodes so that we are pointing to canonical terminus k-mers.
-      std::transform(chainmap.get_local_container().begin(), chainmap.get_local_container().end(), back_emplacer, ::bliss::de_bruijn::operation::chain::chain_node_to_char_transform<KmerType>());
+      std::transform(chainmap.get_local_container().begin(), chainmap.get_local_container().end(), back_emplacer, ::bliss::debruijn::operation::chain::chain_node_to_char_transform<KmerType>());
       BL_BENCH_COLLECTIVE_END(test, "transform chain", chainmap.size(), comm);
 
 
       // sort
       BL_BENCH_START(test);
       // first transform nodes so that we are pointing to canonical terminus k-mers.
-      std::sort(result.begin(), result.end(), ::bliss::de_bruijn::operation::chain::chain_node_less<KmerType>());
+      std::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_node_less<KmerType>());
       BL_BENCH_COLLECTIVE_END(test, "sort chain node", result.size(), comm);
 
       // print out.
       BL_BENCH_START(test);
-      std::for_each(result.begin(), result.end(), ::bliss::de_bruijn::operation::chain::print_chain_node<KmerType>());
+      std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain_node<KmerType>());
       BL_BENCH_COLLECTIVE_END(test, "print chain", result.size(), comm);
 
     }
@@ -891,11 +891,11 @@ int main(int argc, char** argv) {
   //
   //
   //	::std::cerr<<"Using DNA16 to present each edge" << ::std::endl;
-  //	testDeBruijnGraph< bliss::de_bruijn::de_bruijn_engine<CountNodeMapType>, bliss::io::FASTQParser >(comm, filename, ::std::string("ST, hash, dbg construction, count."));
+  //	testDeBruijnGraph< bliss::debruijn::debruijn_engine<CountNodeMapType>, bliss::io::FASTQParser >(comm, filename, ::std::string("ST, hash, dbg construction, count."));
   //
   //
   //  ::std::cerr<<"Using DNA16 to represent each edge" << ::std::endl;
-  //  testDeBruijnGraph< bliss::de_bruijn::de_bruijn_engine<ExistNodeMapType>,  bliss::io::FASTQParser >(comm, filename, ::std::string("ST, hash, dbg construction, exist."));
+  //  testDeBruijnGraph< bliss::debruijn::debruijn_engine<ExistNodeMapType>,  bliss::io::FASTQParser >(comm, filename, ::std::string("ST, hash, dbg construction, exist."));
 
 
 }
