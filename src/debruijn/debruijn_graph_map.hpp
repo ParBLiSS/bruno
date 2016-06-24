@@ -22,8 +22,8 @@
  *      Author: tony pan
  */
 
-#ifndef DE_BRUIJN_NODES_DISTRIBUTED_HPP_
-#define DE_BRUIJN_NODES_DISTRIBUTED_HPP_
+#ifndef DEBRUIJN_GRAPH_MAP_HPP_
+#define DEBRUIJN_GRAPH_MAP_HPP_
 
 #include "bliss-config.hpp"
 
@@ -59,11 +59,11 @@ namespace bliss {
         inline KMER operator()(KMER const & x, KMER const & rc) const  {
           return (x < rc) ? x : rc;
         }
-        inline ::std::pair<KMER, ::bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t> >
-        operator()(std::pair<KMER, ::bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t> > const & x) const {
+        inline ::std::pair<KMER, ::bliss::debruijn::SimpleBiEdgeType >
+        operator()(std::pair<KMER, ::bliss::debruijn::SimpleBiEdgeType > const & x) const {
           auto y = x.first.reverse_complement();
           return (x.first < y) ? x :   // if already canonical, just return input
-              std::pair<KMER, ::bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t> >(
+              std::pair<KMER, ::bliss::debruijn::SimpleBiEdgeType >(
                   y, x.second.reverse_complement() );
         }
     };
@@ -82,7 +82,7 @@ namespace bliss {
 	        >;
 
 
-
+	  namespace graph {
 	  /**
 	   * de bruijn map.  essentially a reduction map, but with slight differences.
 	   */
@@ -221,17 +221,17 @@ namespace bliss {
 		};
 
     template<typename Kmer >
-    using simple_hash_compact_debruijn_graph_map = ::bliss::debruijn::compact_debruijn_graph_map<Kmer,
+    using simple_hash_compact_debruijn_graph_map = ::bliss::debruijn::graph::compact_debruijn_graph_map<Kmer,
     		::bliss::debruijn::graph::compact_edge<typename Kmer::KmerAlphabet, bool>,
         ::bliss::debruijn::CanonicalDeBruijnHashMapParams>;
 
     template<typename Kmer >
-    using count_hash_compact_debruijn_graph_map = ::bliss::debruijn::compact_debruijn_graph_map<Kmer,
+    using count_hash_compact_debruijn_graph_map = ::bliss::debruijn::graph::compact_debruijn_graph_map<Kmer,
     		::bliss::debruijn::graph::compact_edge<typename Kmer::KmerAlphabet, uint16_t>,
         ::bliss::debruijn::CanonicalDeBruijnHashMapParams>;
 
-
+	  } // namespace graph
 	}/*debruijn*/
 }/*bliss*/
 
-#endif /* DE_BRUIJN_NODES_DISTRIBUTED_HPP_ */
+#endif /* DEBRUIJN_GRAPH_MAP_HPP_ */

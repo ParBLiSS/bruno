@@ -21,8 +21,8 @@
  *      Author: Tony Pan
  */
 
-#ifndef DE_BRUIJN_STATS_HPP_
-#define DE_BRUIJN_STATS_HPP_
+#ifndef DEBRUIJN_STATS_HPP_
+#define DEBRUIJN_STATS_HPP_
 
 #include <vector>
 #include <mxx/comm.hpp>
@@ -32,8 +32,10 @@ namespace bliss {
 
   namespace debruijn {
 
-    template <typename Kmer, typename Edge>
-    void print_dbg_edge_histogram(::std::vector<::std::pair<Kmer, Edge> > const & nodes, mxx::comm const & comm) {
+    namespace graph {
+
+      template <typename Kmer, typename Edge>
+      void print_compact_edge_histogram(::std::vector<::std::pair<Kmer, Edge> > const & nodes, mxx::comm const & comm) {
 
       // local computation
       // 5 possibilities for number of in or out edges
@@ -47,27 +49,8 @@ namespace bliss {
         ++histogram[y * (Edge::maxEdgeCount + 1) + x];
       }
 
-      // finally, print
-      if (comm.rank() == 0) {
-        printf("LOCAL Edge Existence Histogram: \n");
-        for (size_t j = 0; j <= Edge::maxEdgeCount; ++j) {
-          printf("\t%lu", j);
-        }
-        printf("\n");
-
-        for (size_t j = 0; j <= Edge::maxEdgeCount; ++j) {
-          printf("%lu", j);
-          for (size_t k = 0; k <= Edge::maxEdgeCount; ++k) {
-            printf("\t%ld", histogram[j * (Edge::maxEdgeCount + 1) + k]);
-          }
-          printf("\n");
-        }
-      }
-
       // then global reduction
       std::vector<size_t> complete = ::mxx::reduce(histogram, 0, comm);
-
-
 
       // finally, print
       if (comm.rank() == 0) {
@@ -87,10 +70,10 @@ namespace bliss {
       }
     }
 
-
+    } // ns graph
 
   } // namespace debruijn
 
 } // namespace bliss
 
-#endif // DE_BRUIJN_STATS_HPP_
+#endif // DEBRUIJN_STATS_HPP_

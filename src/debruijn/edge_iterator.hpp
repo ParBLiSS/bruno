@@ -33,8 +33,15 @@
 namespace bliss
 {
 
+  namespace debruijn
+  {
+    using SimpleBiEdgeType = bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t>;
+
+
   namespace iterator
   {
+
+
 
     // careful with the use of enable_if.  evaluation should occur at function call time,
     //   i.e. class template params will be evaluated with no substitution.
@@ -60,7 +67,7 @@ namespace bliss
      */
   	template<typename IT>
   	class edge_iterator<IT, bliss::common::DNA16> :
-  	  public ::std::iterator<::std::forward_iterator_tag, ::bliss::common::Kmer<2, bliss::common::DNA16, uint8_t> >
+  	  public ::std::iterator<::std::forward_iterator_tag, ::bliss::debruijn::SimpleBiEdgeType >
   	{
       protected:
 
@@ -79,7 +86,7 @@ namespace bliss
 
           using Alphabet = bliss::common::DNA16;
           using self_type = edge_iterator<IT, Alphabet>; /*define edge iterator type*/
-          using edge_type = ::bliss::common::Kmer<2, Alphabet, uint8_t>; //type to represent an edge
+          using edge_type = ::bliss::debruijn::SimpleBiEdgeType; //type to represent an edge
 
           // accessors
           IT& getBase()
@@ -188,6 +195,7 @@ namespace bliss
 
 
   } // iterator
+  } // debruijn
 } // bliss
 
 

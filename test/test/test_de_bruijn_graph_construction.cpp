@@ -57,8 +57,9 @@
 #include "debruijn/debruijn_graph_loader.hpp"
 #include "debruijn/debruijn_graph_map.hpp"
 #include "debruijn/debruijn_stats.hpp"
-#include "debruijn/debruijn_filter.hpp"
-#include "debruijn/debruijn_operations.hpp"
+#include "debruijn/debruijn_graph_filters.hpp"
+#include "debruijn/debruijn_chain_filters.hpp"
+#include "debruijn/debruijn_chain_operations.hpp"
 
 #include "utils/benchmark_utils.hpp"
 #include "utils/exception_handling.hpp"
@@ -84,7 +85,7 @@ using EdgeEncoding = Alphabet;
 
 using DBGNodeParser = bliss::debruijn::debruijn_graph_parser<KmerType>;
 
-using DBGMapType = ::bliss::debruijn::simple_hash_compact_debruijn_graph_map<KmerType>;
+using DBGMapType = ::bliss::debruijn::graph::simple_hash_compact_debruijn_graph_map<KmerType>;
 using DBGType = ::bliss::index::kmer::Index<DBGMapType, DBGNodeParser>;
 
 using ChainNodeType = ::bliss::debruijn::operation::chain::compaction_metadata<KmerType>;
@@ -337,7 +338,7 @@ int main(int argc, char** argv) {
 
       BL_BENCH_START(test);
       // then compute histogram
-      ::bliss::debruijn::print_dbg_edge_histogram(nodes, comm);
+      ::bliss::debruijn::graph::print_compact_edge_histogram(nodes, comm);
       BL_BENCH_COLLECTIVE_END(test, "histogram", nodes.size(), comm);
     }
 
@@ -347,12 +348,12 @@ int main(int argc, char** argv) {
 
       BL_BENCH_START(test);
       // find chain nodes
-      chain_nodes = idx.find_if(::bliss::debruijn::filter::IsChainNode());
+      chain_nodes = idx.find_if(::bliss::debruijn::filter::graph::IsChainNode());
       BL_BENCH_COLLECTIVE_END(test, "get_chains", chain_nodes.size(), comm);
 
       BL_BENCH_START(test);
       // then compute histogram
-      ::bliss::debruijn::print_dbg_edge_histogram(chain_nodes, comm);
+      ::bliss::debruijn::graph::print_compact_edge_histogram(chain_nodes, comm);
       BL_BENCH_COLLECTIVE_END(test, "chain_histogram", chain_nodes.size(), comm);
 
 
@@ -402,12 +403,12 @@ int main(int argc, char** argv) {
     {
       //=== find branching nodes. local computation.
       BL_BENCH_START(test);
-      auto nodes = idx.find_if(::bliss::debruijn::filter::IsBranchPoint());
+      auto nodes = idx.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
       BL_BENCH_COLLECTIVE_END(test, "get_branches", nodes.size(), comm);
 
       BL_BENCH_START(test);
       // then compute histogram
-      ::bliss::debruijn::print_dbg_edge_histogram(nodes, comm);
+      ::bliss::debruijn::graph::print_compact_edge_histogram(nodes, comm);
       BL_BENCH_COLLECTIVE_END(test, "branch_histogram", nodes.size(), comm);
 
       //          //=== get the neighbors of the branch points.  for information only.
@@ -429,24 +430,24 @@ int main(int argc, char** argv) {
       //          // now check to see which are chain nodes.  these are chain nodes adjacent to branch points.
       //          // include chain termini that are adjacent to branch points, so we can mark them in the chainmap.
       //          BL_BENCH_START(test);
-      //          auto found = idx.find_if_overlap(all_neighbors2, ::bliss::debruijn::filter::IsChainNode());
+      //          auto found = idx.find_if_overlap(all_neighbors2, ::bliss::debruijn::filter::graph::IsChainNode());
       //          BL_BENCH_COLLECTIVE_END(test, "terminal_neighbors", found.size(), comm);
       //
       //          BL_BENCH_START(test);
       //          // then compute histogram
-      //          ::bliss::debruijn::print_dbg_edge_histogram(found, comm);
+      //          ::bliss::debruijn::graph::print_compact_edge_histogram(found, comm);
       //          BL_BENCH_COLLECTIVE_END(test, "termini_histogram", found.size(), comm);
       //
       //
       //          // now check to see which are chain nodes.  these are chain nodes adjacent to branch points.
       //          // include chain termini that are adjacent to branch points, so we can mark them in the chainmap.
       //          BL_BENCH_START(test);
-      //          auto found2 = idx.find_if_overlap(all_neighbors2, ::bliss::debruijn::filter::IsTerminus());
+      //          auto found2 = idx.find_if_overlap(all_neighbors2, ::bliss::debruijn::filter::graph::IsTerminus());
       //          BL_BENCH_COLLECTIVE_END(test, "stump_termini", found2.size(), comm);
       //
       //          BL_BENCH_START(test);
       //          // then compute histogram
-      //          ::bliss::debruijn::print_dbg_edge_histogram(found2, comm);
+      //          ::bliss::debruijn::graph::print_compact_edge_histogram(found2, comm);
       //          BL_BENCH_COLLECTIVE_END(test, "stump_histogram", found2.size(), comm);
 
 
@@ -885,18 +886,6 @@ int main(int argc, char** argv) {
   comm.barrier();
 
   return 0;
-
-
-  //
-  //
-  //
-  //	::std::cerr<<"Using DNA16 to present each edge" << ::std::endl;
-  //	testDeBruijnGraph< bliss::debruijn::debruijn_engine<CountNodeMapType>, bliss::io::FASTQParser >(comm, filename, ::std::string("ST, hash, dbg construction, count."));
-  //
-  //
-  //  ::std::cerr<<"Using DNA16 to represent each edge" << ::std::endl;
-  //  testDeBruijnGraph< bliss::debruijn::debruijn_engine<ExistNodeMapType>,  bliss::io::FASTQParser >(comm, filename, ::std::string("ST, hash, dbg construction, exist."));
-
 
 }
 

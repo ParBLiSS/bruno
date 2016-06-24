@@ -15,14 +15,14 @@
  */
 
 /*
- * debruijn_operations.hpp
+ * debruijn_chain_operations.hpp
  *
  *  Created on: June 10, 2016
  *      Author: Tony Pan
  */
 
-#ifndef DE_BRUIJN_OPERATIONS_HPP_
-#define DE_BRUIJN_OPERATIONS_HPP_
+#ifndef DEBRUIJN_CHAIN_PERATIONS_HPP_
+#define DEBRUIJN_CHAIN_PERATIONS_HPP_
 
 #include <tuple>
 
@@ -306,4 +306,4 @@ namespace bliss {
 
 
 
-#endif // DE_BRUIJN_OPERATIONS_HPP_
+#endif // DEBRUIJN_CHAIN_OPERATIONS_HPP_

@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef DE_BRUIJN_NODE_TRAIT_HPP_
-#define DE_BRUIJN_NODE_TRAIT_HPP_
+#ifndef DEBRUIJN_GRAPH_NODE_HPP_
+#define DEBRUIJN_GRAPH_NODE_HPP_
 
 #include "bliss-config.hpp"
 
@@ -46,6 +46,8 @@
 #include "common/alphabets.hpp"
 #include "common/kmer.hpp"
 #include "utils/bit_ops.hpp"
+
+#include "debruijn/edge_iterator.hpp"
 
 namespace bliss
 {
@@ -119,7 +121,7 @@ namespace bliss
 
           using Alphabet = EdgeEncoding;
           using CountType = COUNT;
-          using EdgeInputType = bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t>;   // hardcoded to DNA16 because of N
+          using EdgeInputType = bliss::debruijn::SimpleBiEdgeType;   // hardcoded to DNA16 because of N
 
 
 	        friend std::ostream& operator<<(std::ostream& ost, const compact_edge<EdgeEncoding, COUNT, DUMMY> & node)
@@ -265,7 +267,7 @@ namespace bliss
           using EdgeEncoding = bliss::common::DNA;
           using Alphabet = EdgeEncoding;
           using CountType = uint8_t;
-          using EdgeInputType = bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t>;
+          using EdgeInputType = bliss::debruijn::SimpleBiEdgeType;
 
           static constexpr size_t maxEdgeCount = EdgeEncoding::SIZE;
 
@@ -401,7 +403,7 @@ namespace bliss
           using EdgeEncoding = ::bliss::common::DNA6;
           using Alphabet = EdgeEncoding;
           using CountType = uint8_t;
-          using EdgeInputType = bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t>;
+          using EdgeInputType = bliss::debruijn::SimpleBiEdgeType;
 
           static constexpr size_t maxEdgeCount = EdgeEncoding::SIZE;
 
@@ -540,7 +542,7 @@ namespace bliss
           using EdgeEncoding = ::bliss::common::DNA16;
           using Alphabet = EdgeEncoding;
           using CountType = uint16_t;
-          using EdgeInputType = bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t>;
+          using EdgeInputType = bliss::debruijn::SimpleBiEdgeType;
 
           static constexpr size_t maxEdgeCount = EdgeEncoding::SIZE;
 
@@ -658,4 +660,4 @@ namespace bliss
 
 
 
-#endif /* DE_BRUIJN_NODE_TRAIT_HPP_ */
+#endif /* DEBRUIJN_GRAPH_NODE_HPP_ */

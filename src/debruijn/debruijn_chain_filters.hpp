@@ -15,98 +15,20 @@
  */
 
 /*
- * debruijn_filter.hpp
+ * debruijn_chain_filters.hpp
  *
  *  Created on: June 10, 2016
  *      Author: Tony Pan
  */
 
-#ifndef DE_BRUIJN_FILTER_HPP_
-#define DE_BRUIJN_FILTER_HPP_
+#ifndef DEBRUIJN_CHAIN_FILTERS_HPP_
+#define DEBRUIJN_CHAIN_FILTERS_HPP_
 
 #include <vector>
 
 namespace bliss {
   namespace debruijn {
     namespace filter {
-
-      //============= predicates for global filter operations.
-
-      struct IsBranchPoint {
-          /// does not filter by group of results.
-          template <typename Iter>
-          inline bool operator()(Iter first, Iter last) const {  return true; }
-
-          template <typename Kmer, typename Edge>
-          inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-            uint8_t in = t.second.get_in_edge_count();
-            uint8_t out = t.second.get_out_edge_count();
-
-            return (in >= 2) || (out >= 2);
-          }
-      };
-
-      struct IsIsolated {
-          /// does not filter by group of results.
-          template <typename Iter>
-          inline bool operator()(Iter first, Iter last) const {  return true; }
-
-          template <typename Kmer, typename Edge>
-          inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-            uint8_t in = t.second.get_in_edge_count();
-            uint8_t out = t.second.get_out_edge_count();
-
-            return (in == 0) && (out == 0);
-          }
-      };
-
-      struct IsTerminus {
-          /// does not filter by group of results.
-          template <typename Iter>
-          inline bool operator()(Iter first, Iter last)  const {  return true; }
-
-          template <typename Kmer, typename Edge>
-          inline bool operator()(::std::pair<Kmer, Edge> const & t) const  {
-            uint8_t in = t.second.get_in_edge_count();
-            uint8_t out = t.second.get_out_edge_count();
-
-            return ((in == 0) && (out == 1)) ||
-                ((in == 1) && (out == 0));
-          }
-      };
-
-      struct IsChainInternalNode {
-          /// does not filter by group of results.
-          template <typename Iter>
-          inline bool operator()(Iter first, Iter last) const  {  return true; }
-
-          template <typename Kmer, typename Edge>
-          inline bool operator()(::std::pair<Kmer, Edge> const & t)  const {
-            uint8_t in = t.second.get_in_edge_count();
-            uint8_t out = t.second.get_out_edge_count();
-
-            return (in == 1) && (out == 1);
-          }
-      };
-
-
-      struct IsChainNode {
-          /// does not filter by group of results.
-          template <typename Iter>
-          inline bool operator()(Iter first, Iter last)  const {  return true; }
-
-          template <typename Kmer, typename Edge>
-          inline bool operator()(::std::pair<Kmer, Edge> const & t)  const {
-            uint8_t in = t.second.get_in_edge_count();
-            uint8_t out = t.second.get_out_edge_count();
-
-            return ((in == 0) && (out == 1)) ||
-                ((in == 1) && (out == 0)) ||
-                ((in == 1) && (out == 1));
-          }
-      };
-
-
 
       namespace chain {
 
@@ -197,14 +119,11 @@ namespace bliss {
 
       }  // namespace dbg_chain
 
-
-
-
-  } //namespace filter
-    } //namespace debruijn
+    } //namespace filter
+  } //namespace debruijn
 } //namespace bliss
 
 
 
 
-#endif // DE_BRUIJN_FILTER_HPP_
+#endif // DEBRUIJN_CHAIN_FILTERS_HPP_
