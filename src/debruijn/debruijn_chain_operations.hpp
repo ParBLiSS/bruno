@@ -30,6 +30,10 @@
 
 namespace bliss {
   namespace debruijn {
+
+  template <typename KMER>
+      struct lex_less;
+
     namespace operation {
 
       static constexpr char IN = -1;
@@ -296,14 +300,14 @@ namespace bliss {
       template <typename KMER>
       inline ::bliss::debruijn::operation::chain::terminus_update_md<KMER>
       reverse_complement(::bliss::debruijn::operation::chain::terminus_update_md<KMER> const & x) {
-        return ::bliss::debruijn::operation::chain::terminus_update_md<KMER>(x.second.first.reverse_complement(), -(x.second.second));
+        return ::bliss::debruijn::operation::chain::terminus_update_md<KMER>(x.first.reverse_complement(), -(x.second));
       }
 
 
       template <typename KMER>
       inline ::bliss::debruijn::operation::chain::chain_update_md<KMER>
       reverse_complement(::bliss::debruijn::operation::chain::chain_update_md<KMER> const & x) {
-        return ::bliss::debruijn::operation::chain::chain_update_md<KMER>(std::get<0>(x.second).reverse_complement(), std::get<1>(x.second), -(std::get<2>(x.second)));
+        return ::bliss::debruijn::operation::chain::chain_update_md<KMER>(std::get<0>(x).reverse_complement(), std::get<1>(x), -(std::get<2>(x)));
       }
     }  // ns transform
 

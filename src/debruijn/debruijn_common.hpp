@@ -28,9 +28,10 @@
 #include "bliss-config.hpp"
 
 #include "utils/logging.h"
-#include "common/kmer_transform.hpp"
-#include "index/kmer_hash.hpp"
+//#include "debruijn/edge_iterator.hpp"
+//#include "debruijn/debruijn_chain_operations.hpp"
 
+// this file should be included AFTER the types used by lex_less are included, but before the map using lex_less and MapParams
 
 namespace bliss
 {
@@ -44,20 +45,12 @@ namespace bliss
           return (x < y) ? x : y;
         }
 
-//        inline ::std::pair<KMER, ::bliss::debruijn::compact_simple_biedge >
-//        operator()(std::pair<KMER, ::bliss::debruijn::compact_simple_biedge > const & x) const {
-//          auto y = x.first.reverse_complement();
-//          return (x.first < y) ? x :   // if already canonical, just return input
-//              std::pair<KMER, ::bliss::debruijn::compact_simple_biedge >(
-//                  y, x.second.reverse_complement() );
-//        }
-
         // standard operator to get canonical k-mer and value.  value is also reversed and complemented.
         template <typename VAL>
         inline ::std::pair<KMER, VAL > operator()(std::pair<KMER, VAL > const & x) const {
           auto y = x.first.reverse_complement();
           return (x.first < y) ? x :   // if already canonical, just return input
-              std::pair<KMER, VAL >(y, ::bliss::debruijn::transform::template reverse_complement(x.second) );
+              std::pair<KMER, VAL >(y, ::bliss::debruijn::transform::reverse_complement(x.second) );
         }
 
     };
@@ -74,8 +67,6 @@ namespace bliss
             ::bliss::index::kmer::StoreHashMurmur,
             ::std::equal_to
           >;
-
-
 
   }/*namespace debruijn*/
 }/*namespace bliss*/

@@ -59,13 +59,14 @@
 #include "index/kmer_hash.hpp"
 #include "debruijn/edge_iterator.hpp"
 #include "debruijn/debruijn_graph_loader.hpp"
-#include "debruijn/debruijn_graph_map.hpp"
 #include "debruijn/debruijn_stats.hpp"
 #include "debruijn/debruijn_graph_filters.hpp"
 #include "debruijn/debruijn_chain_filters.hpp"
 #include "debruijn/debruijn_chain_node.hpp"
 #include "debruijn/debruijn_chain_operations.hpp"
+
 #include "debruijn/debruijn_common.hpp"
+#include "debruijn/debruijn_graph_map.hpp"
 
 #include "utils/benchmark_utils.hpp"
 #include "utils/exception_handling.hpp"
