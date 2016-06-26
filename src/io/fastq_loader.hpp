@@ -454,8 +454,16 @@ namespace bliss
          */
         virtual ::std::pair<size_t, size_t> get_record_size(const Iterator &_data, const RangeType &parentRange, const RangeType &inMemRange, const RangeType &searchRange, size_t const count = 10) {
 
-          if (searchRange.size() == 0) throw std::logic_error("calling FASTQParser get_record_size with 0 sized searchRange for iterator.");
-          if (inMemRange.size() == 0) throw std::logic_error("calling FASTQParser get_record_size with 0 sized inMemRange for iterator.");
+
+//      	  std::cout << " parent: " << parentRange << " inMem: " << inMemRange << " search: " << searchRange << std::endl;
+
+
+
+          if (searchRange.size() == 0) return std::make_pair(0UL, 0UL);
+        	  //throw std::logic_error("calling FASTQParser get_record_size with 0 sized searchRange for iterator.");
+
+          if (inMemRange.size() == 0) return std::make_pair(0UL, 0UL);
+           // throw std::logic_error("calling FASTQParser get_record_size with 0 sized inMemRange for iterator.");
 
           if (count == 0) throw std::invalid_argument("ERROR: called FASTQParser get_record_size with count == 0");
 
@@ -465,10 +473,13 @@ namespace bliss
           // find the first record that starts within search range
           size_t start = this->find_first_record(_data, parentRange, inMemRange, searchRange);
 
+          if (start == searchRange.end) return std::make_pair(0UL, 0UL);  // did not find one.
+
           Iterator local_data = _data + start - inMemRange.start;
 
-
-          if (*local_data != '@') throw std::logic_error("calling FASTQParser get_record_size with _data not pointing to start of a record.  call init_parser first.");
+          if (*local_data != '@') {
+        	  throw std::logic_error("calling FASTQParser get_record_size with _data not pointing to start of a record.  call init_parser first.");
+          }
 
           Iterator local_end = _data + searchRange.end - inMemRange.start;
           size_t local_offset = searchRange.start;
