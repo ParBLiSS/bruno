@@ -891,7 +891,7 @@ namespace bliss
      * @note  This shifts by the number of characters (which is a larger shift
      *        then bitwise).
      */
-    KMER_INLINE Kmer operator<<(const std::size_t shift_by)
+    KMER_INLINE Kmer operator<<(const std::size_t shift_by) const
     {
       Kmer result = *this;
       result <<= shift_by;
@@ -946,7 +946,7 @@ namespace bliss
      * @note  This shifts by the number of characters (which is a larger shift
      *        then bitwise).
      */
-    KMER_INLINE Kmer operator>>(const std::size_t shift_by)
+    KMER_INLINE Kmer operator>>(const std::size_t shift_by) const
     {
       Kmer result = *this;
       result >>= shift_by;

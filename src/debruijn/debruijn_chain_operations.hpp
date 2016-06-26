@@ -191,73 +191,55 @@ namespace bliss {
             }
         };
 
-//
-//
-//        template <typename KMER>
-//        struct lex_less {
-//            inline KMER operator()(KMER const & x) const  {
-//              auto y = x.reverse_complement();
-//              return (x < y) ? x : y;
-//            }
-//            inline KMER operator()(KMER const & x, KMER const & rc) const  {
-//              return (x < rc) ? x : rc;
-//            }
-//
-//            inline ::std::pair<KMER, ::bliss::debruijn::operation::chain::terminus_update_md<KMER> >
-//            operator()(std::pair<KMER, ::bliss::debruijn::operation::chain::terminus_update_md<KMER> > const & x) const {
-//              auto y = x.first.reverse_complement();
-//              if (x.first <= y)
-//                return x;   // if already canonical, just return input
-//              else {
-//                ::bliss::debruijn::operation::chain::terminus_update_md<KMER> z(x.second.first.reverse_complement(), -(x.second.second));
-//                return std::pair<KMER, ::bliss::debruijn::operation::chain::terminus_update_md<KMER> >( y, z );
-//
-//              }
-//            }
-//
-//            inline ::std::pair<KMER, ::bliss::debruijn::operation::chain::chain_update_md<KMER> >
-//            operator()(std::pair<KMER, ::bliss::debruijn::operation::chain::chain_update_md<KMER> > const & x) const {
-//              auto y = x.first.reverse_complement();
-//              if (x.first <= y)
-//                return x;   // if already canonical, just return input
-//              else {
-//                // revcomp kmer, keep distance, flip edge orientation
-//                ::bliss::debruijn::operation::chain::chain_update_md<KMER> z(std::get<0>(x.second).reverse_complement(), std::get<1>(x.second), -(std::get<2>(x.second)));
-//                return std::pair<KMER, ::bliss::debruijn::operation::chain::chain_update_md<KMER> >( y, z );
-//
-//              }
-//            }
-//
-//        };
-//
-
 
 
         template <typename KMER>
         struct chain_node_to_char_transform {
             // convert a chain node to a compacted node (for print out).
             inline ::bliss::debruijn::chain::compacted_chain_node<KMER> operator()(::std::pair<KMER, ::bliss::debruijn::simple_biedge<KMER> > const & x) const {
-              ::bliss::debruijn::lex_less<KMER> lexlt;
 
-              ::bliss::debruijn::chain::compacted_chain_node<KMER> output;
+            	// APPROACH:
+            	// 1. choose an endpoint.  compare the 2 end points and choose the smaller.
+            	//    note that we want to eventually print, so we want to maintain a 5' to 3' order, regardless of whether the
+            	//    chosen endpoint kmer is canonical or not.
+            	//    also because of this, look at only Left to current to right, or
+            	//        revcomp(right) to revcomp(current) to revcomp(left), as current is canonical.
+            	//    we therefore compare Left (incoming) kmer to reverse complement of Right (out going) kmer.
+            	//    this in effect chooses the strand to print, each corresponding to 1 of 2 end points of chain.
 
-              // if this is end node, L is set to node k-mer.  else canonical left edge k-mer.
-              KMER L = (std::get<2>(x.second) == 0) ? x.first : lexlt(std::get<0>(x.second));
-              KMER R = (std::get<3>(x.second) == 0) ? x.first : lexlt(std::get<1>(x.second));
 
-              // now compare L and R, both are canonical.
-              bool choose_left = (L < R);
-              int dist = choose_left ? abs(std::get<2>(x.second)) : abs(std::get<3>(x.second));
+            	// 2. if we choose Left, then we get the last character in the current kmer
+            	//    else we get the last character in the reverse complement of the current kmer  (same as complement of first char)
+            	// 3. we also choose the corresponding distance.
 
-              // figure out if the chosen Kmer was already canonical or not.
-              bool was_canonical = (dist == 0) ? true :
-                  (choose_left ? (L == std::get<0>(x.second)) : (R == std::get<1>(x.second)));
+              // if this is end node, L is set to node k-mer.  else left edge k-mer (and right k-mer revcomp)
+              KMER L = (std::get<2>(x.second) == 0) ? x.first : std::get<0>(x.second);
+              KMER R = ((std::get<3>(x.second) == 0) ? x.first : std::get<1>(x.second)).reverse_complement();
 
-              // get the character from the node k-mer.  if the chosen L/R was canonical, then no revcomp is needed.  else revcomp the node k-mer.
-              // get the lowest word, then mask for a single character.  finally, map to ASCII
-              char ch = (was_canonical ? x.first : x.first.reverse_complement()).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1);
+              // now compare L and R, the smaller is the "representative" of a chain
+              // choosing one also chooses a strand
+              bool sense = (L < R);
 
-              return ::bliss::debruijn::chain::compacted_chain_node<KMER>(choose_left ? L : R, dist, ch);
+              // once the representative is chosen, the distance is set too.
+              int dist = sense ? abs(std::get<2>(x.second)) : abs(std::get<3>(x.second));
+
+              // recall that left and right are on same strand as kmer.
+              // so if we have sense (L/IN), we want the last char from the kmer as the next
+              //    if we have antisense (R/OUT), we want the complement of first char from the kmer as the next
+              char ch = sense ? (x.first.getData()[0] & ((0x1 << KMER::bitsPerChar) - 1)) :
+            		  KMER::KmerAlphabet::TO_COMPLEMENT[(x.first >> (KMER::size - 1)).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1)];
+//
+//              auto md = x.second;
+//              if ((std::get<2>(md) > -2) || (std::get<3>(md) > -2)) {
+//				  std::cout << "\tin dist " << std::get<2>(md) << " kmer: " << std::get<0>(md) << std::endl;
+//				  std::cout << "\tkmer: " << x.first << std::endl;
+//				  std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << std::get<1>(md) << std::endl;
+//				  std::cout << "\tchar = " << KMER::KmerAlphabet::TO_ASCII[ch] << std::endl;
+//              }
+
+
+              // store the canonical end, and dist.
+              return ::bliss::debruijn::chain::compacted_chain_node<KMER>(sense ? L : R, dist, ch);
             }
         };
 
@@ -273,28 +255,19 @@ namespace bliss {
         template <typename KMER>
         struct print_chain_node {
             inline void operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x) {
-              if (std::get<1>(x) == 0) printf("\n[CHAIN]%s", bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)).c_str());
+              if (std::get<1>(x) == 0) printf("\n[CHAIN] %s", bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)).c_str());
               else printf("%c", KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
+              //else printf("\n%d %c", std::get<1>(x), KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
             }
         };
 
-
-//        template <typename Kmer >
-//        using CanonicalDeBruijnChainMapParams = ::dsc::HashMapParams<
-//            Kmer,
-//            ::bliss::debruijn::operation::chain::lex_less,  // precanonalizer.  operates on the value as well
-//             ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
-//              ::bliss::index::kmer::DistHashMurmur,
-//               ::std::equal_to,
-//                ::bliss::kmer::transform::identity,
-//                 ::bliss::index::kmer::StoreHashMurmur,
-//                  ::std::equal_to
-//                   >;
 
       } // namespace chain
 
     } //namespace operation
 
+
+    // for lex_less with kmer edges.
     namespace transform {
       /// standard companion function (used by lex_less) to compact_simple_biedge to get reverse complement of edge.
       template <typename KMER>
