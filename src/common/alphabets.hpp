@@ -206,6 +206,8 @@ namespace bliss
        *        -/. = 000
        *
        *        010 and 101 are not really used.  they are mapped to '?'
+       *
+       *        IMPORTANT: lexicographical comparison is not goign to work the same way - G is greater than T in value.
        */
       template <typename DUMMY = void>
       struct DNA6_T : BaseAlphabetChar
