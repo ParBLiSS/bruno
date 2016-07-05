@@ -127,7 +127,7 @@ TEST_P(FASTAParserTest, parse_omp)
 
   while (l1.getRange().size() > 0) {
 
-    l1parser.init_parser(l1.begin(), loader.getFileRange(), l1.getRange(), l1.getRange());
+    l1parser.init_parser(l1.begin(), loader.getFileRange(), l1.getRange(), l1.getRange());   // this should be okay.  l1 should have file range.
 
     localKmerCount = 0;
 #pragma omp parallel num_threads(nthreads) shared(loader, l1parser) reduction(+:localKmerCount)
@@ -294,9 +294,10 @@ TEST_P(FASTAParserTest, parse_mpi_omp)
 INSTANTIATE_TEST_CASE_P(Bliss, FASTAParserTest, ::testing::Values(
     TestFileInfo(243, 13790, std::string("/test/data/natural.fasta")),
     TestFileInfo(250, 14625, std::string("/test/data/natural.withN.fasta")),
+    TestFileInfo(6, 940, std::string("/test/data/test2.fasta")),
     TestFileInfo(4, 512, std::string("/test/data/test.fasta")),
     TestFileInfo(5000, 1092580, std::string("/test/data/test.medium.fasta")),
-    TestFileInfo(6, 940, std::string("/test/data/test2.fasta"))
+    TestFileInfo(2, 31245, std::string("/test/data/test.unitiqs.fasta"))
 ));
 
 //INSTANTIATE_TEST_CASE_P(Bliss, FASTAParserTest, ::testing::Values(

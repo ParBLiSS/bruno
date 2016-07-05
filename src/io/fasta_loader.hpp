@@ -142,6 +142,13 @@ namespace bliss
           return *this;
         }
 
+        using bliss::io::BaseFileParser<Iterator>::find_overlap_end;
+        using bliss::io::BaseFileParser<Iterator>::reset;
+        using bliss::io::BaseFileParser<Iterator>::init_parser;
+        using bliss::io::BaseFileParser<Iterator>::find_first_record;
+        using bliss::io::BaseFileParser<Iterator>::get_next_record;
+        using bliss::io::BaseFileParser<Iterator>::get_record_size;
+        using bliss::io::BaseFileParser<Iterator>::should_parse;
 
 // use base class definition
 //        /**
@@ -154,7 +161,9 @@ namespace bliss
 //          return bliss::io::BaseFileParser<Iterator>::find_first_record(_data, parentRange, inMemRange, searchRange);
 //        }
 
-        virtual typename RangeType::ValueType find_overlap_end(const Iterator &_data, const RangeType &parentRange, const RangeType &inMemRange, typename RangeType::ValueType end, size_t overlap ) {
+        virtual typename RangeType::ValueType find_overlap_end(const Iterator &_data,
+        		const RangeType &parentRange, const RangeType &inMemRange,
+				typename RangeType::ValueType end, size_t overlap ) {
           // if overlap is 0, then no need to compute.
           if (overlap == 0) return end;
 
@@ -173,6 +182,7 @@ namespace bliss
           // new end.
           return pos;
         }
+
 
         virtual void reset() {
           seq_offset = ::std::numeric_limits<size_t>::max();
@@ -198,6 +208,10 @@ namespace bliss
          */
         virtual size_t init_parser(const Iterator &_data, const RangeType &parentRange, const RangeType &inMemRange, const RangeType &searchRange, const mxx::comm& comm)
         {
+
+//          std::cout << "rank " << comm.rank()<< "   parent " << parentRange << std::endl;
+//          std::cout << "rank " << comm.rank()<< "   inmem " << inMemRange << std::endl;
+//          std::cout << "rank " << comm.rank()<< "   search " << searchRange << std::endl;
 
           //== range checking
           if(!parentRange.contains(inMemRange)) {
@@ -439,7 +453,7 @@ namespace bliss
             }
             //=====DONE===== NOW SPREAD THE LAST ENTRY FORWARD.  empty range (r) does not participate
             size_t total_sequences = mxx::allreduce(sequences.size(), comm);
-            if (total_sequences == 0) throw std::logic_error("ERROR: no sequences found.  wrong input file type?");
+            if (total_sequences == 0) throw std::logic_error("ERROR: no sequences found distributed.  wrong input file type?");
 
             //if (in_comm != MPI_COMM_NULL) MPI_Comm_free(&in_comm);
 
@@ -575,7 +589,9 @@ namespace bliss
 
             //=====DONE===== CONVERT FROM LINE START POSITION TO RANGE FOR HEADERS
 
-              if (sequences.size() == 0) throw std::logic_error("ERROR: no sequences found.  wrong input file type?");
+              if (sequences.size() == 0) {
+                BL_WARNING("WARNING: no sequences found serially. either incorrect file type, or a part of file that does not contain sequence start was read.");
+              }
 
 //            for (auto x : sequences)
 //              BL_DEBUGF("R 0 header range [%lu, %lu, %lu), id %lu\n", std::get<0>(x), std::get<1>(x), std::get<2>(x), std::get<3>(x));
@@ -694,7 +710,7 @@ namespace bliss
          * @brief   get the average record size in the supplied range
          * @return  return the records size and the internal data size
          */
-        virtual ::std::pair<size_t, size_t> get_record_size(const Iterator &_data, const RangeType &parentRange, const RangeType &inMemRange, const RangeType &searchRange, size_t const count = 10) {
+        virtual ::std::pair<size_t, size_t> get_record_size(const Iterator &_data, const RangeType &parentRange, const RangeType &inMemRange, const RangeType &searchRange, size_t const count) {
           if (sequences.size() == 0) throw std::logic_error("calling FASTAParser get_record_size without first initializing for iterator.");
 
           if (count == 0) throw std::invalid_argument("ERROR: called FASTAParser get_record_size with count == 0");
@@ -723,53 +739,48 @@ namespace bliss
           return std::make_pair(record_size, seq_data_len);
 
         }
+#ifdef USE_MPI
+       virtual ::std::pair<size_t, size_t> get_record_size(const Iterator &_data, const RangeType &parentRange, const RangeType &inMemRange, const RangeType &validRange, mxx::comm const & comm, size_t const count) {
+         if (sequences.size() == 0) throw std::logic_error("calling FASTAParser get_record_size without first initializing for iterator.");
 
+         if (count == 0) throw std::invalid_argument("ERROR: called FASTAParser get_record_size with count == 0");
+
+         // now initialize the search.  no need to call the first increment separately since we know that we have to start from seq id 0.
+         size_t seq_data_len = 0;
+         size_t record_size = 0;
+
+
+         size_t max = ::std::min(sequences.size(), (count + comm.size() - 1) / comm.size());
+
+         auto seq = sequences[0];
+
+         size_t i = 0;
+         for (; i < max; ++i) {
+           seq = sequences[i];
+           record_size += ::std::get<2>(seq) - ::std::get<0>(seq);
+           seq_data_len += ::std::get<2>(seq) - ::std::get<1>(seq);
+         }
+
+         i = mxx::allreduce(i, comm);  // total count
+
+         // aggregate.
+         seq_data_len = mxx::allreduce(seq_data_len, comm) / i;
+         record_size = mxx::allreduce(record_size, comm) / i;
+
+
+         if (seq_data_len == 0) throw std::logic_error("ERROR: estimated sequence data size is 0");
+         if (record_size == 0) throw std::logic_error("ERROR: estimated record size is 0");
+
+         return std::make_pair(record_size, seq_data_len);
+       }
+
+
+       virtual bool should_parse(const RangeType & range, const mxx::comm & comm) {
+         return mxx::any_of(range.size() > 0, comm);
+       }
+
+#endif
     };
-
-
-
-    /**
-     * @class FASTQLoader
-     * @brief FileLoader subclass specialized for the FASTQ file format, uses CRTP to enforce interface consistency.
-     * @details   FASTQLoader understands the FASTQ file format, and enforces that the
-     *            L1 and L2 partition boundaries occur at FASTQ sequence record boundaries.
-     *
-     *            FASTQ files allow storage of per-base quality score and is typically used
-     *              to store a collection of short sequences.
-     *            Long sequences (such as complete genome) can be found in FASTA formatted files
-     *              these CAN be read using standard FileLoader, provided an appropriate overlap
-     *              is specified (e.g. for kmer reading, overlap should be k-1).
-     *
-     *          for reads, expected lengths are maybe up to 1K in length, and files contain >> 1 seq
-     *
-     *          Majority of the interface is inherited from FileLoader.
-     *          This class modifies the behaviors of GetNextL1Block and getNextL2Block,
-     *            as described in FileLoader's "Advanced Usage".  Specifically, the range is modified
-     *            for each block by calling "find_first_record" to align the start and end to FASTA sequence
-     *            record boundaries.
-     *
-     * @note    Processes 1 file at a time.  For paired end reads, a separate subclass is appropriate.
-     *          Sequences are identified by the following set of attributes:
-     *
-     *             file id.          (via filename to id map)
-     *             read id in file   (e.g. using the offset at whcih read occurs in the file as id)
-     *             position in read  (useful for kmer)
-     *
-     *          using the offset as id allows us to avoid d assignment via prefix sum.
-     *
-     * @tparam  T                 type of each element read from file
-     * @tparam  Overlap           overlap between blocks at L1 or L2.  should be more than 0
-     * @tparam  L1Buffering       bool indicating if L1 partition blocks should be buffered.  default to false
-     * @tparam  L2Buffering       bool indicating if L2 partition blocks should be buffered.  default to true (to avoid contention between threads)
-     * @tparam  L1PartitionerT    Type of the Level 1 Partitioner to generate the range of the file to load from disk
-     * @tparam  L2PartitionerT    L2 partitioner, default to DemandDrivenPartitioner
-     */
-    template<typename T, size_t Overlap,
-        bool L2Buffering = false,
-        bool L1Buffering = true,
-        typename L2PartitionerT = bliss::partition::DemandDrivenPartitioner<bliss::partition::range<size_t> > >
-    using FASTALoader = FileLoader<T, Overlap, FASTAParser, L2Buffering, L1Buffering, L2PartitionerT,
-        bliss::partition::BlockPartitioner<bliss::partition::range<size_t> > >;
 
 
   }
