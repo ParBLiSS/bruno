@@ -158,7 +158,9 @@ namespace io {
  * @brief loaded file data.
  */
 struct file_data {
-  using iterator = unsigned char*;
+	using container = std::vector<unsigned char>;
+  using iterator = typename container::iterator;
+  using const_iterator = typename container::const_iterator;
 
 	// type of ranges
 	using range_type = ::bliss::partition::range<size_t>;
@@ -173,27 +175,47 @@ struct file_data {
 	range_type valid_range_bytes;
 
 	// storage for actual data
-	std::vector<unsigned char> data;
+	container data;
 
 	/// beginning of the valid range
-	unsigned char * begin() {
-		return data.data() + valid_range_bytes.start - in_mem_range_bytes.start;
+	iterator begin() {
+		return data.begin() + valid_range_bytes.start - in_mem_range_bytes.start;
 	}
 	/// end of valid range
-	unsigned char * end() {
-		return data.data() + valid_range_bytes.end - in_mem_range_bytes.start;
+	iterator end() {
+		return data.begin() + valid_range_bytes.end - in_mem_range_bytes.start;
 	}
+
+	/// beginning of the valid range
+	const_iterator cbegin() const {
+		return data.cbegin() + valid_range_bytes.start - in_mem_range_bytes.start;
+	}
+	/// end of valid range
+	const_iterator cend() const {
+		return data.cbegin() + valid_range_bytes.end - in_mem_range_bytes.start;
+	}
+
 
 	/// start of inmem range
-	unsigned char * in_mem_begin() {
-		return data.data();
+	iterator in_mem_begin() {
+		return data.begin();
 	}
 	/// end of in mem range
-	unsigned char * in_mem_end() {
-		return data.data() + in_mem_range_bytes.size();
+	iterator in_mem_end() {
+		return data.end();
 	}
 
-	range_type getRange() {
+
+	/// start of inmem range
+	const_iterator in_mem_cbegin() const {
+		return data.cbegin();
+	}
+	/// end of in mem range
+	const_iterator in_mem_cend() const {
+		return data.cend();
+	}
+
+	range_type getRange() const {
 		return valid_range_bytes;
 	}
 };
@@ -451,8 +473,8 @@ public:
 	 * @param range_bytes	  range to read, in bytes
 	 * @return				  vector containing data as bytes.
 	 */
-	virtual std::vector<unsigned char> read_range(range_type const & range_bytes) {
-		::std::vector<unsigned char> out;
+	virtual typename ::bliss::io::file_data::container read_range(range_type const & range_bytes) {
+		typename ::bliss::io::file_data::container out;
 		this->read_range(out, range_bytes);
 		return out;
 	}
@@ -463,7 +485,7 @@ public:
 	 * @param range_bytes	range to read, in bytes
 	 * @param output		vector containing data as bytes.
 	 */
-	virtual range_type read_range(std::vector<unsigned char> & output, range_type const & range_bytes) = 0;
+	virtual range_type read_range(typename ::bliss::io::file_data::container & output, range_type const & range_bytes) = 0;
 
 
 	/// flag to indicate read
@@ -543,7 +565,7 @@ public:
 	 *  bulk load all the data and return it in pre-allocated vector
 	 *  @param output   vector where the results are to be stored.
 	 */
-	virtual typename BASE::range_type read_range(std::vector<unsigned char> & output,
+	virtual typename BASE::range_type read_range(typename ::bliss::io::file_data::container & output,
 			typename BASE::range_type const & range_bytes) {
 
 	  typename BASE::range_type file_range = BASE::range_type::intersect(range_bytes, this->file_range_bytes);
@@ -690,7 +712,7 @@ public:
 	 * @param range_bytes	range to read, in bytes
 	 * @param output		vector containing data as bytes.
 	 */
-	virtual range_type read_range(std::vector<unsigned char> & output, range_type const & range_bytes) {
+	virtual range_type read_range(typename ::bliss::io::file_data::container & output, range_type const & range_bytes) {
 	  this->open_file_stream();
 
 		// ensure the portion to copy is within the mapped region.
@@ -796,7 +818,7 @@ public:
    * @param output    vector containing data as bytes.
    * @return  the range for the read data.
    */
-  virtual range_type read_range(std::vector<unsigned char> & output, range_type const & range_bytes) {
+  virtual range_type read_range(typename ::bliss::io::file_data::container & output, range_type const & range_bytes) {
     if (this->fd == -1) {
       throw ::bliss::utils::make_exception<std::logic_error>("ERROR: read_range: file pointer is null");
     }
@@ -890,7 +912,7 @@ public:
 
 };
 
-
+#ifdef USE_MPI
 
 
 namespace parallel {
@@ -1039,7 +1061,7 @@ public:
 
 
 template <typename FileReader,
-          typename FileParser = ::bliss::io::BaseFileParser<unsigned char*>,
+          template <typename> class FileParser = ::bliss::io::BaseFileParser,
           typename BaseType = ::bliss::io::parallel::base_file >
 class partitioned_file : public BaseType {
 
@@ -1047,6 +1069,7 @@ protected:
 	using BASE = BaseType;
 
 	using range_type = typename ::bliss::io::base_file::range_type;
+	using FileParserType = FileParser<typename ::bliss::io::file_data::const_iterator >;
 
 	/// FileReader
 	FileReader reader;
@@ -1132,7 +1155,7 @@ public:
 	 * @param range_bytes	range to read, in bytes
 	 * @param output		vector containing data as bytes.
 	 */
-	virtual typename BASE::range_type read_range(std::vector<unsigned char> & output,
+	virtual typename BASE::range_type read_range(typename ::bliss::io::file_data::container & output,
 	                                             typename BASE::range_type const & range_bytes) {
 		// first get rough partition
 	  typename BASE::range_type target = partition(range_bytes);
@@ -1172,22 +1195,30 @@ public:
 		::std::tie(in_mem_partitioned, valid_partitioned) =
 				overlapped_partition(this->file_range_bytes, this->file_range_bytes);
 
+//		std::cout << " rank " << this->comm.rank() << " PRIMARY : in mem " << output.in_mem_range_bytes << " valid " << output.valid_range_bytes << std::endl;
+
+
 		// then read the range via sequential version
 		output.in_mem_range_bytes = reader.read_range(output.data, in_mem_partitioned);
 
 		output.valid_range_bytes = valid_partitioned;
 		output.parent_range_bytes = this->file_range_bytes;
 	}
+
+//	std::string get_class_name() {
+//		return std::string("partitioned_file<...>");
+//	}
+//
 };
 
 
 template <typename FileReader, typename BaseType>
-class partitioned_file<FileReader, ::bliss::io::FASTQParser<unsigned char* >, BaseType > :
+class partitioned_file<FileReader, ::bliss::io::FASTQParser, BaseType > :
 	public BaseType {
 
 protected:
 	using BASE = BaseType;
-
+	using FileParserType = ::bliss::io::FASTQParser<typename ::bliss::io::file_data::const_iterator >;
 	using range_type = typename ::bliss::io::base_file::range_type;
 
 	/// FileReader
@@ -1273,7 +1304,7 @@ public:
 	 * @param range_bytes	range to read, in bytes
 	 * @param output		vector containing data as bytes.
 	 */
-	virtual typename BASE::range_type read_range(std::vector<unsigned char> & output,
+	virtual typename BASE::range_type read_range(typename ::bliss::io::file_data::container & output,
 	                                             typename BASE::range_type const & range_bytes) {
 
 		// first get rough partition
@@ -1310,6 +1341,8 @@ public:
 	 */
 	virtual void read_file(::bliss::io::file_data & output) {
 
+//		std::cout << " rank " << this->comm.rank() << " FASTQ: in mem " << output.in_mem_range_bytes << " valid " << output.valid_range_bytes << std::endl;
+
 		// overlap is set to page size, so output will have sufficient space.
 		// note that this is same behavior as the serial mmap_file
 
@@ -1329,9 +1362,9 @@ public:
 
 
 		// now search for the true start.
-		::bliss::io::FASTQParser<unsigned char *> parser;
+		FileParserType parser;
   // mark the first entry found.
-		size_t real_start = parser.init_parser(output.data.data(), this->file_range_bytes,
+		size_t real_start = parser.init_parser(output.in_mem_cbegin(), this->file_range_bytes,
 				in_mem, partition_range, this->comm);
 
 
@@ -1366,7 +1399,7 @@ public:
 		if (this->comm.rank() > 0) send_counts[target_rank] = real_start - in_mem.start;
 
 		// copy the region to shift
-		std::vector<unsigned char> shifted =
+		typename ::bliss::io::file_data::container shifted =
 				::mxx::all2allv(output.data, send_counts, this->comm);
 		output.data.insert(output.data.end(), shifted.begin(), shifted.end());
 
@@ -1392,15 +1425,21 @@ public:
 
 	}
 
+
+//	std::string get_class_name() {
+//		return std::string("partitioned_file<FASTQ>");
+//	}
 };
 
 
 template <typename FileReader, typename BaseType>
-class partitioned_file<FileReader, ::bliss::io::FASTAParser<unsigned char* >, BaseType > :
+class partitioned_file<FileReader, ::bliss::io::FASTAParser, BaseType > :
 	public BaseType {
 
 protected:
 	using BASE = BaseType;
+
+	using FileParserType = ::bliss::io::FASTAParser<typename ::bliss::io::file_data::const_iterator>;
 
 	using range_type = typename ::bliss::io::base_file::range_type;
 
@@ -1487,7 +1526,7 @@ public:
 	 * @param range_bytes	range to read, in bytes
 	 * @param output		vector containing data as bytes.
 	 */
-	virtual typename BASE::range_type read_range(std::vector<unsigned char> & output,
+	virtual typename BASE::range_type read_range(typename ::bliss::io::file_data::container & output,
 	                                             typename BASE::range_type const & range_bytes) {
 
 		// first get rough partition
@@ -1531,6 +1570,8 @@ public:
 		::std::tie(output.in_mem_range_bytes, output.valid_range_bytes) =
 				overlapped_partition(this->file_range_bytes, this->file_range_bytes);
 
+//		std::cout << " rank " << this->comm.rank() << " FASTA: in mem " << output.in_mem_range_bytes << " valid " << output.valid_range_bytes << std::endl;
+
 		// then read the range via sequential version
 		output.in_mem_range_bytes = reader.read_range(output.data, output.in_mem_range_bytes);
 
@@ -1545,9 +1586,9 @@ public:
 //		std::cout << "rank " << this->comm.rank() << " overlap " << this->overlap << std::endl;
 
 		// now search for the true start.
-		::bliss::io::FASTAParser<unsigned char *> parser;
+		FileParserType parser;
   // mark the first entry found.
-		size_t overlap_end = parser.find_overlap_end(output.data.data(), output.parent_range_bytes,
+		size_t overlap_end = parser.find_overlap_end(output.in_mem_cbegin(), output.parent_range_bytes,
 				output.in_mem_range_bytes, output.valid_range_bytes.end, overlap);
 
 		// erase the extra.
@@ -1560,31 +1601,36 @@ public:
 //		std::cout << "rank " << this->comm.rank() << " file  " << output.parent_range_bytes << std::endl;
 
 	}
+//	std::string get_class_name() {
+//		return std::string("partitioned_file<FASTA>");
+//	}
 
 };
 
 /// disable shared fd for stdio file.
-template <typename FileParser>
+template <template <typename> class FileParser>
 class partitioned_file<::bliss::io::stdio_file, FileParser, ::bliss::io::parallel::base_shared_fd_file >
 {
   private:
-	template <typename dummy = FileParser>
     partitioned_file(std::string const & _filename, size_t const & _overlap = 0UL, ::mxx::comm const & _comm = ::mxx::comm()) {
 		// static_assert(false, "ERROR: stdio_file is not compatible with base_shared_fd_file, as there is no fread that will maintain the old position");
     }
 
-	template <typename dummy = FileParser>
 	partitioned_file() {
 		// static_assert(false, "ERROR: stdio_file is not compatible with base_shared_fd_file, as there is no fread that will maintain the old position");
 	};
 
 	~partitioned_file() {};
+
+//	std::string get_class_name() {
+//		return std::string("partitioned_file<stdio_file>");
+//	}
 };
 
 
 
 // multilevel parallel file io relies on MPIIO.
-template <typename FileParser = ::bliss::io::BaseFileParser<unsigned char*> >
+template <template <typename> class FileParser = ::bliss::io::BaseFileParser >
 class mpiio_base_file : public ::bliss::io::base_file {
 
 	static_assert(sizeof(MPI_Offset) > 4, "ERROR: MPI_Offset is defined as an integer 4 bytes or less.  Do not use mpiio_file ");
@@ -1596,16 +1642,13 @@ protected:
 	const size_t overlap;
 
   /// communicator used.  object instead of being a reference - lifetime of a src comm temp object in constructor is just that of the constructor call.
-  const ::mxx::comm comm;
+	const ::mxx::comm comm;
 
 	/// MPI file handle
 	MPI_File fh;
 
 	/// partitioner to use.
 	::bliss::partition::BlockPartitioner<range_type> partitioner;
-
-
-
 
 	std::string get_error_string(std::string const & op_name, int const & return_val) {
 		char error_string[BUFSIZ];
@@ -1696,6 +1739,7 @@ protected:
 public:
 	// this is needed to prevent overload name hiding.  see http://stackoverflow.com/questions/888235/overriding-a-bases-overloaded-function-in-c/888337#888337
 	using BASE::read_range;
+	using FileParserType = FileParser<typename ::bliss::io::file_data::const_iterator>;
 
 	/**
 	 * @brief  bulk load the data and return it in a newly constructed vector.  block decomposes the range.  reuse vector
@@ -1703,8 +1747,9 @@ public:
 	 * @param range_bytes	range to read, in bytes
 	 * @param output		vector containing data as bytes.
 	 */
-	virtual range_type read_range(std::vector<unsigned char> & output,
+	virtual range_type read_range(typename ::bliss::io::file_data::container & output,
 				range_type const & range_bytes) {
+
 		if (fh == MPI_FILE_NULL) {
 			std::stringstream ss;
 			ss << "ERROR in mpiio: rank " << comm.rank() << " file " << this->filename << " not yet open " << std::endl;
@@ -1724,7 +1769,7 @@ public:
 
 		// compute the size to read.
 		range_type read_range = target;
-	read_range.end += std::is_same<FileParser, ::bliss::io::FASTAParser<unsigned char*> >::value ? 2 * this->overlap : this->overlap;
+		read_range.end += std::is_same<FileParser<typename bliss::io::file_data::const_iterator>, ::bliss::io::FASTAParser<typename bliss::io::file_data::const_iterator> >::value ? 2 * this->overlap : this->overlap;
 		read_range.intersect(this->file_range_bytes);
 
 		output.resize(read_range.size());    // set size for reading.
@@ -1885,7 +1930,7 @@ public:
 /**
  * parallel file abstraction for MPIIO, block partition with overlap
  */
-template <typename FileParser = ::bliss::io::BaseFileParser<unsigned char*> >
+template <template <typename> class FileParser = ::bliss::io::BaseFileParser >
 class mpiio_file : public ::bliss::io::parallel::mpiio_base_file<FileParser> {
 
 	protected:
@@ -1895,6 +1940,7 @@ class mpiio_file : public ::bliss::io::parallel::mpiio_base_file<FileParser> {
 public:
 		// this is needed to prevent overload name hiding.  see http://stackoverflow.com/questions/888235/overriding-a-bases-overloaded-function-in-c/888337#888337
 		using BASE::read_range;
+		using FileParserType = typename BASE::FileParserType;
 
 
 		mpiio_file(::std::string const & _filename, size_t const & _overlap = 0UL, ::mxx::comm const & _comm = ::mxx::comm()) :
@@ -1913,6 +1959,8 @@ public:
 		 */
 		virtual void read_file(::bliss::io::file_data & output) {
 
+//			std::cout << "mpiio_file primary template read_file" << std::endl;
+
 			// then read the range via sequential version
 			output.valid_range_bytes = read_range(output.data, this->file_range_bytes);
 
@@ -1927,22 +1975,27 @@ public:
 			output.parent_range_bytes = this->file_range_bytes;
 
 		}
+//		std::string get_class_name() {
+//			return std::string("mpiio_file<...>");
+//		}
+
 };
 
 /**
  * parallel file abstraction for MPIIO.  FASTQParser, which searches the input.
  */
 template <>
-class mpiio_file<::bliss::io::FASTQParser<unsigned char*> > :
-	public ::bliss::io::parallel::mpiio_base_file<::bliss::io::FASTQParser<unsigned char*> > {
+class mpiio_file<::bliss::io::FASTQParser> :
+	public ::bliss::io::parallel::mpiio_base_file<::bliss::io::FASTQParser> {
 
 	protected:
-		using BASE = ::bliss::io::parallel::mpiio_base_file<::bliss::io::FASTQParser<unsigned char*> > ;
+		using BASE = ::bliss::io::parallel::mpiio_base_file<::bliss::io::FASTQParser> ;
 
 
 public:
 		// this is needed to prevent overload name hiding.  see http://stackoverflow.com/questions/888235/overriding-a-bases-overloaded-function-in-c/888337#888337
 		using BASE::read_range;
+		using FileParserType = typename BASE::FileParserType;
 
 
 		mpiio_file(::std::string const & _filename, size_t const & _overlap = 0UL, ::mxx::comm const & _comm = ::mxx::comm()) :
@@ -1961,6 +2014,9 @@ public:
 		 * @param output 		file_data object containing data and various ranges.
 		 */
 		virtual void read_file(::bliss::io::file_data & output) {
+
+//			std::cout << "mpiio_file fastq templated read_file" << std::endl;
+
 
 			// overlap is set to page size, so output will have sufficient space.
 			// note that this is same behavior as the serial mmap_file
@@ -1981,9 +2037,9 @@ public:
 
 
 			// now search for the true start.
-			::bliss::io::FASTQParser<unsigned char *> parser;
+			FileParserType parser;
       // mark the first entry found.
-			size_t real_start = parser.init_parser(output.data.data(), this->file_range_bytes,
+			size_t real_start = parser.init_parser(output.in_mem_cbegin(), this->file_range_bytes,
 					in_mem, partition_range, this->comm);
 
 
@@ -2018,7 +2074,7 @@ public:
 			if (this->comm.rank() > 0) send_counts[target_rank] = real_start - in_mem.start;
 
 			// copy the region to shift
-			std::vector<unsigned char> shifted =
+			typename ::bliss::io::file_data::container shifted =
 					::mxx::all2allv(output.data, send_counts, this->comm);
 			output.data.insert(output.data.end(), shifted.begin(), shifted.end());
 
@@ -2043,22 +2099,26 @@ public:
 //			std::cout << "rank " << this->comm.rank() << " file  " << output.parent_range_bytes << std::endl;
 
 		}
+//		std::string get_class_name() {
+//			return std::string("mpiio_file<FASTQ>");
+//		}
 };
 
 /**
  * parallel file abstraction for MPIIO.  FASTQParser, which searches the input.
  */
 template <>
-class mpiio_file<::bliss::io::FASTAParser<unsigned char*> > :
-	public ::bliss::io::parallel::mpiio_base_file<::bliss::io::FASTAParser<unsigned char*> > {
+class mpiio_file<::bliss::io::FASTAParser > :
+	public ::bliss::io::parallel::mpiio_base_file<::bliss::io::FASTAParser > {
 
 	protected:
-		using BASE = ::bliss::io::parallel::mpiio_base_file<::bliss::io::FASTAParser<unsigned char*> > ;
+		using BASE = ::bliss::io::parallel::mpiio_base_file<::bliss::io::FASTAParser > ;
 
 
 public:
 		// this is needed to prevent overload name hiding.  see http://stackoverflow.com/questions/888235/overriding-a-bases-overloaded-function-in-c/888337#888337
 		using BASE::read_range;
+		using FileParserType = typename BASE::FileParserType;
 
 
 		mpiio_file(::std::string const & _filename, size_t const & _overlap = 0UL, ::mxx::comm const & _comm = ::mxx::comm()) :
@@ -2076,6 +2136,9 @@ public:
 		 * @param output 		file_data object containing data and various ranges.
 		 */
 		virtual void read_file(::bliss::io::file_data & output) {
+
+//			std::cout << "mpiio_file fasta templated read_file" << std::endl;
+
 
 			// overlap is set to page size, so output will have sufficient space.
 			// note that this is same behavior as the serial mmap_file
@@ -2103,9 +2166,9 @@ public:
 	//		std::cout << "rank " << this->comm.rank() << " overlap " << this->overlap << std::endl;
 
 			// now search for the true start.
-			::bliss::io::FASTAParser<unsigned char *> parser;
+			FileParserType parser;
 	  // mark the first entry found.
-			size_t overlap_end = parser.find_overlap_end(output.data.data(), output.parent_range_bytes,
+			size_t overlap_end = parser.find_overlap_end(output.in_mem_cbegin(), output.parent_range_bytes,
 					output.in_mem_range_bytes, output.valid_range_bytes.end, overlap);
 
 			// erase the extra.
@@ -2118,11 +2181,14 @@ public:
 	//		std::cout << "rank " << this->comm.rank() << " file  " << output.parent_range_bytes << std::endl;
 
 		}
+//std::string get_class_name() {
+//	return std::string("mpiio_file<FASTA>");
+//}
 };
 
 
 }  // namespace parallel
-
+#endif  // USE_MPI
 
 
 } // io

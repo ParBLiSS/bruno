@@ -46,13 +46,15 @@
 #include "io/file.hpp"
 
 
-typedef bliss::io::FASTAParser<unsigned char *> ParserType;
 
 
 class FASTAParseTest : public KmerReaderTest
 {
 	// can't compare the sequences directly since offsets may be different.
 protected:
+
+	template <typename ITER>
+	using ParserType = bliss::io::FASTAParser<ITER>;
 
 	static constexpr size_t kmer_size = 35;
 	using KmerType = ::bliss::common::Kmer<kmer_size, bliss::common::DNA5, uint64_t>;
@@ -75,18 +77,18 @@ protected:
 			ASSERT_EQ(fdata.parent_range_bytes.size(), fobj.size());
 			ASSERT_EQ(fdata.parent_range_bytes.end, fobj.size());
 
-		  ASSERT_TRUE(fdata.data[0] == '>');
+		  ASSERT_TRUE((fdata.data[0] == '>') || (fdata.data[0] == ';'));
 
 			this->seqCount = 0;
 			this->kmerCount = 0;
 
 			// from FileLoader type, get the block iter type and range type
-			using BlockIterType = unsigned char *;
+			using BlockIterType = typename bliss::io::file_data::const_iterator;
 			using SeqIterType = ::bliss::io::SequencesIterator<BlockIterType, bliss::io::FASTAParser >;
 
-			ParserType l1parser;
+			ParserType<typename ::bliss::io::file_data::const_iterator> l1parser;
 
-			size_t offset = l1parser.init_parser(fdata.data.data(), fdata.parent_range_bytes, fdata.in_mem_range_bytes, fdata.valid_range_bytes);
+			size_t offset = l1parser.init_parser(fdata.in_mem_cbegin(), fdata.parent_range_bytes, fdata.in_mem_range_bytes, fdata.valid_range_bytes);
 
 			  //==  and wrap the chunk inside an iterator that emits Reads.
 			  SeqIterType seqs_start(l1parser, fdata.begin(),
@@ -161,6 +163,9 @@ protected:
 
 		::bliss::io::file_data fdata = fobj.read_file();
 
+//		std::cout << "rank " << comm.rank() << fobj.get_class_name() << std::endl;
+//        std::cout << "rank " << comm.rank() << " in_mem " << fdata.in_mem_range_bytes << " valid " << fdata.valid_range_bytes << std::endl;
+
 		ASSERT_TRUE(fobj.size() > 0);
 
 		// parent range should match.
@@ -201,12 +206,12 @@ protected:
 			this->kmerCount = 0;
 
 		// from FileLoader type, get the block iter type and range type
-		using BlockIterType = unsigned char *;
+		using BlockIterType = typename ::bliss::io::file_data::const_iterator;
 		using SeqIterType = ::bliss::io::SequencesIterator<BlockIterType, bliss::io::FASTAParser >;
 
-		ParserType l1parser;
+		ParserType<typename ::bliss::io::file_data::const_iterator> l1parser;
 
-		size_t offset = l1parser.init_parser(fdata.data.data(), fdata.parent_range_bytes, fdata.in_mem_range_bytes, fdata.valid_range_bytes, comm);
+		size_t offset = l1parser.init_parser(fdata.in_mem_cbegin(), fdata.parent_range_bytes, fdata.in_mem_range_bytes, fdata.valid_range_bytes, comm);
 
 		  //==  and wrap the chunk inside an iterator that emits Reads.
 		  SeqIterType seqs_start(l1parser, fdata.begin(),
@@ -225,7 +230,7 @@ protected:
 		  //== loop over the reads
 		  for (; seqs_start != seqs_end; ++seqs_start)
 		  {
-	          std::cout << "rank " << comm.rank() << " seq: " << *(seqs_start) << std::endl;
+	          //std::cout << "rank " << comm.rank() << " seq: " << *(seqs_start) << std::endl;
 
 	          // only count sequences that started in this partition and has non-zero size.
 				if (((*seqs_start).record_size > 0) && ((*seqs_start).id.get_pos() >= fdata.valid_range_bytes.start)) ++(this->seqCount);
@@ -235,7 +240,7 @@ protected:
 
 		          // generate kmers and save them
 		          kmer_parser(*seqs_start, emplace_iter);
-		          std::cout << "rank " << comm.rank() << " seqs " << this->seqCount << " kmers: " << result.size() << std::endl;
+		          // std::cout << "rank " << comm.rank() << " seqs " << this->seqCount << " kmers: " << result.size() << std::endl;
 
 		          gold.clear();
 		          gold.resize(seqs_start->seq_size(), 0);
@@ -338,7 +343,7 @@ TEST_P(FASTAParseTest, parse_mmap_mpi)
 {
 	  ::mxx::comm comm;
 
-  ::bliss::io::parallel::partitioned_file<::bliss::io::mmap_file, ParserType> fobj(this->fileName, kmer_size - 1, comm);
+  ::bliss::io::parallel::partitioned_file<::bliss::io::mmap_file, bliss::io::FASTAParser> fobj(this->fileName, kmer_size - 1, comm);
 
   this->parse_mpi(fobj, kmer_size - 1, comm);
 
@@ -349,7 +354,7 @@ TEST_P(FASTAParseTest, parse_stdio_mpi)
 {
 	  ::mxx::comm comm;
 
-  ::bliss::io::parallel::partitioned_file<::bliss::io::stdio_file, ParserType> fobj(this->fileName, kmer_size - 1, comm);
+  ::bliss::io::parallel::partitioned_file<::bliss::io::stdio_file, bliss::io::FASTAParser> fobj(this->fileName, kmer_size - 1, comm);
 
   this->parse_mpi(fobj, kmer_size - 1, comm);
 
@@ -360,7 +365,7 @@ TEST_P(FASTAParseTest, parse_posix_mpi)
 {
 	  ::mxx::comm comm;
 
-  ::bliss::io::parallel::partitioned_file<::bliss::io::posix_file, ParserType> fobj(this->fileName, kmer_size - 1, comm);
+  ::bliss::io::parallel::partitioned_file<::bliss::io::posix_file, bliss::io::FASTAParser> fobj(this->fileName, kmer_size - 1, comm);
 
   this->parse_mpi(fobj, kmer_size - 1, comm);
 
@@ -371,7 +376,7 @@ TEST_P(FASTAParseTest, parse_mpiio_mpi)
 {
 	  ::mxx::comm comm;
 
-	::bliss::io::parallel::mpiio_file<ParserType> fobj(this->fileName, kmer_size - 1, comm);
+	::bliss::io::parallel::mpiio_file<bliss::io::FASTAParser> fobj(this->fileName, kmer_size - 1, comm);
 
 	  this->parse_mpi(fobj, kmer_size - 1, comm);
 
