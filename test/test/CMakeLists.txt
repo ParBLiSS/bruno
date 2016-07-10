@@ -35,6 +35,12 @@ SET_TARGET_PROPERTIES(test_de_bruijn_graph_DNA16
 target_link_libraries(test_de_bruijn_graph_DNA16 ${EXTRA_LIBS})
 
 
+add_executable(compact_debruijn_graph compact_debruijn_graph.cpp)
+SET_TARGET_PROPERTIES(compact_debruijn_graph
+     PROPERTIES COMPILE_FLAGS "-DpDNA=16")
+target_link_libraries(compact_debruijn_graph ${EXTRA_LIBS})
+
+
 add_executable(test_get_file_size test_get_file_size.cpp)
 target_link_libraries(test_get_file_size ${EXTRA_LIBS})
 

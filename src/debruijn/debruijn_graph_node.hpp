@@ -357,7 +357,11 @@ namespace bliss
 
 
 
-      /*node trait class*/
+      /**
+       * compact multi biedge specializaiton for DNA 6.  DO NOT USE THIS FOR ASSEMBLY,
+       * unless entire assembler uses the same lexicographic ordering as this edge type:
+       * ACTG instead of ACGT.
+       */
       template <typename DUMMY>
       class compact_multi_biedge<::bliss::common::DNA6, bool, DUMMY> {
         protected:

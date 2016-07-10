@@ -135,6 +135,10 @@ int main(int argc, char** argv) {
   filename.assign(PROJ_SRC_DIR);
   filename.append("/test/data/test.debruijn.small.fastq");
 
+  std::string out_prefix;
+  out_prefix.assign("./output");
+
+
 //  std::string queryname(filename);
 //  int sample_ratio = 100;
 
@@ -148,33 +152,20 @@ int main(int argc, char** argv) {
     // delimiter (usually space) and the last one is the version number.
     // The CmdLine object parses the argv array based on the Arg objects
     // that it contains.
-    TCLAP::CmdLine cmd("Parallel de bruijn graph building", ' ', "0.1");
+    TCLAP::CmdLine cmd("Parallel de bruijn graph compaction", ' ', "0.1");
 
     // Define a value argument and add it to the command line.
     // A value arg defines a flag and a type of value that it expects,
     // such as "-n Bishop".
     TCLAP::ValueArg<std::string> fileArg("F", "file", "FASTQ file path", false, filename, "string", cmd);
 
-    TCLAP::ValueArg<std::string> queryArg("O", "output_prefix", "Output file prefix", false, "", "string", cmd);
-
-//    TCLAP::ValueArg<std::string> queryArg("Q", "query", "FASTQ file path for query. default to same file as index file", false, "", "string", cmd);
-//    TCLAP::ValueArg<int> sampleArg("S",
-//                                   "query-sample", "sampling ratio for the query kmers. default=100",
-//                                   false, sample_ratio, "int", cmd);
-
+    TCLAP::ValueArg<std::string> outputArg("O", "output_prefix", "Prefix for output files, including directory", false, "", "string", cmd);
 
     // Parse the argv array.
     cmd.parse( argc, argv );
 
     filename = fileArg.getValue();
-
-//    // Get the value parsed by each arg.
-// set the default for query to filename, and/home/DATA/1000genome/HG00096/SRR077487_1.filt.0_03125noN.fastq reparse
-//    queryname = queryArg.getValue();   // get this first
-//    if (queryname.empty()) // at default  set to same as input.
-//      queryname = filename;
-//    sample_ratio = sampleArg.getValue();
-
+    out_prefix = outputArg.getValue();
 
   } catch (TCLAP::ArgException &e)  // catch any exceptions
   {
@@ -182,8 +173,47 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
+  // filename for compacted chain strings
+  // string starts with smaller end.  (first K and rev_comp of last K compared)
+  // this is a dump of the collected compacted chains.
+  std::string compacted_chain_str_filename(out_prefix);
+  compacted_chain_str_filename.append("_chain.");
+  compacted_chain_str_filename.append(std::to_string(comm.rank()));
+  compacted_chain_str_filename.append(".fasta");
 
+  // filename for compacted chain interior kmers.  in format <K, Chain Id, pos, +/->
+  // K is canonical.  + if K is on same strand as chain, - if not.
+  // this is a dump of the chain map nodes.
+  // chain_id may not be canonical, but is the smaller of the 5' ends of a bimolecule.
+  // NOTE: to read 5' to 3', we'd never start a chain with k-mer that has in edge but not out edge,
+  //   so chain id is the k-mer at 5' end.  however, since all k-mer indexing are done canonically,
+  //   canonical k-mer is +.  so for a non-canonical chain id, the terminal K is at - strand.
+  //   all other k-mers on this chain have strand value relative to canonical of chain id.
+  std::string compacted_chain_kmers_filename(out_prefix);
+  compacted_chain_kmers_filename.append("_chain.");
+  compacted_chain_kmers_filename.append(std::to_string(comm.rank()));
+  compacted_chain_kmers_filename.append(".components");
 
+  // filename for compacted chain end points, in format : < K_l, K_r, chain_id, f_l_A, f_l_C, f_l_G, f_l_T, f_r_A, f_r_C, f_r_G, f_r_T, f >
+  // K_l and K_r are canonical.  as such, we need chain_id to link back to component k-mers and the compated strings.
+  // K_l is the smaller of K_l and rev_comp(original K_r).
+  // K_l and original K_r are on same strand.
+  // f is frequency - minimum or average of all intervening nodes?  - a reduction similar to the one used to construct the compacted chain string is needed.
+  // f_l_X and f_r_X are in and out edges of K_l and K_r, respectively.
+  std::string compacted_chain_ends_filename(out_prefix);
+  compacted_chain_ends_filename.append("_chain.");
+  compacted_chain_ends_filename.append(std::to_string(comm.rank()));
+  compacted_chain_ends_filename.append(".edges");
+
+  // filename for junctions in format <K, f_l_A, f_l_C, f_l_G, f_l_T, f_r_A, f_r_C, f_r_G, f_r_T, f>
+  // K is canonical.
+  // f is frequency
+  // f_l_X and f_r_X are in and out edges of K_l and K_r, respectively.
+  // this is a dump of the dbg junctional nodes (filtered) to disk.
+  std::string branch_filename(out_prefix);
+  branch_filename.append("_branch.");
+  branch_filename.append(std::to_string(comm.rank()));
+  branch_filename.append(".edges");
 
 
   // ================  read and get file
@@ -829,7 +859,8 @@ int main(int argc, char** argv) {
       ::fsc::back_emplace_iterator<std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > > back_emplacer(result);
 
       // first transform nodes so that we are pointing to canonical terminus k-mers.
-      std::transform(chainmap.get_local_container().begin(), chainmap.get_local_container().end(), back_emplacer, ::bliss::debruijn::operation::chain::chain_node_to_char_transform<KmerType>());
+      std::transform(chainmap.get_local_container().begin(), chainmap.get_local_container().end(), back_emplacer,
+    		  ::bliss::debruijn::operation::chain::chain_node_to_char_transform<KmerType>());
       BL_BENCH_COLLECTIVE_END(test, "transform chain", chainmap.size(), comm);
 
 
@@ -841,7 +872,10 @@ int main(int argc, char** argv) {
 
       // print out.
       BL_BENCH_START(test);
-      std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain_node<KmerType>(std::cout));
+      std::stringstream ss;
+      std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain_node<KmerType>(ss));
+
+      std::cout << ss.str() << std::endl;
       BL_BENCH_COLLECTIVE_END(test, "print chain", result.size(), comm);
 
     }

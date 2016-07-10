@@ -254,10 +254,22 @@ namespace bliss {
 
         template <typename KMER>
         struct print_chain_node {
+        	std::ostream & os;
+
+        	print_chain_node(std::ostream & _os) : os(_os) {};
+
+
             inline void operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x) {
-              if (std::get<1>(x) == 0) printf("\n[CHAIN] %s", bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)).c_str());
-              else printf("%c", KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
-              //else printf("\n%d %c", std::get<1>(x), KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
+//              if (std::get<1>(x) == 0) printf("\n[CHAIN] %s", bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)).c_str());
+//              else printf("%c", KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
+// debug              //else printf("\n%d %c", std::get<1>(x), KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
+
+                if (std::get<1>(x) == 0) {
+                	bliss::debruijn::lex_less<KMER> canonical;
+                	os << std::endl << "< " << bliss::utils::KmerUtils::toASCIIString(canonical(std::get<0>(x))) <<
+                    		std::endl << bliss::utils::KmerUtils::toASCIIString(std::get<0>(x));
+                }
+                else os << static_cast<unsigned char>(KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
             }
         };
 
