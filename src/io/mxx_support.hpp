@@ -37,7 +37,6 @@
 
 #include "partition/range.hpp"
 #include "common/sequence.hpp"
-#include "debruijn/debruijn_graph_node.hpp"
 
 namespace mxx {
 
@@ -178,36 +177,6 @@ namespace mxx {
     };
 
 
-  template<typename A, typename T>
-    struct datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<A, T> > :
-    public datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T>::counts) > {
-
-      typedef datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T>::counts) > baseType;
-
-      static MPI_Datatype get_type(){ 
-        return baseType::get_type(); 
-      }
-
-      static size_t num_basic_elements() {
-        return baseType::num_basic_elements();
-      }
-    };
-
-
-  template<typename A, typename T>
-    struct datatype_builder<const ::bliss::debruijn::graph::compact_multi_biedge<A, T> > :
-    public datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T>::counts) > {
-
-      typedef datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T>::counts) > baseType;
-
-      static MPI_Datatype get_type(){ 
-        return baseType::get_type(); 
-      }
-
-      static size_t num_basic_elements() {
-        return baseType::num_basic_elements();
-      }
-    };
 
 //
 //  template<typename A>

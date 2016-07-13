@@ -816,9 +816,9 @@ int main(int argc, char** argv) {
       std::cout << "COMPACTED CHAIN END POINTS" << std::endl;
       for (auto t : termini) {
         auto md = t.second;
-        std::cout << "terminus\tin dist " << std::get<2>(md) << " kmer: " << std::get<0>(md) << std::endl;
-        std::cout << "\tkmer: " << t.first << std::endl;
-        std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << std::get<1>(md) << std::endl;
+        std::cout << "terminus\tin dist " << std::get<2>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md)) << " rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md).reverse_complement()) << std::endl;
+        std::cout << "\tkmer: " << bliss::utils::KmerUtils::toASCIIString(t.first) << " rc: " << bliss::utils::KmerUtils::toASCIIString(t.first.reverse_complement()) << std::endl;
+        std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md)) << " rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md).reverse_complement()) << std::endl;
       }
 
       // ========== construct new graph with compacted chains and junction nodes.
@@ -829,19 +829,24 @@ int main(int argc, char** argv) {
       ::fsc::back_emplace_iterator<std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > > back_emplacer(result);
 
       // first transform nodes so that we are pointing to canonical terminus k-mers.
-      std::transform(chainmap.get_local_container().begin(), chainmap.get_local_container().end(), back_emplacer, ::bliss::debruijn::operation::chain::chain_node_to_char_transform<KmerType>());
+      std::transform(chainmap.get_local_container().begin(), chainmap.get_local_container().end(), back_emplacer,
+    		  ::bliss::debruijn::operation::chain::to_compacted_chain_node<KmerType>());
       BL_BENCH_COLLECTIVE_END(test, "transform chain", chainmap.size(), comm);
 
+//      for (auto r : result) {
+//    	  std::cout << "k-mer: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(r)) <<
+//    			  " l-mer id " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(r)) << " dist " << std::get<2>(r) << std::endl;
+ //     }
 
       // sort
       BL_BENCH_START(test);
       // first transform nodes so that we are pointing to canonical terminus k-mers.
-      std::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_node_less<KmerType>());
+      std::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_rep_less<KmerType>());
       BL_BENCH_COLLECTIVE_END(test, "sort chain node", result.size(), comm);
 
       // print out.
       BL_BENCH_START(test);
-      std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain_node<KmerType>(std::cout));
+      std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain<KmerType>(std::cout));
       BL_BENCH_COLLECTIVE_END(test, "print chain", result.size(), comm);
 
     }
