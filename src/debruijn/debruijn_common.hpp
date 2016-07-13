@@ -28,8 +28,9 @@
 #include "bliss-config.hpp"
 
 #include "utils/logging.h"
-//#include "debruijn/edge_iterator.hpp"
-//#include "debruijn/debruijn_chain_operations.hpp"
+#include "debruijn/edge_iterator.hpp"
+#include "debruijn/debruijn_chain_operations.hpp"
+#include "debruijn/debruijn_chain_node.hpp"
 
 // this file should be included AFTER the types used by lex_less are included, but before the map using lex_less and MapParams
 

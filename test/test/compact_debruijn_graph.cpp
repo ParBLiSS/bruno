@@ -36,6 +36,7 @@
 #include <sstream>
 #include <chrono>
 #include <iostream>  // for system("pause");
+#include <fstream>  // ofstream
 
 #include "utils/logging.h"
 
@@ -57,16 +58,21 @@
 
 #include "index/kmer_index.hpp"
 #include "index/kmer_hash.hpp"
+
+#include "debruijn/debruijn_common.hpp"
 #include "debruijn/edge_iterator.hpp"
+
+#include "debruijn/debruijn_graph_node.hpp"
+#include "debruijn/debruijn_graph_map.hpp"
 #include "debruijn/debruijn_graph_loader.hpp"
-#include "debruijn/debruijn_stats.hpp"
 #include "debruijn/debruijn_graph_filters.hpp"
+#include "debruijn/debruijn_graph_operations.hpp"
+
 #include "debruijn/debruijn_chain_filters.hpp"
 #include "debruijn/debruijn_chain_node.hpp"
 #include "debruijn/debruijn_chain_operations.hpp"
 
-#include "debruijn/debruijn_common.hpp"
-#include "debruijn/debruijn_graph_map.hpp"
+#include "debruijn/debruijn_stats.hpp"
 
 #include "utils/benchmark_utils.hpp"
 #include "utils/exception_handling.hpp"
@@ -94,6 +100,9 @@ using DBGNodeParser = bliss::debruijn::debruijn_graph_parser<KmerType>;
 
 using DBGMapType = ::bliss::debruijn::graph::simple_hash_compact_debruijn_graph_map<KmerType>;
 using DBGType = ::bliss::index::kmer::Index<DBGMapType, DBGNodeParser>;
+
+using CountDBGMapType = ::bliss::debruijn::graph::count_hash_compact_debruijn_graph_map<KmerType>;
+using CountDBGType = ::bliss::index::kmer::Index<CountDBGMapType, DBGNodeParser>;
 
 using ChainNodeType = ::bliss::debruijn::simple_biedge<KmerType>;
 //template <typename K>
@@ -222,19 +231,22 @@ int main(int argc, char** argv) {
   ChainMapType chainmap(comm);
 
 
-  BL_BENCH_INIT(test);
 
   std::vector<KmerType> query;
   std::vector<KmerType> neighbors;
   neighbors.reserve(4);
 
+	::std::vector<typename DBGNodeParser::value_type> temp;
 
-  KmerType testKmer(std::string("CAAGATGGGTGGAATGGCCAGTTAACCACTG"));
+//  KmerType testKmer(std::string("CAAGATGGGTGGAATGGCCAGTTAACCACTG"));
 
   // TODO: filter out, or do something, about "N".  May have to add back support for ASCII edge encoding so that we can use DNA5 alphabet
+  BL_BENCH_INIT(test);
 
   {
-    ::std::vector<typename DBGNodeParser::value_type> temp;
+	BL_BENCH_RESET(test);
+
+
 
     BL_BENCH_START(test);
     if (comm.rank() == 0) printf("reading %s via posix\n", filename.c_str());
@@ -253,11 +265,20 @@ int main(int argc, char** argv) {
     size_t total = mxx::allreduce(temp.size(), comm);
     if (comm.rank() == 0) printf("total size is %lu\n", total);
 
-    BL_BENCH_START(test);
+    BL_BENCH_REPORT_MPI_NAMED(test, "read", comm);
+  }
+
+
+
+  {
+	  BL_BENCH_RESET(test);
+
+
+	  BL_BENCH_START(test);
     idx.insert(temp);
     BL_BENCH_COLLECTIVE_END(test, "insert", idx.local_size(), comm);
 
-    total = idx.size();
+    size_t total = idx.size();
     if (comm.rank() == 0) printf("total size after insert/rehash is %lu\n", total);
 
 
@@ -314,18 +335,7 @@ int main(int argc, char** argv) {
     //		  BL_BENCH_START(test);
     //		  idx.insert(temp);
     //		  BL_BENCH_COLLECTIVE_END(test, "reinsert", idx.local_size(), comm);
-  }
 
-  {
-
-    //	      {
-    //	        auto lquery = query;
-    //
-    //	      BL_BENCH_START(test);
-    //	      auto found = idx.find_overlap(lquery);
-    //	      BL_BENCH_COLLECTIVE_END(test, "find_overlap", found.size(), comm);
-    //	      }
-    //	    // separate test because of it being potentially very slow depending on imbalance.
 
     {
       // get histogram for the edge types in debruijn graph
@@ -342,6 +352,24 @@ int main(int argc, char** argv) {
       ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(nodes, comm);
       BL_BENCH_COLLECTIVE_END(test, "histogram", nodes.size(), comm);
     }
+
+
+    BL_BENCH_REPORT_MPI_NAMED(test, "insert", comm);
+
+  }
+
+  {
+	BL_BENCH_RESET(test);
+
+    //	      {
+    //	        auto lquery = query;
+    //
+    //	      BL_BENCH_START(test);
+    //	      auto found = idx.find_overlap(lquery);
+    //	      BL_BENCH_COLLECTIVE_END(test, "find_overlap", found.size(), comm);
+    //	      }
+    //	    // separate test because of it being potentially very slow depending on imbalance.
+
 
 
     {
@@ -502,7 +530,9 @@ int main(int argc, char** argv) {
       //            printf("found %lu termini in %lu chainmap\n", single_chains.size(), chainmap.local_size());
       //          }
     }
+    BL_BENCH_REPORT_MPI_NAMED(test, "chain_map", comm);
 
+    BL_BENCH_RESET(test);
 
     //        {
     //          // NOW: do the list ranking
@@ -588,6 +618,7 @@ int main(int argc, char** argv) {
     //
     //
     //        }
+
 
 
     size_t iterations = 0;
@@ -724,11 +755,20 @@ int main(int argc, char** argv) {
 
       }
       BL_BENCH_COLLECTIVE_END(test, "compact", cycle_nodes, comm);
+
     }
 
-    // ==== final query to see if at terminus
+    BL_BENCH_REPORT_MPI_NAMED(test, "list_rank", comm);
+
+    BL_BENCH_RESET(test);
+
+    // ==== finally update all nodes that are not yet set to pointing to termini.
+    // should just be the ones that are pointing to termini but values are not yet marked as negative.
+    // previously has been sending out remote updates based on local information.
+    // due to pointer doubling, and local updating to the farthest remote jump,  some remote
+    // sources of updates may not be updated again, near the ends, even when they are already pointing to terminal
+    // these are resolved using a single query.  note that previous code terminates when nothing is updated or when only cycles remain.
     {
-      // NOW: do the list ranking
 
       // search unfinished
       BL_BENCH_START(test);
@@ -790,7 +830,7 @@ int main(int argc, char** argv) {
           // get left (in) kmer.
           kk = std::get<0>(t.second);
 
-          // lookup left by canonicaliter %ld
+          // lookup left by canonical
           auto it = res_map.find(lexless(kk));
 
           // if left is at terminus, and we haven't updated it,
@@ -829,62 +869,129 @@ int main(int argc, char** argv) {
 
       assert(all_compacted);
     }
+    BL_BENCH_REPORT_MPI_NAMED(test, "finalize", comm);
 
 
+    BL_BENCH_RESET(test);
     {
-      // ========= get compacted chains.
+    // remove cycle nodes.  has to do after query, to ensure that exactly middle is being treated not as a cycle node.
+    BL_BENCH_START(test);
+    size_t cycle_node_count = chainmap.erase(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
+    BL_BENCH_COLLECTIVE_END(test, "erase cycle", cycle_node_count, comm);
+  }
 
-      // remove cycle nodes
+  BL_BENCH_REPORT_MPI_NAMED(test, "rem_cycle", comm);
+
+
+    BL_BENCH_RESET(test);
+    {
+      // ========== construct edge count index
+    	CountDBGType idx2(comm);
+  	  BL_BENCH_START(test);
+      idx2.insert(temp);
+      BL_BENCH_COLLECTIVE_END(test, "count insert", idx2.local_size(), comm);
+
+      // then find branches.
       BL_BENCH_START(test);
-      size_t cycle_node_count = chainmap.erase(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
-      BL_BENCH_COLLECTIVE_END(test, "erase cycle", cycle_node_count, comm);
+      std::vector<typename CountDBGType::TupleType> branch_pts =
+    		  idx2.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
+      BL_BENCH_COLLECTIVE_END(test, "get_branches", branch_pts.size(), comm);
 
+
+      // global sort
       BL_BENCH_START(test);
-      auto termini = chainmap.find(::bliss::debruijn::filter::chain::IsTerminus());
-      BL_BENCH_COLLECTIVE_END(test, "chain termini", termini.size(), comm);
+      mxx::sort(branch_pts.begin(), branch_pts.end(), [](typename CountDBGType::TupleType const & x,
+    		  typename CountDBGType::TupleType const & y){
+    	  return x.first < y.first;
+      }, comm);
+      BL_BENCH_COLLECTIVE_END(test, "psort branches", branch_pts.size(), comm);
 
-      std::cout << "COMPACTED CHAIN END POINTS" << std::endl;
-      for (auto t : termini) {
-        auto md = t.second;
-        std::cout << "terminus\tin dist " << std::get<2>(md) << " kmer: " << std::get<0>(md) << std::endl;
-        std::cout << "\tkmer: " << t.first << std::endl;
-        std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << std::get<1>(md) << std::endl;
-      }
+
+      // and print.
+      BL_BENCH_START(test);
+      std::ofstream ofs_branch_nodes(branch_filename);
+      std::for_each(branch_pts.begin(), branch_pts.end(),
+    		  ::bliss::debruijn::operation::graph::print_graph_node(ofs_branch_nodes));
+      ofs_branch_nodes.close();
+      BL_BENCH_COLLECTIVE_END(test, "print branches (4)", branch_pts.size(), comm);
+
 
       // ========== construct new graph with compacted chains and junction nodes.
-
       BL_BENCH_START(test);
       std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > result;
       result.reserve(chainmap.size());
       ::fsc::back_emplace_iterator<std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > > back_emplacer(result);
 
-      // first transform nodes so that we are pointing to canonical terminus k-mers.
+      //== first transform nodes so that we are pointing to canonical terminus k-mers.
       std::transform(chainmap.get_local_container().begin(), chainmap.get_local_container().end(), back_emplacer,
-    		  ::bliss::debruijn::operation::chain::chain_node_to_char_transform<KmerType>());
+    		  ::bliss::debruijn::operation::chain::to_compacted_chain_node<KmerType>());
       BL_BENCH_COLLECTIVE_END(test, "transform chain", chainmap.size(), comm);
-
 
       // sort
       BL_BENCH_START(test);
       // first transform nodes so that we are pointing to canonical terminus k-mers.
-      std::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_node_less<KmerType>());
+      mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_rep_less<KmerType>());
+      // global sort?
+
       BL_BENCH_COLLECTIVE_END(test, "sort chain node", result.size(), comm);
 
       // print out.
       BL_BENCH_START(test);
-      std::stringstream ss;
-      std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain_node<KmerType>(ss));
+//      std::stringstream ss;
+      std::ofstream ofs_chain_str(compacted_chain_str_filename);
+      std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain<KmerType>(ofs_chain_str));
+      ofs_chain_str.close();
 
-      std::cout << ss.str() << std::endl;
-      BL_BENCH_COLLECTIVE_END(test, "print chain", result.size(), comm);
+//      std::cout << ss.str() << std::endl;
+      BL_BENCH_COLLECTIVE_END(test, "print chains (3)", result.size(), comm);
+
+
+  	//===  print chain nodes (1)
+
+      // sort
+      BL_BENCH_START(test);
+      // first transform nodes so that we are pointing to canonical terminus k-mers.
+      mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_node_less<KmerType>(), comm);
+      // global sort?
+      BL_BENCH_COLLECTIVE_END(test, "psort", result.size(), comm);
+
+
+      // print out.
+      BL_BENCH_START(test);
+//      std::stringstream ss;
+      std::ofstream ofs_chain_nodes(compacted_chain_kmers_filename);
+      std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain_node<KmerType>(ofs_chain_nodes));
+      ofs_chain_nodes.close();
+
+//      std::cout << ss.str() << std::endl;
+      BL_BENCH_COLLECTIVE_END(test, "print chains (3)", result.size(), comm);
+
+
+      // ===========  print compacted chain
+
+
+        BL_BENCH_START(test);
+        auto termini = chainmap.find(::bliss::debruijn::filter::chain::IsTerminus());
+        BL_BENCH_COLLECTIVE_END(test, "chain termini", termini.size(), comm);
+
+        std::cout << "COMPACTED CHAIN END POINTS" << std::endl;
+        for (auto t : termini) {
+          auto md = t.second;
+          std::cout << "terminus\tin dist " << std::get<2>(md) << " kmer: " << std::get<0>(md) << std::endl;
+          std::cout << "\tkmer: " << t.first << std::endl;
+          std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << std::get<1>(md) << std::endl;
+        }
+
 
     }
 
 
+
+    BL_BENCH_REPORT_MPI_NAMED(test, "output", comm);
+
   }
 
 
-  BL_BENCH_REPORT_MPI_NAMED(test, "app", comm);
 
 
   // mpi cleanup is automatic

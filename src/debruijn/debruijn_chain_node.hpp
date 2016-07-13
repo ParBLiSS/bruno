@@ -38,6 +38,7 @@ namespace bliss
     // data type for debruijn graph chain compaction
     // first Kmer is in edge, second Kmer is out edge.  int is distance from end node.
     // 0 means that this node is a terminus.  negative numbers indicate that the edge is pointing to a terminus
+    // used with Kmer key in a map, to mean in-Kmer-out bi edge.
     template <typename KMER>
     using simple_biedge = ::std::tuple<KMER, KMER, int, int>;
 
@@ -47,14 +48,15 @@ namespace bliss
 
       /**
        * @brief a node in a compacted chain.
-       *                      The KMER field points to the lex smaller terminus.
-       *                      int is distance to that terminus.
-       *                      uint8_t is the character in same encoding as KMER along the chain at that position.
        *
-       *                      TODO: make into kmer for the last entry.
+       * @tparam KMER 		first KMER field is the current k-mer, canonical
+       * @tparam KMER		second KMER field is the lex smaller 5' terminus of the chain
+       * @tparam int		int is distance to that terminus.  +/0 indicates both are on same strand.  - means otherwise.
+       *
+       *      note that a vector of these are sufficient to represent a complete compacted chain.
        */
       template <typename KMER>
-      using compacted_chain_node = ::std::tuple<KMER, int, uint8_t>;
+      using compacted_chain_node = ::std::tuple<KMER, KMER, int>;
 
 
     }/*namespace chain*/
@@ -69,15 +71,6 @@ namespace bliss
         return ::bliss::debruijn::simple_biedge<KMER>(std::get<1>(x).reverse_complement(),
                                                       std::get<0>(x).reverse_complement(),
                                                       std::get<3>(x), std::get<2>(x));
-      }
-
-
-      template <typename KMER>
-      inline ::bliss::debruijn::chain::compacted_chain_node<KMER>
-      reverse_complement(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x) {
-        return ::bliss::debruijn::chain::compacted_chain_node<KMER>(std::get<0>(x).reverse_complement(),
-                                                                    std::get<1>(x),
-                                                                    KMER::KmerAlphabet::TO_COMPLEMENT[::std::get<2>(x)]);
       }
 
 
