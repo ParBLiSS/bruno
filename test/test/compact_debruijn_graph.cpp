@@ -911,7 +911,7 @@ int main(int argc, char** argv) {
       BL_BENCH_START(test);
       std::ofstream ofs_branch_nodes(branch_filename);
       std::for_each(branch_pts.begin(), branch_pts.end(),
-    		  ::bliss::debruijn::operation::graph::print_graph_node(ofs_branch_nodes));
+    		  ::bliss::debruijn::operation::graph::print_graph_node<KmerType>(ofs_branch_nodes));
       ofs_branch_nodes.close();
       BL_BENCH_COLLECTIVE_END(test, "print branches (4)", branch_pts.size(), comm);
 
@@ -964,7 +964,7 @@ int main(int argc, char** argv) {
       ofs_chain_nodes.close();
 
 //      std::cout << ss.str() << std::endl;
-      BL_BENCH_COLLECTIVE_END(test, "print chains (3)", result.size(), comm);
+      BL_BENCH_COLLECTIVE_END(test, "print chains (1)", result.size(), comm);
 
 
       // ===========  print compacted chain
