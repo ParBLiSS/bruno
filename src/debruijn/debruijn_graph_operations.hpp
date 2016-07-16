@@ -50,12 +50,14 @@ namespace bliss {
             	os << bliss::utils::KmerUtils::toASCIIString(x.first) << "\t";
 
             	// N is not counted....
-            	for (int i = 0; i < 4; ++i) {
-            		os << x.second.get_in_edge_frequency(i) << "\t";
-            	}
-            	for (int i = 0; i < 4; ++i) {
-            		os << x.second.get_out_edge_frequency(i) << "\t";
-            	}
+        		os << x.second.get_in_edge_frequency(Alphabet::FROM_ASCII['A']) << "\t";
+        		os << x.second.get_in_edge_frequency(Alphabet::FROM_ASCII['C']) << "\t";
+        		os << x.second.get_in_edge_frequency(Alphabet::FROM_ASCII['G']) << "\t";
+        		os << x.second.get_in_edge_frequency(Alphabet::FROM_ASCII['T']) << "\t";
+        		os << x.second.get_out_edge_frequency(Alphabet::FROM_ASCII['A']) << "\t";
+        		os << x.second.get_out_edge_frequency(Alphabet::FROM_ASCII['C']) << "\t";
+        		os << x.second.get_out_edge_frequency(Alphabet::FROM_ASCII['G']) << "\t";
+        		os << x.second.get_out_edge_frequency(Alphabet::FROM_ASCII['T']) << "\t";
             	os << x.second.get_self_frequency() << std::endl;
 
             }

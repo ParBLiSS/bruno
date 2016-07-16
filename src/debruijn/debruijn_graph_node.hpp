@@ -243,7 +243,7 @@ namespace bliss
 
             CountType count;
             for (unsigned char i = 0; i < maxEdgeCount; ++i) {   // no gap character
-              count = get_out_edge_frequency(i);
+              count = counts[i];
               if (count > 0) {
                 neighbors.emplace_back(kmer, count);
                 neighbors.back().first.nextFromChar(i);
@@ -260,7 +260,7 @@ namespace bliss
 
             CountType count;
             for (unsigned char i = 0; i < maxEdgeCount; ++i) {  // no gap character
-              count = get_in_edge_frequency(i);
+              count = counts[i + maxEdgeCount];
               if (count > 0) {
                 neighbors.emplace_back(kmer, count);
                 neighbors.back().first.nextReverseFromChar(i);
@@ -431,7 +431,7 @@ namespace bliss
 
             CountType count;
             for (unsigned char i = 0; i < maxEdgeCount; ++i) {   // no gap character
-              count = get_out_edge_frequency(i);
+              count = counts[i];
               if (count > 0) {
                 neighbors.emplace_back(kmer, count);
                 neighbors.back().first.nextFromChar(i);
@@ -448,7 +448,7 @@ namespace bliss
 
             CountType count;
             for (unsigned char i = 0; i < maxEdgeCount; ++i) {  // no gap character
-              count = get_in_edge_frequency(i);
+              count = counts[i + maxEdgeCount];
               if (count > 0) {
                 neighbors.emplace_back(kmer, count);
                 neighbors.back().first.nextReverseFromChar(i);
@@ -628,7 +628,7 @@ namespace bliss
 
             CountType count;
             for (unsigned char i = 0; i < maxEdgeCount; ++i) {   // no gap character
-              count = get_out_edge_frequency(i);
+              count = counts[i];
               if (count > 0) {
                 neighbors.emplace_back(kmer, count);
                 neighbors.back().first.nextFromChar(i);
@@ -645,7 +645,7 @@ namespace bliss
 
             CountType count;
             for (unsigned char i = 0; i < maxEdgeCount; ++i) {  // no gap character
-              count = get_in_edge_frequency(i);
+              count = counts[i + maxEdgeCount];
               if (count > 0) {
                 neighbors.emplace_back(kmer, count);
                 neighbors.back().first.nextReverseFromChar(i);
@@ -772,7 +772,7 @@ namespace bliss
             neighbors.clear();
 
             for (unsigned char i = 0; i < maxEdgeCount; ++i) {  // no gap character here.
-              if (get_out_edge_frequency(i) > 0) {
+              if (((counts >> i ) & 0x1) > 0) {
                 neighbors.emplace_back(kmer);
                 neighbors.back().nextFromChar(i);
               }
@@ -787,7 +787,7 @@ namespace bliss
             neighbors.clear();
 
             for (unsigned char i = 0; i < maxEdgeCount; ++i) {  // no gap character here.
-              if (get_in_edge_frequency(i) > 0) {
+              if (((counts >> (i+maxEdgeCount) ) & 0x1) > 0) {
                 neighbors.emplace_back(kmer);
                 neighbors.back().nextReverseFromChar(i);  // indices are same as alphabet chars.
               }
@@ -952,7 +952,7 @@ namespace bliss
             neighbors.clear();
 
             for (unsigned char i = 0; i < maxEdgeCount; ++i) { // go through all valid values.
-              if (get_out_edge_frequency(i) > 0) {  // gap should have frequency of 0 since its count is not incremented..
+              if (((counts[0] >> i) & 0x1) > 0) {  // gap should have frequency of 0 since its count is not incremented..
                 neighbors.emplace_back(kmer);
                 neighbors.back().nextFromChar(i);  // values are same as alphabet characters
               }
@@ -967,7 +967,7 @@ namespace bliss
             neighbors.clear();
 
             for (unsigned char i = 0; i < maxEdgeCount; ++i) {  // go through all valid values.
-              if (get_in_edge_frequency(i) > 0) { // gap should have frequency of 0 since its count is not incremented..
+              if (((counts[1] >> i) & 0x1) > 0) { // gap should have frequency of 0 since its count is not incremented..
                 neighbors.emplace_back(kmer);
                 neighbors.back().nextReverseFromChar(i);  // values are same as alphabet characters
               }
@@ -1104,7 +1104,7 @@ namespace bliss
             neighbors.clear();
 
             for (unsigned char i = 0; i < maxEdgeCount; ++i) {  // each character in alphabet is tested.
-              if (get_out_edge_frequency(i) > 0) {  // gap will always have 0
+              if (((counts[0] >> i) & 0x1) > 0) {  // gap will always have 0
                 neighbors.emplace_back(kmer);
                 neighbors.back().nextFromChar(i);   // then inserted.
               }
@@ -1119,7 +1119,7 @@ namespace bliss
             neighbors.clear();
 
             for (unsigned char i = 0; i < maxEdgeCount; ++i) {   // each character in alphabet is tested.
-              if (get_in_edge_frequency(i) > 0) {  // gap will always have 0
+              if (((counts[1] >> i) & 0x1) > 0) {  // gap will always have 0
                 neighbors.emplace_back(kmer);
                 neighbors.back().nextReverseFromChar(i);   // then inserted.
               }

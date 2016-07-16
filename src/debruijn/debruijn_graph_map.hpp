@@ -185,9 +185,9 @@ namespace bliss {
     		::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, bool>,
         ::bliss::debruijn::CanonicalDeBruijnHashMapParams>;
 
-    template<typename Kmer >
+    template<typename Kmer, typename Count = uint32_t >
     using count_hash_compact_debruijn_graph_map = ::bliss::debruijn::graph::compact_debruijn_graph_map<Kmer,
-    		::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, uint32_t>,
+    		::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, Count>,
         ::bliss::debruijn::CanonicalDeBruijnHashMapParams>;
 
 	  } // namespace graph

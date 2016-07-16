@@ -101,15 +101,20 @@ using DBGNodeParser = bliss::debruijn::debruijn_graph_parser<KmerType>;
 using DBGMapType = ::bliss::debruijn::graph::simple_hash_compact_debruijn_graph_map<KmerType>;
 using DBGType = ::bliss::index::kmer::Index<DBGMapType, DBGNodeParser>;
 
-using CountDBGMapType = ::bliss::debruijn::graph::count_hash_compact_debruijn_graph_map<KmerType>;
+using CountType = uint32_t;
+using CountDBGMapType = ::bliss::debruijn::graph::count_hash_compact_debruijn_graph_map<KmerType, CountType>;
 using CountDBGType = ::bliss::index::kmer::Index<CountDBGMapType, DBGNodeParser>;
 
 using ChainNodeType = ::bliss::debruijn::simple_biedge<KmerType>;
 //template <typename K>
-//using ChainMapParams = ::bliss::index::kmer::CanonicalHashMapParams<K>;
+//using ChainMapParams = ::bliss::index::kmer::CanonicalDebuijnHashMapParams<K>;
 using ChainMapType = ::dsc::densehash_map<KmerType, ChainNodeType,
     ::bliss::debruijn::CanonicalDeBruijnHashMapParams,
      ::bliss::kmer::hash::sparsehash::special_keys<KmerType> >;
+
+template <typename Key>
+using FreqMapParams = ::bliss::index::kmer::CanonicalHashMapParams<Key>;
+
 
 using ChainVecType = ::std::vector<std::pair<KmerType, ChainNodeType> >;
 
@@ -412,7 +417,7 @@ int main(int argc, char** argv) {
           std::get<3>(node) = 1;
         }
 
-
+        // chainmap uses the same distribution hash function and transform, so can insert locally.
         chainmap.get_local_container().insert(::std::make_pair(::std::move(t.first), ::std::move(node)));
         //            std::cout << "BIEDGE\tin dist\t" << std::get<2>(node) << " kmer: " << std::get<0>(node) << std::endl;
         //            std::cout << "\tKmer bi edge:\t" << t.first << std::endl;
@@ -883,6 +888,8 @@ int main(int argc, char** argv) {
   BL_BENCH_REPORT_MPI_NAMED(test, "rem_cycle", comm);
 
 
+  //============= PRINTING....
+
     BL_BENCH_RESET(test);
     {
       // ========== construct edge count index
@@ -891,100 +898,257 @@ int main(int argc, char** argv) {
       idx2.insert(temp);
       BL_BENCH_COLLECTIVE_END(test, "count insert", idx2.local_size(), comm);
 
-      // then find branches.
-      BL_BENCH_START(test);
-      std::vector<typename CountDBGType::TupleType> branch_pts =
-    		  idx2.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
-      BL_BENCH_COLLECTIVE_END(test, "get_branches", branch_pts.size(), comm);
+      {
+		  // then find branches.
+		  BL_BENCH_START(test);
+		  std::vector<typename CountDBGType::TupleType> branch_pts =
+				  idx2.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
+		  BL_BENCH_COLLECTIVE_END(test, "get_branches", branch_pts.size(), comm);
 
 
-      // global sort
-      BL_BENCH_START(test);
-      mxx::sort(branch_pts.begin(), branch_pts.end(), [](typename CountDBGType::TupleType const & x,
-    		  typename CountDBGType::TupleType const & y){
-    	  return x.first < y.first;
-      }, comm);
-      BL_BENCH_COLLECTIVE_END(test, "psort branches", branch_pts.size(), comm);
+		  // global sort
+		  BL_BENCH_START(test);
+		  mxx::sort(branch_pts.begin(), branch_pts.end(), [](typename CountDBGType::TupleType const & x,
+				  typename CountDBGType::TupleType const & y){
+			  return x.first < y.first;
+		  }, comm);
+		  BL_BENCH_COLLECTIVE_END(test, "psort branches", branch_pts.size(), comm);   // this is for ordered output.
 
 
-      // and print.
-      BL_BENCH_START(test);
-      std::ofstream ofs_branch_nodes(branch_filename);
-      std::for_each(branch_pts.begin(), branch_pts.end(),
-    		  ::bliss::debruijn::operation::graph::print_graph_node<KmerType>(ofs_branch_nodes));
-      ofs_branch_nodes.close();
-      BL_BENCH_COLLECTIVE_END(test, "print branches (4)", branch_pts.size(), comm);
+		  // and print.
+		  BL_BENCH_START(test);
+		  std::ofstream ofs_branch_nodes(branch_filename);
+		  std::for_each(branch_pts.begin(), branch_pts.end(),
+				  ::bliss::debruijn::operation::graph::print_graph_node<KmerType>(ofs_branch_nodes));
+		  ofs_branch_nodes.close();
+		  BL_BENCH_COLLECTIVE_END(test, "print branches (4)", branch_pts.size(), comm);
+      }
 
 
       // ========== construct new graph with compacted chains and junction nodes.
-      BL_BENCH_START(test);
-      std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > result;
-      result.reserve(chainmap.size());
-      ::fsc::back_emplace_iterator<std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > > back_emplacer(result);
+      {
+          BL_BENCH_START(test);
+          std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > result;
+          result.reserve(chainmap.size());
+          ::fsc::back_emplace_iterator<std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > > back_emplacer(result);
 
-      //== first transform nodes so that we are pointing to canonical terminus k-mers.
-      std::transform(chainmap.get_local_container().begin(), chainmap.get_local_container().end(), back_emplacer,
-    		  ::bliss::debruijn::operation::chain::to_compacted_chain_node<KmerType>());
-      BL_BENCH_COLLECTIVE_END(test, "transform chain", chainmap.size(), comm);
-
-      // sort
-      BL_BENCH_START(test);
-      // first transform nodes so that we are pointing to canonical terminus k-mers.
-      mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_rep_less<KmerType>());
-      // global sort?
-
-      BL_BENCH_COLLECTIVE_END(test, "sort chain node", result.size(), comm);
-
-      // print out.
-      BL_BENCH_START(test);
-//      std::stringstream ss;
-      std::ofstream ofs_chain_str(compacted_chain_str_filename);
-      std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain<KmerType>(ofs_chain_str));
-      ofs_chain_str.close();
-
-//      std::cout << ss.str() << std::endl;
-      BL_BENCH_COLLECTIVE_END(test, "print chains (3)", result.size(), comm);
+          //== first transform nodes so that we are pointing to canonical terminus k-mers.
+          std::transform(chainmap.get_local_container().begin(), chainmap.get_local_container().end(), back_emplacer,
+        		  ::bliss::debruijn::operation::chain::to_compacted_chain_node<KmerType>());
+          BL_BENCH_COLLECTIVE_END(test, "transform chain", chainmap.size(), comm);
 
 
-  	//===  print chain nodes (1)
+		  // sort
+		  BL_BENCH_START(test);
+		  // first transform nodes so that we are pointing to canonical terminus k-mers.
+		  mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_rep_less<KmerType>());
+		  // global sort?
 
-      // sort
-      BL_BENCH_START(test);
-      // first transform nodes so that we are pointing to canonical terminus k-mers.
-      mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_node_less<KmerType>(), comm);
-      // global sort?
-      BL_BENCH_COLLECTIVE_END(test, "psort", result.size(), comm);
+		  BL_BENCH_COLLECTIVE_END(test, "psort lmer", result.size(), comm);   // this is for constructing the chains
 
+		  // print out.
+		  BL_BENCH_START(test);
+	//      std::stringstream ss;
+		  std::ofstream ofs_chain_str(compacted_chain_str_filename);
+		  std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain<KmerType>(ofs_chain_str));
+		  ofs_chain_str.close();
 
-      // print out.
-      BL_BENCH_START(test);
-//      std::stringstream ss;
-      std::ofstream ofs_chain_nodes(compacted_chain_kmers_filename);
-      std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain_node<KmerType>(ofs_chain_nodes));
-      ofs_chain_nodes.close();
-
-//      std::cout << ss.str() << std::endl;
-      BL_BENCH_COLLECTIVE_END(test, "print chains (1)", result.size(), comm);
+	//      std::cout << ss.str() << std::endl;
+		  BL_BENCH_COLLECTIVE_END(test, "print chains (3)", result.size(), comm);
 
 
-      // ===========  print compacted chain
+		//===  print chain nodes (1)
+
+		  // sort
+		  BL_BENCH_START(test);
+		  // first transform nodes so that we are pointing to canonical terminus k-mers.
+		  mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_node_less<KmerType>(), comm);
+		  // global sort?
+		  BL_BENCH_COLLECTIVE_END(test, "psort kmer", result.size(), comm);  // this is for output ordering.
 
 
-        BL_BENCH_START(test);
-        auto termini = chainmap.find(::bliss::debruijn::filter::chain::IsTerminus());
-        BL_BENCH_COLLECTIVE_END(test, "chain termini", termini.size(), comm);
+		  // print out.
+		  BL_BENCH_START(test);
+	//      std::stringstream ss;
+		  std::ofstream ofs_chain_nodes(compacted_chain_kmers_filename);
+		  std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain_node<KmerType>(ofs_chain_nodes));
+		  ofs_chain_nodes.close();
+
+	//      std::cout << ss.str() << std::endl;
+		  BL_BENCH_COLLECTIVE_END(test, "print chains (1)", result.size(), comm);
+      }
+
+
+      // ===========  print compacted chain with left and right
+      {
+    	  // ==  first compute frequency summary, and store into a reduction map
+    	  // allocate input
+    	  using freq_type = std::pair<KmerType, std::tuple<CountType, size_t, CountType, CountType> >;
+    	  std::vector< freq_type > freqs;
+
+    	  ::bliss::debruijn::operation::chain::to_compacted_chain_node<KmerType> get_chain_rep;
+
+    	  // extract frequencies.
+    	  for (auto x : chainmap.get_local_container()) {
+    		  // compute the chain rep
+    		  CountType c = idx2.get_map().get_local_container().find(x.first)->second.get_self_frequency();
+
+    		  freqs.emplace_back(std::get<1>(get_chain_rep(x)), ::std::tuple<CountType, size_t, CountType, CountType>(1, c, c, c));
+    	  }
+
+    	  // create a reduction map
+    	  using FreqMapType = ::dsc::reduction_densehash_map<KmerType, ::std::tuple<CountType, size_t, CountType, CountType>,
+    			  FreqMapParams,
+				   ::bliss::kmer::hash::sparsehash::special_keys<KmerType>,
+					::bliss::debruijn::operation::chain::freq_summary<CountType> >;
+
+    	  FreqMapType freq_map(comm);
+    	  freq_map.insert(freqs);   // collective comm.
+
+
+    	  // freq_map, idx2, and chainmap now all have same distribution.
+    	  // search in chainmap to find canonical termini.
+          BL_BENCH_START(test);
+          auto chain_rep = chainmap.find(::bliss::debruijn::filter::chain::IsCanonicalTerminus());
+          BL_BENCH_COLLECTIVE_END(test, "chain rep", chain_rep.size(), comm);
+
+
+          KmerType L, R, cL, cR;
+
+          //========= get the R frequencies (remote) and insert into a local map
+          using edge_freq_type = std::tuple<KmerType, KmerType, std::tuple<CountType, CountType, CountType, CountType>,
+		  	  std::tuple<CountType, CountType, CountType, CountType>,
+			  std::tuple<CountType, CountType, CountType> >;
+          std::vector<edge_freq_type> edge_freqs;
+
+          // get query vector
+          typename CountDBGMapType::local_container_type R_freq_map;
+          {
+			  std::vector<KmerType> R_query;
+			  for (auto x : chain_rep) {
+				  if (::std::get<2>(x.second) == 0) {
+					  R_query.emplace_back(std::get<1>(x.second));
+				  } else if (::std::get<3>(x.second) == 0) {
+					  R_query.emplace_back(std::get<0>(x.second));
+				  } else {
+					  std::cout << "rank " << comm.rank() << " canonical chain terminal not really terminal" << std::endl;
+					  continue;
+				  }
+				  std::cout << "rank " << comm.rank() << " R query " << bliss::utils::KmerUtils::toASCIIString(R_query.back()) << std::endl;
+			  }
+			  // do query and insert results into local map.
+			  auto R_results = idx2.find_overlap(R_query);
+			  R_freq_map.insert(R_results.begin(), R_results.end());
+			  for (auto x : R_freq_map) {
+				  std::cout << "rank " << comm.rank() << " R result " << bliss::utils::KmerUtils::toASCIIString(x.first) << std::endl;
+			  }
+          }
+
+          // convert to tuple.
+          bliss::debruijn::lex_less<KmerType> canonical;
+          for (auto x : chain_rep) {
+        	  // first get the kmer strings
+
+        	  if (::std::get<2>(x.second) == 0) {
+        		  L = x.first;
+        		  R = std::get<1>(x.second).reverse_complement();
+        		  // left
+//        		  ofs_chain_ends << bliss::utils::KmerUtils::toASCIIString(L) << "\t" <<
+//        				  bliss::utils::KmerUtils::toASCIIString(R) << "\t";
+
+        	  } else if (::std::get<3>(x.second) == 0) {
+        		  L = x.first.reverse_complement();
+        		  R = std::get<0>(x.second);
+//        		  ofs_chain_ends << bliss::utils::KmerUtils::toASCIIString(L) << "\t" <<
+//        				  bliss::utils::KmerUtils::toASCIIString(R) << "\t";
+        	  } else {
+        		  std::cout << "ERROR" << std::endl;
+        		  continue;
+        	  }
+
+        	  edge_freq_type ef;
+        	  ::std::get<0>(ef) = L;
+        	  ::std::get<1>(ef) = R;
+
+
+        	  // next print the left and right edges.
+        	  cL = canonical(L);
+        	  auto compact_edge = idx2.get_map().get_local_container().find(cL);
+			  if (cL == L) {  // already canonical.  can use in edge directly.
+				  // get in edges of L
+				  std::get<0>(std::get<2>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
+				  std::get<1>(std::get<2>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
+				  std::get<2>(std::get<2>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
+				  std::get<3>(std::get<2>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
+
+
+			  } else {   // not canonical
+				  // get out edges of L, then complement each.  (reverse order)
+				  std::get<0>(std::get<2>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
+				  std::get<1>(std::get<2>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
+				  std::get<2>(std::get<2>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
+				  std::get<3>(std::get<2>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
+			  }
+
+        	  cR = canonical(R);
+        	  compact_edge = R_freq_map.find(cR);  // previously retrieved from remote.
+			  if (cR == R) {  // already canonical
+				  // get in edges of R
+				  std::get<0>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
+				  std::get<1>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
+				  std::get<2>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
+				  std::get<3>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
+			  } else {   // not canonical
+				  // get out edges of L, then complement each.  (reverse order)
+				  std::get<0>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
+				  std::get<1>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
+				  std::get<2>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
+				  std::get<3>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
+			  }
+
+        	  auto fre = freq_map.get_local_container().find(cL);
+        	  std::get<0>(std::get<4>(ef)) = (static_cast<float>(std::get<1>(fre->second)) /  static_cast<float>(std::get<0>(fre->second)));
+        	  std::get<1>(std::get<4>(ef)) = std::get<2>(fre->second);
+        	  std::get<2>(std::get<4>(ef)) = std::get<3>(fre->second);
+
+
+        	  edge_freqs.emplace_back(ef);
+          }
+
+          // sort
+          mxx::sort(edge_freqs.begin(), edge_freqs.end(), [](edge_freq_type const & x, edge_freq_type const & y){
+        	  return std::get<0>(x) < std::get<0>(y);
+          }, comm);
+
+          // print
+		  std::ofstream ofs_chain_ends(compacted_chain_ends_filename);
+		  for (auto x : edge_freqs) {
+			ofs_chain_ends << bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) << "\t" <<
+					bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << "\t" <<
+					std::get<0>(std::get<2>(x)) << "\t" <<
+					std::get<1>(std::get<2>(x)) << "\t" <<
+					std::get<2>(std::get<2>(x)) << "\t" <<
+					std::get<3>(std::get<2>(x)) << "\t" <<
+					std::get<0>(std::get<3>(x)) << "\t" <<
+					std::get<1>(std::get<3>(x)) << "\t" <<
+					std::get<2>(std::get<3>(x)) << "\t" <<
+					std::get<3>(std::get<3>(x)) << "\t" <<
+					std::get<0>(std::get<4>(x)) << "\t" <<
+					std::get<1>(std::get<4>(x)) << "\t" <<
+					std::get<2>(std::get<4>(x)) << "\t" << std::endl;
+
+		  }
+          ofs_chain_ends.close();
 
         std::cout << "COMPACTED CHAIN END POINTS" << std::endl;
-        for (auto t : termini) {
+        for (auto t : chain_rep) {
           auto md = t.second;
-          std::cout << "terminus\tin dist " << std::get<2>(md) << " kmer: " << std::get<0>(md) << std::endl;
-          std::cout << "\tkmer: " << t.first << std::endl;
-          std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << std::get<1>(md) << std::endl;
+          std::cout << "terminus\tin dist " << std::get<2>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md)) << std::endl;
+          std::cout << "\tkmer: " << bliss::utils::KmerUtils::toASCIIString(t.first) << std::endl;
+          std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md)) << std::endl;
         }
-
-
+      }
     }
-
 
 
     BL_BENCH_REPORT_MPI_NAMED(test, "output", comm);

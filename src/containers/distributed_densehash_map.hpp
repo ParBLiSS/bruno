@@ -1981,7 +1981,7 @@ namespace dsc  // distributed std container
   >
   class reduction_densehash_map : 
     public densehash_map<Key, T, MapParams, SpecialKeys, Alloc> {
-      static_assert(::std::is_arithmetic<T>::value, "mapped type has to be arithmetic");
+      //static_assert(::std::is_arithmetic<T>::value, "mapped type has to be arithmetic");
 
     protected:
       using Base = densehash_map<Key, T, MapParams, SpecialKeys, Alloc>;

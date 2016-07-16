@@ -56,6 +56,26 @@ namespace bliss {
             }
         };
 
+        struct IsCanonicalTerminus {
+            /// does not filter by group of results.
+            template <typename Iter>
+            inline bool operator()(Iter first, Iter last) const {  return true; }
+
+            template <typename Kmer, typename Edge>
+            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+              if (! ((std::get<2>(t.second) == 0) ^ (std::get<3>(t.second) == 0)) ) return false;
+
+              if (std::get<2>(t.second) == 0) {
+            	  return (t.first < std::get<1>(t.second).reverse_complement());
+              } else if (std::get<3>(t.second) == 0) {
+            	  return (t.first.reverse_complement() < std::get<0>(t.second));
+              } else {
+            	 return false;
+              }
+            }
+        };
+
+
 
         struct PointsToTermini {
             /// does not filter by group of results.
