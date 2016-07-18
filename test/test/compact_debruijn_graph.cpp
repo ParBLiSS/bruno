@@ -78,6 +78,7 @@
 #include "utils/exception_handling.hpp"
 
 #include "tclap/CmdLine.h"
+#include "utils/tclap_utils.hpp"
 
 #include "mxx/env.hpp"
 #include "mxx/comm.hpp"
@@ -91,10 +92,24 @@ using Alphabet = bliss::common::DNA;
 #endif
 
 
+#if defined(pK)
+using KmerType = bliss::common::Kmer<pK, Alphabet, WordType>;
+#else
+using KmerType = bliss::common::Kmer<31, Alphabet, WordType>;
+#endif
+
+//============== index input file format
+#if (pPARSER == FASTA)
+#define FileParser ::bliss::io::FASTAParser
+#elif (pPARSER == FASTQ)
+#define FileParser ::bliss::io::FASTQParser
+#endif
+
+
 using KmerType = bliss::common::Kmer<31, Alphabet, WordType>;
 using EdgeEncoding = Alphabet;
 
-#define FileParser ::bliss::io::FASTQParser
+using FileReaderType = ::bliss::io::parallel::partitioned_file<::bliss::io::posix_file, FileParser >;
 
 using DBGNodeParser = bliss::debruijn::debruijn_graph_parser<KmerType>;
 
@@ -118,6 +133,100 @@ using FreqMapParams = ::bliss::index::kmer::CanonicalHashMapParams<Key>;
 
 using ChainVecType = ::std::vector<std::pair<KmerType, ChainNodeType> >;
 
+
+std::string get_error_string(std::string const & filename, std::string const & op_name, int const & return_val, mxx::comm const & comm) {
+	char error_string[BUFSIZ];
+	int length_of_error_string, error_class;
+	std::stringstream ss;
+
+	MPI_Error_class(return_val, &error_class);
+	MPI_Error_string(error_class, error_string, &length_of_error_string);
+
+	ss << "ERROR in mpiio: rank " << comm.rank() << " " << op_name << " " << filename << " error: " << error_string << std::endl;
+	return ss.str();
+}
+
+std::string get_error_string(std::string const & filename, std::string const & op_name, int const & return_val, MPI_Status const & stat, mxx::comm const & comm) {
+	char error_string[BUFSIZ];
+	int length_of_error_string, error_class;
+	std::stringstream ss;
+
+	MPI_Error_class(return_val, &error_class);
+	MPI_Error_string(error_class, error_string, &length_of_error_string);
+
+	ss << "ERROR in mpiio: rank " << comm.rank() << " " << op_name << " " << filename << " error: " << return_val << " [" << error_string << "]";
+
+//		// status.MPI_ERROR does not appear to be decodable by error_class.  google search did not find how to decode it.
+//		MPI_Error_class(stat.MPI_ERROR, &error_class);
+//		MPI_Error_string(error_class, error_string, &length_of_error_string);
+
+	ss << " MPI_Status error: [" << stat.MPI_ERROR << "]" << std::endl;
+
+	return ss.str();
+}
+
+
+void write_mpiio(std::string const & filename, const char* data, size_t len, mxx::comm const & comm ) {
+	/// MPI file handle
+	MPI_File fh;
+
+	int res = MPI_File_open(comm, const_cast<char *>(filename.c_str()), MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &fh);
+	if (res != MPI_SUCCESS) {
+		throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "open", res, comm));
+	}
+
+	res = MPI_File_set_size(fh, 0);
+	if (res != MPI_SUCCESS) {
+			throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "truncate", res, comm));
+		}
+
+	// ensure atomicity is turned off
+	MPI_File_set_atomicity(fh, 1);
+
+	// get the global offset.
+	size_t global_offset = ::mxx::exscan(len, comm);
+
+	size_t step = (0x1 << 30);
+	size_t iterations = (len + step - 1) / step;
+
+	std::cout << "rank " << comm.rank() << " mpiio write offset is " << global_offset << " len " << len << " iterations " << iterations << ::std::endl;
+
+	// get the maximum number of iterations
+	iterations = ::mxx::allreduce(iterations, [](size_t const & x, size_t const & y){
+		return (x >= y) ? x : y;
+	}, comm);
+
+	size_t remainder = len;
+	size_t curr_step = step;
+	MPI_Status stat;
+	int count = 0;
+	for (size_t i = 0; i < iterations; ++i) {
+		curr_step = std::min(remainder, step);
+
+		res = MPI_File_write_at_all( fh, global_offset, data, curr_step, MPI_BYTE, &stat);
+
+		if (res != MPI_SUCCESS)
+		  throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "write", res, stat, comm));
+
+		res = MPI_Get_count(&stat, MPI_BYTE, &count);
+		if (res != MPI_SUCCESS)
+		  throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "write count", res, stat, comm));
+
+		if (static_cast<size_t>(count) != curr_step) {
+			std::stringstream ss;
+			ss << "ERROR in mpiio: rank " << comm.rank() << " write error. request " << curr_step << " bytes got " << count << " bytes" << std::endl;
+
+			throw ::bliss::utils::make_exception<::bliss::io::IOException>(ss.str());
+		}
+
+		global_offset += curr_step;
+		data += curr_step;
+		remainder -= curr_step;
+	}
+
+	// close the file when done.
+	MPI_File_close(&fh);
+}
 
 
 /**
@@ -144,10 +253,9 @@ int main(int argc, char** argv) {
   //////////////// parse parameters
 
   //////////////// parse parameters
-
+  std::vector<std::string> filenames;
   std::string filename;
-  filename.assign(PROJ_SRC_DIR);
-  filename.append("/test/data/test.debruijn.small.fastq");
+
 
   std::string out_prefix;
   out_prefix.assign("./output");
@@ -168,17 +276,22 @@ int main(int argc, char** argv) {
     // that it contains.
     TCLAP::CmdLine cmd("Parallel de bruijn graph compaction", ' ', "0.1");
 
+    // MPI friendly commandline output.
+    ::bliss::utils::tclap::MPIOutput cmd_output(comm);
+    cmd.setOutput(&cmd_output);
+
     // Define a value argument and add it to the command line.
     // A value arg defines a flag and a type of value that it expects,
     // such as "-n Bishop".
-    TCLAP::ValueArg<std::string> fileArg("F", "file", "FASTQ file path", false, filename, "string", cmd);
-
     TCLAP::ValueArg<std::string> outputArg("O", "output_prefix", "Prefix for output files, including directory", false, "", "string", cmd);
+
+//    TCLAP::ValueArg<std::string> fileArg("F", "file", "FASTQ file path", false, filename, "string", cmd);
+    TCLAP::UnlabeledMultiArg<std::string> fileArg("filenames", "FASTA or FASTQ file names", false, "string", cmd);
 
     // Parse the argv array.
     cmd.parse( argc, argv );
 
-    filename = fileArg.getValue();
+    filenames = fileArg.getValue();
     out_prefix = outputArg.getValue();
 
   } catch (TCLAP::ArgException &e)  // catch any exceptions
@@ -187,13 +300,27 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
+  if (filenames.size() == 0) {
+	  filename.assign(PROJ_SRC_DIR);
+
+#if (pPARSER == FASTA)
+	  filename.append("/test/data/test.debruijn.small.fasta");
+#elif (pPARSER == FASTQ)
+	  filename.append("/test/data/test.debruijn.small.fastq");
+#endif
+
+
+	  filenames.push_back(filename);
+  }
+
   // filename for compacted chain strings
   // string starts with smaller end.  (first K and rev_comp of last K compared)
   // this is a dump of the collected compacted chains.
   std::string compacted_chain_str_filename(out_prefix);
-  compacted_chain_str_filename.append("_chain.");
-  compacted_chain_str_filename.append(std::to_string(comm.rank()));
-  compacted_chain_str_filename.append(".fasta");
+//  compacted_chain_str_filename.append("_chain.");
+//  compacted_chain_str_filename.append(std::to_string(comm.rank()));
+//  compacted_chain_str_filename.append(".fasta");
+  compacted_chain_str_filename.append("_chain.fasta");
 
   // filename for compacted chain interior kmers.  in format <K, Chain Id, pos, +/->
   // K is canonical.  + if K is on same strand as chain, - if not.
@@ -204,9 +331,10 @@ int main(int argc, char** argv) {
   //   canonical k-mer is +.  so for a non-canonical chain id, the terminal K is at - strand.
   //   all other k-mers on this chain have strand value relative to canonical of chain id.
   std::string compacted_chain_kmers_filename(out_prefix);
-  compacted_chain_kmers_filename.append("_chain.");
-  compacted_chain_kmers_filename.append(std::to_string(comm.rank()));
-  compacted_chain_kmers_filename.append(".components");
+//  compacted_chain_kmers_filename.append("_chain.");
+//  compacted_chain_kmers_filename.append(std::to_string(comm.rank()));
+//  compacted_chain_kmers_filename.append(".components");
+  compacted_chain_kmers_filename.append("_chain.components");
 
   // filename for compacted chain end points, in format : < K_l, K_r, chain_id, f_l_A, f_l_C, f_l_G, f_l_T, f_r_A, f_r_C, f_r_G, f_r_T, f >
   // K_l and K_r are canonical.  as such, we need chain_id to link back to component k-mers and the compated strings.
@@ -215,9 +343,10 @@ int main(int argc, char** argv) {
   // f is frequency - minimum or average of all intervening nodes?  - a reduction similar to the one used to construct the compacted chain string is needed.
   // f_l_X and f_r_X are in and out edges of K_l and K_r, respectively.
   std::string compacted_chain_ends_filename(out_prefix);
-  compacted_chain_ends_filename.append("_chain.");
-  compacted_chain_ends_filename.append(std::to_string(comm.rank()));
-  compacted_chain_ends_filename.append(".edges");
+//  compacted_chain_ends_filename.append("_chain.");
+//  compacted_chain_ends_filename.append(std::to_string(comm.rank()));
+//  compacted_chain_ends_filename.append(".edges");
+  compacted_chain_ends_filename.append("_chain.edges");
 
   // filename for junctions in format <K, f_l_A, f_l_C, f_l_G, f_l_T, f_r_A, f_r_C, f_r_G, f_r_T, f>
   // K is canonical.
@@ -225,9 +354,10 @@ int main(int argc, char** argv) {
   // f_l_X and f_r_X are in and out edges of K_l and K_r, respectively.
   // this is a dump of the dbg junctional nodes (filtered) to disk.
   std::string branch_filename(out_prefix);
-  branch_filename.append("_branch.");
-  branch_filename.append(std::to_string(comm.rank()));
-  branch_filename.append(".edges");
+//  branch_filename.append("_branch.");
+//  branch_filename.append(std::to_string(comm.rank()));
+//  branch_filename.append(".edges");
+  branch_filename.append("_branch.edges");
 
 
   // ================  read and get file
@@ -241,7 +371,8 @@ int main(int argc, char** argv) {
   std::vector<KmerType> neighbors;
   neighbors.reserve(4);
 
-	::std::vector<typename DBGNodeParser::value_type> temp;
+//	::std::vector<typename DBGNodeParser::value_type> temp;
+  ::std::vector<typename ::bliss::io::file_data> file_data;
 
 //  KmerType testKmer(std::string("CAAGATGGGTGGAATGGCCAGTTAACCACTG"));
 
@@ -251,12 +382,16 @@ int main(int argc, char** argv) {
   {
 	BL_BENCH_RESET(test);
 
-
-
     BL_BENCH_START(test);
-    if (comm.rank() == 0) printf("reading %s via posix\n", filename.c_str());
-    idx.read_file_posix<FileParser, DBGNodeParser>(filename, temp, comm);
-    BL_BENCH_COLLECTIVE_END(test, "read", temp.size(), comm);
+    size_t total = 0;
+    for (auto fn : filenames) {
+		if (comm.rank() == 0) printf("reading %s via posix\n", fn.c_str());
+
+		file_data.push_back(idx.open_file<FileReaderType>(fn, comm));
+		total += file_data.back().getRange().size();
+//		idx.read_file_posix<FileParser, DBGNodeParser>(fn, temp1, comm);
+    }
+    BL_BENCH_COLLECTIVE_END(test, "read", total, comm);
 
     //		  for (auto t : temp) {
     //		    std::cout << "input kmer " << bliss::utils::KmerUtils::toASCIIString(t.first) << " edges " << t.second << std::endl;
@@ -267,10 +402,10 @@ int main(int argc, char** argv) {
 
     // ============== insert
 
-    size_t total = mxx::allreduce(temp.size(), comm);
-    if (comm.rank() == 0) printf("total size is %lu\n", total);
+    total = mxx::allreduce(total, comm);
+    if (comm.rank() == 0) printf("total size read is %lu\n", total);
 
-    BL_BENCH_REPORT_MPI_NAMED(test, "read", comm);
+    BL_BENCH_REPORT_MPI_NAMED(test, "open", comm);
   }
 
 
@@ -278,10 +413,16 @@ int main(int argc, char** argv) {
   {
 	  BL_BENCH_RESET(test);
 
-
 	  BL_BENCH_START(test);
-    idx.insert(temp);
-    BL_BENCH_COLLECTIVE_END(test, "insert", idx.local_size(), comm);
+	  {
+		::std::vector<typename DBGNodeParser::value_type> temp;
+		for (auto x : file_data) {
+			temp.clear();
+			idx.parse_file_data<FileParser, DBGNodeParser>(x, temp, comm);
+			idx.insert(temp);
+		}
+	  }
+	  BL_BENCH_COLLECTIVE_END(test, "parse and insert", idx.local_size(), comm);
 
     size_t total = idx.size();
     if (comm.rank() == 0) printf("total size after insert/rehash is %lu\n", total);
@@ -382,13 +523,13 @@ int main(int argc, char** argv) {
 
       BL_BENCH_START(test);
       // find chain nodes
-      chain_nodes = idx.find_if(::bliss::debruijn::filter::graph::IsChainNode());
+      chain_nodes = idx.find_if(::bliss::debruijn::filter::graph::IsChainNode());  // not isolated and not branching
       BL_BENCH_COLLECTIVE_END(test, "get_chains", chain_nodes.size(), comm);
 
-      BL_BENCH_START(test);
-      // then compute histogram
-      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(chain_nodes, comm);
-      BL_BENCH_COLLECTIVE_END(test, "chain_histogram", chain_nodes.size(), comm);
+//      BL_BENCH_START(test);
+//      // then compute histogram
+//      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(chain_nodes, comm);
+//      BL_BENCH_COLLECTIVE_END(test, "chain_histogram", chain_nodes.size(), comm);
 
 
       // insert into local container inside chainmap.
@@ -427,9 +568,9 @@ int main(int argc, char** argv) {
       BL_BENCH_COLLECTIVE_END(test, "insert in chainmap.", chainmap.local_size(), comm);
 
       //========= report.
-      auto result = chainmap.find(::bliss::debruijn::filter::chain::IsTerminus());
-      auto result2 = chainmap.find(::bliss::debruijn::filter::chain::IsIsolated());
-      printf("chain map contains %lu chained termini and  %lu isolated\n", result.size(), result2.size());
+//      auto result = chainmap.find(::bliss::debruijn::filter::chain::IsTerminus());
+//      auto result2 = chainmap.find(::bliss::debruijn::filter::chain::IsIsolated());
+//      printf("chain map contains %lu chained termini and  %lu isolated\n", result.size(), result2.size());
 
     }
 
@@ -440,10 +581,10 @@ int main(int argc, char** argv) {
       auto nodes = idx.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
       BL_BENCH_COLLECTIVE_END(test, "get_branches", nodes.size(), comm);
 
-      BL_BENCH_START(test);
-      // then compute histogram
-      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(nodes, comm);
-      BL_BENCH_COLLECTIVE_END(test, "branch_histogram", nodes.size(), comm);
+//      BL_BENCH_START(test);
+//      // then compute histogram
+//      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(nodes, comm);
+//      BL_BENCH_COLLECTIVE_END(test, "branch_histogram", nodes.size(), comm);
 
       //          //=== get the neighbors of the branch points.  for information only.
       //          BL_BENCH_START(test);
@@ -748,15 +889,43 @@ int main(int argc, char** argv) {
         //  					" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md).reverse_complement()) << std::endl;
         //            }
 
+
+
+
         // at this point, the new distances in lists are 2^(iterations + 1)
         ++iterations;
 
-        // get global unfinished count
         cycle_nodes = std::count_if(unfinished.begin(), unfinished.end(),
                                     ::bliss::debruijn::filter::chain::IsCycleNode(iterations));
-        if (comm.rank() < 4) printf("rank %d iter %lu updated %lu, unfinished %lu noncycle %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_nodes);
+
+        // going over 30 makes the max_dist in IsCycleNode go to -1, then it is no longer valid as distances are int.  stop at 30
+        if (iterations >= 30) {
+
+        	// locally find the one that are not cycle nodes and print them.
+        	::bliss::debruijn::filter::chain::IsCycleNode check_cycle(iterations);
+        	for (auto t : unfinished) {
+        		if (check_cycle(t)) continue;
+
+        		auto md = t.second;
+
+        		std::cout << "rank " << comm.rank() << " max iter " << iterations <<
+        		"\tin dist " << std::get<2>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md)) <<
+									" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md).reverse_complement()) <<
+							"\tkmer: " << bliss::utils::KmerUtils::toASCIIString(t.first) << " rc: " << bliss::utils::KmerUtils::toASCIIString(t.first.reverse_complement()) <<
+							"\tout dist " << std::get<3>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md)) <<
+									" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md).reverse_complement()) << std::endl;
+        	}
+
+//        	printf("rank %d max iter %lu updated %lu, unfinished %lu cycle nodes %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_nodes);
+        	all_compacted = true;
+        	continue;
+        }
+
+        // get global unfinished count
+
         all_compacted = (count == 0) || (cycle_nodes == unfinished.size());
-        all_compacted = ::mxx::all_of(all_compacted, comm);
+        if (!all_compacted) printf("rank %d iter %lu updated %lu, unfinished %lu cycle nodes %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_nodes);
+		all_compacted = ::mxx::all_of(all_compacted, comm);
 
       }
       BL_BENCH_COLLECTIVE_END(test, "compact", cycle_nodes, comm);
@@ -780,13 +949,14 @@ int main(int argc, char** argv) {
       auto unfinished = chainmap.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
       BL_BENCH_COLLECTIVE_END(test, "unfinished2", unfinished.size(), comm);
 
+      BL_BENCH_START(test);
+
       // get global unfinished count
       bool all_compacted = (unfinished.size() == 0);
       all_compacted = ::mxx::all_of(all_compacted, comm);
 
 
       // while have unfinished,  run.  qq contains kmers not necessarily canonical
-      BL_BENCH_START(test);
 
       std::vector<KmerType> qq;
       qq.reserve(unfinished.size() * 2);
@@ -865,6 +1035,8 @@ int main(int argc, char** argv) {
 
 
       // search unfinished.count
+      BL_BENCH_START(test);
+
       unfinished = chainmap.find(::bliss::debruijn::filter::chain::IsUncompactedNode(iterations));
 
 
@@ -873,17 +1045,29 @@ int main(int argc, char** argv) {
       all_compacted = ::mxx::all_of(all_compacted, comm);
 
       assert(all_compacted);
+      BL_BENCH_COLLECTIVE_END(test, "unfinished", unfinished.size(), comm);
+
     }
     BL_BENCH_REPORT_MPI_NAMED(test, "finalize", comm);
 
 
     BL_BENCH_RESET(test);
     {
-    // remove cycle nodes.  has to do after query, to ensure that exactly middle is being treated not as a cycle node.
-    BL_BENCH_START(test);
-    size_t cycle_node_count = chainmap.erase(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
-    BL_BENCH_COLLECTIVE_END(test, "erase cycle", cycle_node_count, comm);
-  }
+		// remove cycle nodes.  has to do after query, to ensure that exactly middle is being treated not as a cycle node.
+		BL_BENCH_START(test);
+		size_t cycle_node_count = chainmap.erase(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
+		BL_BENCH_COLLECTIVE_END(test, "erase cycle", cycle_node_count, comm);
+
+		BL_BENCH_START(test);
+		auto unfinished = chainmap.find(::bliss::debruijn::filter::chain::IsUncompactedNode(iterations));
+
+		bool all_compacted = (unfinished.size() == 0);
+		all_compacted = ::mxx::all_of(all_compacted, comm);
+
+		assert(all_compacted);
+		BL_BENCH_COLLECTIVE_END(test, "unfinished", unfinished.size(), comm);
+
+	  }
 
   BL_BENCH_REPORT_MPI_NAMED(test, "rem_cycle", comm);
 
@@ -895,7 +1079,15 @@ int main(int argc, char** argv) {
       // ========== construct edge count index
     	CountDBGType idx2(comm);
   	  BL_BENCH_START(test);
-      idx2.insert(temp);
+  	  {
+		::std::vector<typename DBGNodeParser::value_type> temp;
+		for (auto x : file_data) {
+			temp.clear();
+			idx2.parse_file_data<FileParser, DBGNodeParser>(x, temp, comm);
+			idx2.insert(temp);
+		}
+		// idx2.insert(temp);
+  	  }
       BL_BENCH_COLLECTIVE_END(test, "count insert", idx2.local_size(), comm);
 
       {
@@ -905,22 +1097,30 @@ int main(int argc, char** argv) {
 				  idx2.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
 		  BL_BENCH_COLLECTIVE_END(test, "get_branches", branch_pts.size(), comm);
 
-
-		  // global sort
-		  BL_BENCH_START(test);
-		  mxx::sort(branch_pts.begin(), branch_pts.end(), [](typename CountDBGType::TupleType const & x,
-				  typename CountDBGType::TupleType const & y){
-			  return x.first < y.first;
-		  }, comm);
-		  BL_BENCH_COLLECTIVE_END(test, "psort branches", branch_pts.size(), comm);   // this is for ordered output.
-
+		  bool no_branches = mxx::all_of((branch_pts.size() == 0), comm);
+		  if (!no_branches) {
+			  // global sort
+			  BL_BENCH_START(test);
+			  mxx::sort(branch_pts.begin(), branch_pts.end(), [](typename CountDBGType::TupleType const & x,
+					  typename CountDBGType::TupleType const & y){
+				  return x.first < y.first;
+			  }, comm);
+			  BL_BENCH_COLLECTIVE_END(test, "psort branches", branch_pts.size(), comm);   // this is for ordered output.
+		  }
 
 		  // and print.
 		  BL_BENCH_START(test);
-		  std::ofstream ofs_branch_nodes(branch_filename);
-		  std::for_each(branch_pts.begin(), branch_pts.end(),
-				  ::bliss::debruijn::operation::graph::print_graph_node<KmerType>(ofs_branch_nodes));
-		  ofs_branch_nodes.close();
+		  {
+			  std::stringstream ss;
+			  ss.clear();
+			  std::for_each(branch_pts.begin(), branch_pts.end(),
+					  ::bliss::debruijn::operation::graph::print_graph_node<KmerType>(ss));
+			  write_mpiio(branch_filename, ss.str().c_str(), ss.str().length(), comm);
+
+//			  std::ofstream ofs_branch_nodes(branch_filename);
+//			  ofs_branch_nodes << ss.str();
+//			  ofs_branch_nodes.close();
+		  }
 		  BL_BENCH_COLLECTIVE_END(test, "print branches (4)", branch_pts.size(), comm);
       }
 
@@ -935,45 +1135,61 @@ int main(int argc, char** argv) {
           //== first transform nodes so that we are pointing to canonical terminus k-mers.
           std::transform(chainmap.get_local_container().begin(), chainmap.get_local_container().end(), back_emplacer,
         		  ::bliss::debruijn::operation::chain::to_compacted_chain_node<KmerType>());
-          BL_BENCH_COLLECTIVE_END(test, "transform chain", chainmap.size(), comm);
+          BL_BENCH_COLLECTIVE_END(test, "transform chain", chainmap.local_size(), comm);
 
+		  bool no_result = mxx::all_of((result.size() == 0), comm);
+		  if (!no_result) {
 
-		  // sort
-		  BL_BENCH_START(test);
-		  // first transform nodes so that we are pointing to canonical terminus k-mers.
-		  mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_rep_less<KmerType>());
-		  // global sort?
+			  // sort
+			  BL_BENCH_START(test);
+			  // first transform nodes so that we are pointing to canonical terminus k-mers.
+			  mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_rep_less<KmerType>());
+			  // global sort?
 
-		  BL_BENCH_COLLECTIVE_END(test, "psort lmer", result.size(), comm);   // this is for constructing the chains
-
+			  BL_BENCH_COLLECTIVE_END(test, "psort lmer", result.size(), comm);   // this is for constructing the chains
+		  }
 		  // print out.
 		  BL_BENCH_START(test);
-	//      std::stringstream ss;
-		  std::ofstream ofs_chain_str(compacted_chain_str_filename);
-		  std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain<KmerType>(ofs_chain_str));
-		  ofs_chain_str.close();
+		  {
+			  std::stringstream ss;
 
+			  std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain<KmerType>(ss));
+			  write_mpiio(compacted_chain_str_filename, ss.str().c_str(), ss.str().length(), comm);
+
+//			  std::ofstream ofs_chain_str(compacted_chain_str_filename);
+//			  ofs_chain_str << ss.str();
+//			  ofs_chain_str.close();
+
+		  }
 	//      std::cout << ss.str() << std::endl;
 		  BL_BENCH_COLLECTIVE_END(test, "print chains (3)", result.size(), comm);
 
 
 		//===  print chain nodes (1)
 
-		  // sort
-		  BL_BENCH_START(test);
-		  // first transform nodes so that we are pointing to canonical terminus k-mers.
-		  mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_node_less<KmerType>(), comm);
-		  // global sort?
-		  BL_BENCH_COLLECTIVE_END(test, "psort kmer", result.size(), comm);  // this is for output ordering.
+		  no_result = mxx::all_of((result.size() == 0), comm);
+		  if (!no_result) {
 
+			  // sort
+			  BL_BENCH_START(test);
+			  // first transform nodes so that we are pointing to canonical terminus k-mers.
+			  mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_node_less<KmerType>(), comm);
+			  // global sort?
+			  BL_BENCH_COLLECTIVE_END(test, "psort kmer", result.size(), comm);  // this is for output ordering.
+		  }
 
 		  // print out.
 		  BL_BENCH_START(test);
-	//      std::stringstream ss;
-		  std::ofstream ofs_chain_nodes(compacted_chain_kmers_filename);
-		  std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain_node<KmerType>(ofs_chain_nodes));
-		  ofs_chain_nodes.close();
+		  {
+			  std::stringstream ss2;
+			  std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain_node<KmerType>(ss2));
+			  write_mpiio(compacted_chain_kmers_filename, ss2.str().c_str(), ss2.str().length(), comm);
+//
+//			  std::ofstream ofs_chain_nodes(compacted_chain_kmers_filename);
+//			  ofs_chain_nodes << ss2.str();
+//			  ofs_chain_nodes.close();
 
+		  }
 	//      std::cout << ss.str() << std::endl;
 		  BL_BENCH_COLLECTIVE_END(test, "print chains (1)", result.size(), comm);
       }
@@ -986,6 +1202,7 @@ int main(int argc, char** argv) {
     	  using freq_type = std::pair<KmerType, std::tuple<CountType, size_t, CountType, CountType> >;
     	  std::vector< freq_type > freqs;
 
+		  BL_BENCH_START(test);
     	  ::bliss::debruijn::operation::chain::to_compacted_chain_node<KmerType> get_chain_rep;
 
     	  // extract frequencies.
@@ -995,8 +1212,10 @@ int main(int argc, char** argv) {
 
     		  freqs.emplace_back(std::get<1>(get_chain_rep(x)), ::std::tuple<CountType, size_t, CountType, CountType>(1, c, c, c));
     	  }
+		  BL_BENCH_COLLECTIVE_END(test, "get_freqs", freqs.size(), comm);
 
     	  // create a reduction map
+		  BL_BENCH_START(test);
     	  using FreqMapType = ::dsc::reduction_densehash_map<KmerType, ::std::tuple<CountType, size_t, CountType, CountType>,
     			  FreqMapParams,
 				   ::bliss::kmer::hash::sparsehash::special_keys<KmerType>,
@@ -1004,6 +1223,7 @@ int main(int argc, char** argv) {
 
     	  FreqMapType freq_map(comm);
     	  freq_map.insert(freqs);   // collective comm.
+		  BL_BENCH_COLLECTIVE_END(test, "reduce_freq", freq_map.local_size(), comm);
 
 
     	  // freq_map, idx2, and chainmap now all have same distribution.
@@ -1014,7 +1234,6 @@ int main(int argc, char** argv) {
 
 
           KmerType L, R, cL, cR;
-
           //========= get the R frequencies (remote) and insert into a local map
           using edge_freq_type = std::tuple<KmerType, KmerType, std::tuple<CountType, CountType, CountType, CountType>,
 		  	  std::tuple<CountType, CountType, CountType, CountType>,
@@ -1022,6 +1241,7 @@ int main(int argc, char** argv) {
           std::vector<edge_freq_type> edge_freqs;
 
           // get query vector
+          BL_BENCH_START(test);
           typename CountDBGMapType::local_container_type R_freq_map;
           {
 			  std::vector<KmerType> R_query;
@@ -1034,17 +1254,19 @@ int main(int argc, char** argv) {
 					  std::cout << "rank " << comm.rank() << " canonical chain terminal not really terminal" << std::endl;
 					  continue;
 				  }
-				  std::cout << "rank " << comm.rank() << " R query " << bliss::utils::KmerUtils::toASCIIString(R_query.back()) << std::endl;
+//				  std::cout << "rank " << comm.rank() << " R query " << bliss::utils::KmerUtils::toASCIIString(R_query.back()) << std::endl;
 			  }
 			  // do query and insert results into local map.
 			  auto R_results = idx2.find_overlap(R_query);
 			  R_freq_map.insert(R_results.begin(), R_results.end());
-			  for (auto x : R_freq_map) {
-				  std::cout << "rank " << comm.rank() << " R result " << bliss::utils::KmerUtils::toASCIIString(x.first) << std::endl;
-			  }
+//			  for (auto x : R_freq_map) {
+//				  std::cout << "rank " << comm.rank() << " R result " << bliss::utils::KmerUtils::toASCIIString(x.first) << std::endl;
+//			  }
           }
+          BL_BENCH_COLLECTIVE_END(test, "local_R_freqs", R_freq_map.size(), comm);
 
           // convert to tuple.
+          BL_BENCH_START(test);
           bliss::debruijn::lex_less<KmerType> canonical;
           for (auto x : chain_rep) {
         	  // first get the kmer strings
@@ -1114,39 +1336,55 @@ int main(int argc, char** argv) {
 
         	  edge_freqs.emplace_back(ef);
           }
+          BL_BENCH_COLLECTIVE_END(test, "gather_edge_freqs", edge_freqs.size(), comm);
 
-          // sort
-          mxx::sort(edge_freqs.begin(), edge_freqs.end(), [](edge_freq_type const & x, edge_freq_type const & y){
-        	  return std::get<0>(x) < std::get<0>(y);
-          }, comm);
 
-          // print
-		  std::ofstream ofs_chain_ends(compacted_chain_ends_filename);
-		  for (auto x : edge_freqs) {
-			ofs_chain_ends << bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) << "\t" <<
-					bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << "\t" <<
-					std::get<0>(std::get<2>(x)) << "\t" <<
-					std::get<1>(std::get<2>(x)) << "\t" <<
-					std::get<2>(std::get<2>(x)) << "\t" <<
-					std::get<3>(std::get<2>(x)) << "\t" <<
-					std::get<0>(std::get<3>(x)) << "\t" <<
-					std::get<1>(std::get<3>(x)) << "\t" <<
-					std::get<2>(std::get<3>(x)) << "\t" <<
-					std::get<3>(std::get<3>(x)) << "\t" <<
-					std::get<0>(std::get<4>(x)) << "\t" <<
-					std::get<1>(std::get<4>(x)) << "\t" <<
-					std::get<2>(std::get<4>(x)) << "\t" << std::endl;
+		  bool no_result = mxx::all_of((edge_freqs.size() == 0), comm);
+		  if (!no_result) {
 
+			  // sort
+			  BL_BENCH_START(test);
+			  mxx::sort(edge_freqs.begin(), edge_freqs.end(), [](edge_freq_type const & x, edge_freq_type const & y){
+				  return std::get<0>(x) < std::get<0>(y);
+			  }, comm);
+			  BL_BENCH_COLLECTIVE_END(test, "psort_edge_freqs", edge_freqs.size(), comm);
 		  }
-          ofs_chain_ends.close();
+          // print
+          BL_BENCH_START(test);
+          {
+			  std::stringstream ss;
+			  ss.clear();
+			  for (auto x : edge_freqs) {
+				ss << bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) << "\t" <<
+						bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << "\t" <<
+						std::get<0>(std::get<2>(x)) << "\t" <<
+						std::get<1>(std::get<2>(x)) << "\t" <<
+						std::get<2>(std::get<2>(x)) << "\t" <<
+						std::get<3>(std::get<2>(x)) << "\t" <<
+						std::get<0>(std::get<3>(x)) << "\t" <<
+						std::get<1>(std::get<3>(x)) << "\t" <<
+						std::get<2>(std::get<3>(x)) << "\t" <<
+						std::get<3>(std::get<3>(x)) << "\t" <<
+						std::get<0>(std::get<4>(x)) << "\t" <<
+						std::get<1>(std::get<4>(x)) << "\t" <<
+						std::get<2>(std::get<4>(x)) << "\t" << std::endl;
 
-        std::cout << "COMPACTED CHAIN END POINTS" << std::endl;
-        for (auto t : chain_rep) {
-          auto md = t.second;
-          std::cout << "terminus\tin dist " << std::get<2>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md)) << std::endl;
-          std::cout << "\tkmer: " << bliss::utils::KmerUtils::toASCIIString(t.first) << std::endl;
-          std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md)) << std::endl;
-        }
+			  }
+			  write_mpiio(compacted_chain_ends_filename, ss.str().c_str(), ss.str().length(), comm);
+
+//			  std::ofstream ofs_chain_ends(compacted_chain_ends_filename);
+//			  ofs_chain_ends << ss.str();
+//			  ofs_chain_ends.close();
+          }
+          BL_BENCH_COLLECTIVE_END(test, "print_edge_freqs", edge_freqs.size(), comm);
+
+//        std::cout << "COMPACTED CHAIN END POINTS" << std::endl;
+//        for (auto t : chain_rep) {
+//          auto md = t.second;
+//          std::cout << "terminus\tin dist " << std::get<2>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md)) << std::endl;
+//          std::cout << "\tkmer: " << bliss::utils::KmerUtils::toASCIIString(t.first) << std::endl;
+//          std::cout << "\tout dist " << std::get<3>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md)) << std::endl;
+//        }
       }
     }
 

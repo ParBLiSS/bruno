@@ -224,7 +224,7 @@ public:
 	      // file extension determines SeqParserType
 	      std::string extension = ::bliss::utils::file::get_file_extension(filename);
 	      std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-	      if ((extension.compare("fastq") != 0) && (extension.compare("fasta") != 0)) {
+	      if ((extension.compare("fastq") != 0) && (extension.compare("fasta") != 0) && (extension.compare("fa") != 0)) {
 	        throw std::invalid_argument("input filename extension is not supported.");
 	      }
 
@@ -497,14 +497,14 @@ public:
 		 // file extension determines SeqParserType
 		 std::string extension = ::bliss::utils::file::get_file_extension(filename);
 		 std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-		 if ((extension.compare("fastq") != 0) && (extension.compare("fasta") != 0)) {
+		 if ((extension.compare("fastq") != 0) && (extension.compare("fasta") != 0) && (extension.compare("fa") != 0)) {
 			 throw std::invalid_argument("input filename extension is not supported.");
 		 }
 
 		 // check to make sure that the file parser will work
 		 if ((extension.compare("fastq") == 0) && (!std::is_same<SeqParser<char*>, ::bliss::io::FASTQParser<char*> >::value)) {
 			 throw std::invalid_argument("Specified File Parser template parameter does not support files with fastq extension.");
-		 } else if ((extension.compare("fasta") == 0) && (!std::is_same<SeqParser<char*>, ::bliss::io::FASTAParser<char*> >::value)) {
+		 } else if (((extension.compare("fasta") == 0) || (extension.compare("fa") == 0)) && (!std::is_same<SeqParser<char*>, ::bliss::io::FASTAParser<char*> >::value)) {
 			 throw std::invalid_argument("Specified File Parser template parameter does not support files with fasta extension.");
 		 }
      BL_BENCH_INIT(build);
@@ -542,14 +542,14 @@ public:
 	     // file extension determines SeqParserType
 	     std::string extension = ::bliss::utils::file::get_file_extension(filename);
 	     std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-	     if ((extension.compare("fastq") != 0) && (extension.compare("fasta") != 0)) {
+	     if ((extension.compare("fastq") != 0) && (extension.compare("fasta") != 0) && (extension.compare("fa") != 0)) {
 	       throw std::invalid_argument("input filename extension is not supported.");
 	     }
 
 	     // check to make sure that the file parser will work
 	     if ((extension.compare("fastq") == 0) && (!std::is_same<SeqParser<char*>, ::bliss::io::FASTQParser<char*> >::value)) {
 	       throw std::invalid_argument("Specified File Parser template parameter does not support files with fastq extension.");
-	     } else if ((extension.compare("fasta") == 0) && (!std::is_same<SeqParser<char*>, ::bliss::io::FASTAParser<char*> >::value)) {
+	     } else if (((extension.compare("fasta") == 0) || (extension.compare("fa") == 0)) && (!std::is_same<SeqParser<char*>, ::bliss::io::FASTAParser<char*> >::value)) {
 	       throw std::invalid_argument("Specified File Parser template parameter does not support files with fasta extension.");
 	     }
 	     BL_BENCH_INIT(build);
@@ -589,14 +589,14 @@ public:
 			 // file extension determines SeqParserType
 			 std::string extension = ::bliss::utils::file::get_file_extension(filename);
 			 std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-			 if ((extension.compare("fastq") != 0) && (extension.compare("fasta") != 0)) {
+			 if ((extension.compare("fastq") != 0) && (extension.compare("fasta") != 0) && (extension.compare("fa") != 0)) {
 				 throw std::invalid_argument("input filename extension is not supported.");
 			 }
 
 			 // check to make sure that the file parser will work
 			 if ((extension.compare("fastq") == 0) && (!std::is_same<SeqParser<char*>, ::bliss::io::FASTQParser<char*> >::value)) {
 				 throw std::invalid_argument("Specified File Parser template parameter does not support files with fastq extension.");
-			 } else if ((extension.compare("fasta") == 0) && (!std::is_same<SeqParser<char*>, ::bliss::io::FASTAParser<char*> >::value)) {
+			 } else if (((extension.compare("fasta") == 0) || (extension.compare("fa") == 0)) && (!std::is_same<SeqParser<char*>, ::bliss::io::FASTAParser<char*> >::value)) {
 				 throw std::invalid_argument("Specified File Parser template parameter does not support files with fasta extension.");
 			 }
 	     BL_BENCH_INIT(build);
