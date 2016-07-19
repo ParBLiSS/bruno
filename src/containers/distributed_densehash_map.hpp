@@ -1257,16 +1257,14 @@ namespace dsc  // distributed std container
       ::std::vector<::std::pair<Key, size_type> > count(Predicate const & pred = Predicate()) const {
         ::std::vector<::std::pair<Key, size_type> > results;
 
-        if (this->local_empty()) return results;
+        if (! this->local_empty()) {
+          ::fsc::back_emplace_iterator<::std::vector<::std::pair<Key, size_t> > > emplace_iter(results);
 
+          auto keys = this->keys();
+          results.reserve(keys.size());
 
-        ::fsc::back_emplace_iterator<::std::vector<::std::pair<Key, size_t> > > emplace_iter(results);
-
-        auto keys = this->keys();
-        results.reserve(keys.size());
-
-        QueryProcessor::process(c, keys.begin(), keys.end(), emplace_iter, count_element, false, pred);
-
+          QueryProcessor::process(c, keys.begin(), keys.end(), emplace_iter, count_element, false, pred);
+        }
         if (this->comm.size() > 1) this->comm.barrier();
         return results;
       }
@@ -1343,18 +1341,17 @@ namespace dsc  // distributed std container
 
         size_t count = 0;
 
-        if (this->local_empty()) return 0;
+        if (! this->local_empty()) {
+          if (!::std::is_same<Predicate, ::fsc::TruePredicate>::value) {
+            count = this->c.erase(pred);
 
+          } else {
+            count = this->local_size();
+            this->local_clear();
+          }
 
-        if (!::std::is_same<Predicate, ::fsc::TruePredicate>::value) {
-          count = this->c.erase(pred);
-
-        } else {
-          count = this->local_size();
-          this->local_clear();
+          if (count > 0) local_changed = true;
         }
-
-        if (count > 0) local_changed = true;
 
         if (this->comm.size() > 1) this->comm.barrier();
 
@@ -1523,7 +1520,7 @@ namespace dsc  // distributed std container
           ::std::vector<::std::pair<Key, T> > results;
 
           if (this->local_empty()) {
-            printf("rank %d local is empty\n", this->comm.rank());
+            //printf("rank %d local is empty\n", this->comm.rank());
             return results;
           }
           results.reserve(this->c.size());
