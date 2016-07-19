@@ -98,6 +98,10 @@ using KmerType = bliss::common::Kmer<pK, Alphabet, WordType>;
 using KmerType = bliss::common::Kmer<31, Alphabet, WordType>;
 #endif
 
+
+#define FASTA 1
+#define FASTQ 0
+
 //============== index input file format
 #if (pPARSER == FASTA)
 #define FileParser ::bliss::io::FASTAParser
@@ -116,7 +120,7 @@ using DBGNodeParser = bliss::debruijn::debruijn_graph_parser<KmerType>;
 using DBGMapType = ::bliss::debruijn::graph::simple_hash_compact_debruijn_graph_map<KmerType>;
 using DBGType = ::bliss::index::kmer::Index<DBGMapType, DBGNodeParser>;
 
-using CountType = uint32_t;
+using CountType = uint16_t;
 using CountDBGMapType = ::bliss::debruijn::graph::count_hash_compact_debruijn_graph_map<KmerType, CountType>;
 using CountDBGType = ::bliss::index::kmer::Index<CountDBGMapType, DBGNodeParser>;
 
@@ -189,7 +193,7 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 	size_t step = (0x1 << 30);
 	size_t iterations = (len + step - 1) / step;
 
-	std::cout << "rank " << comm.rank() << " mpiio write offset is " << global_offset << " len " << len << " iterations " << iterations << ::std::endl;
+	//std::cout << "rank " << comm.rank() << " mpiio write offset is " << global_offset << " len " << len << " iterations " << iterations << ::std::endl;
 
 	// get the maximum number of iterations
 	iterations = ::mxx::allreduce(iterations, [](size_t const & x, size_t const & y){
@@ -362,22 +366,24 @@ int main(int argc, char** argv) {
 
   // ================  read and get file
 
-  DBGType idx(comm);
+  //  ::std::vector<typename DBGNodeParser::value_type> temp;
+  ::std::vector<typename ::bliss::io::file_data> file_data;
+
   ChainMapType chainmap(comm);
 
+  BL_BENCH_INIT(test);
 
+  {
+  DBGType idx(comm);
 
-  std::vector<KmerType> query;
+//  std::vector<KmerType> query;
   std::vector<KmerType> neighbors;
   neighbors.reserve(4);
 
-//	::std::vector<typename DBGNodeParser::value_type> temp;
-  ::std::vector<typename ::bliss::io::file_data> file_data;
 
 //  KmerType testKmer(std::string("CAAGATGGGTGGAATGGCCAGTTAACCACTG"));
 
   // TODO: filter out, or do something, about "N".  May have to add back support for ASCII edge encoding so that we can use DNA5 alphabet
-  BL_BENCH_INIT(test);
 
   {
 	BL_BENCH_RESET(test);
@@ -385,7 +391,7 @@ int main(int argc, char** argv) {
     BL_BENCH_START(test);
     size_t total = 0;
     for (auto fn : filenames) {
-		if (comm.rank() == 0) printf("reading %s via posix\n", fn.c_str());
+		if (comm.rank() == 0) printf("READING %s via posix\n", fn.c_str());
 
 		file_data.push_back(idx.open_file<FileReaderType>(fn, comm));
 		total += file_data.back().getRange().size();
@@ -413,14 +419,20 @@ int main(int argc, char** argv) {
   {
 	  BL_BENCH_RESET(test);
 
+    if (comm.rank() == 0) printf("PARSING and INSERT\n");
+
 	  BL_BENCH_START(test);
 	  {
-		::std::vector<typename DBGNodeParser::value_type> temp;
-		for (auto x : file_data) {
-			temp.clear();
-			idx.parse_file_data<FileParser, DBGNodeParser>(x, temp, comm);
-			idx.insert(temp);
-		}
+      ::std::vector<typename DBGNodeParser::value_type> temp;
+      for (auto x : file_data) {
+        temp.clear();
+        comm.barrier();  // need to sync this, since the parser needs to collectively parse the records.
+        idx.parse_file_data<FileParser, DBGNodeParser>(x, temp, comm);
+        if (comm.rank() == 0) printf("PARSED\n");
+        comm.barrier();  // need to sync again.
+        idx.insert(temp);
+        if (comm.rank() == 0) printf("INSERTED\n");
+      }
 	  }
 	  BL_BENCH_COLLECTIVE_END(test, "parse and insert", idx.local_size(), comm);
 
@@ -485,6 +497,8 @@ int main(int argc, char** argv) {
 
     {
       // get histogram for the edge types in debruijn graph
+      if (comm.rank() == 0) printf("HISTOGRAM\n");
+
 
       ::std::vector<std::pair<typename DBGMapType::key_type, typename DBGMapType::mapped_type> > nodes;
 
@@ -519,6 +533,9 @@ int main(int argc, char** argv) {
 
 
     {
+	    if (comm.rank() == 0) printf("MAKE CHAINMAP\n");
+
+
       ::std::vector<std::pair<typename DBGMapType::key_type, typename DBGMapType::mapped_type> > chain_nodes;
 
       BL_BENCH_START(test);
@@ -576,6 +593,9 @@ int main(int argc, char** argv) {
 
 
     {
+      if (comm.rank() == 0) printf("MARK TERMINI NEXT TO BRANCHES\n");
+
+
       //=== find branching nodes. local computation.
       BL_BENCH_START(test);
       auto nodes = idx.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
@@ -646,7 +666,8 @@ int main(int argc, char** argv) {
           all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
         }
       }
-      BL_BENCH_COLLECTIVE_END(test, "branch_neighbors_2", all_neighbors.size(), comm);
+      BL_BENCH_COLLECTIVE_END(test, "branch_neighbors", all_neighbors.size(), comm);
+
 
       // now check to see which are chain nodes.  these are chain nodes adjacent to branch points.
       // include chain termini that are adjacent to branch points, so we can mark them in the chainmap.
@@ -677,6 +698,7 @@ int main(int argc, char** argv) {
       //          }
     }
     BL_BENCH_REPORT_MPI_NAMED(test, "chain_map", comm);
+  }
 
     BL_BENCH_RESET(test);
 
@@ -765,6 +787,7 @@ int main(int argc, char** argv) {
     //
     //        }
 
+    if (comm.rank() == 0) printf("LIST RANKING\n");
 
 
     size_t iterations = 0;
@@ -871,7 +894,7 @@ int main(int argc, char** argv) {
 
         // now perform update
         ::bliss::debruijn::operation::chain::chain_update<KmerType> chain_updater;
-        size_t count = chainmap.update(updates, false, chain_updater );
+        size_t count = chainmap.update( updates, false, chain_updater );
 
         //            last_updated = count;
 
@@ -943,6 +966,9 @@ int main(int argc, char** argv) {
     // sources of updates may not be updated again, near the ends, even when they are already pointing to terminal
     // these are resolved using a single query.  note that previous code terminates when nothing is updated or when only cycles remain.
     {
+      if (comm.rank() == 0) printf("UPDATE ANY SKIPPED NODES (ones whose end points are handled by another kmer\n");
+
+
 
       // search unfinished
       BL_BENCH_START(test);
@@ -1033,6 +1059,10 @@ int main(int argc, char** argv) {
       }
       BL_BENCH_COLLECTIVE_END(test, "cleanup", unfinished.size(), comm);
 
+      size_t unfin = mxx::allreduce(unfinished.size(), comm);
+      if (comm.rank() == 0) printf("FINAL UPDATE for %ld nodes\n", unfin);
+
+
 
       // search unfinished.count
       BL_BENCH_START(test);
@@ -1053,19 +1083,28 @@ int main(int argc, char** argv) {
 
     BL_BENCH_RESET(test);
     {
-		// remove cycle nodes.  has to do after query, to ensure that exactly middle is being treated not as a cycle node.
-		BL_BENCH_START(test);
-		size_t cycle_node_count = chainmap.erase(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
-		BL_BENCH_COLLECTIVE_END(test, "erase cycle", cycle_node_count, comm);
+      if (comm.rank() == 0) printf("REMOVE CYCLES\n");
 
-		BL_BENCH_START(test);
-		auto unfinished = chainmap.find(::bliss::debruijn::filter::chain::IsUncompactedNode(iterations));
 
-		bool all_compacted = (unfinished.size() == 0);
-		all_compacted = ::mxx::all_of(all_compacted, comm);
+      // remove cycle nodes.  has to do after query, to ensure that exactly middle is being treated not as a cycle node.
+      BL_BENCH_START(test);
+      size_t cycle_node_count = chainmap.erase(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
+      BL_BENCH_COLLECTIVE_END(test, "erase cycle", cycle_node_count, comm);
 
-		assert(all_compacted);
-		BL_BENCH_COLLECTIVE_END(test, "unfinished", unfinished.size(), comm);
+      //printf("REMOVED %ld cycle nodes\n", cycle_node_count);
+
+      cycle_node_count = mxx::allreduce(cycle_node_count, comm);
+      if (comm.rank() == 0) printf("REMOVED %ld cycle nodes\n", cycle_node_count);
+
+
+      BL_BENCH_START(test);
+      auto unfinished = chainmap.find(::bliss::debruijn::filter::chain::IsUncompactedNode(iterations));
+
+      bool all_compacted = (unfinished.size() == 0);
+      all_compacted = ::mxx::all_of(all_compacted, comm);
+
+      assert(all_compacted);
+      BL_BENCH_COLLECTIVE_END(test, "unfinished", unfinished.size(), comm);
 
 	  }
 
@@ -1076,57 +1115,68 @@ int main(int argc, char** argv) {
 
     BL_BENCH_RESET(test);
     {
+      if (comm.rank() == 0) printf("PRINT BRANCHES\n");
+
+
       // ========== construct edge count index
     	CountDBGType idx2(comm);
   	  BL_BENCH_START(test);
   	  {
-		::std::vector<typename DBGNodeParser::value_type> temp;
-		for (auto x : file_data) {
-			temp.clear();
-			idx2.parse_file_data<FileParser, DBGNodeParser>(x, temp, comm);
-			idx2.insert(temp);
-		}
-		// idx2.insert(temp);
+        ::std::vector<typename DBGNodeParser::value_type> temp;
+        for (auto x : file_data) {
+          temp.clear();
+          idx2.parse_file_data<FileParser, DBGNodeParser>(x, temp, comm);
+          idx2.insert(temp);
+        }
+        // idx2.insert(temp);
   	  }
       BL_BENCH_COLLECTIVE_END(test, "count insert", idx2.local_size(), comm);
 
       {
-		  // then find branches.
-		  BL_BENCH_START(test);
-		  std::vector<typename CountDBGType::TupleType> branch_pts =
-				  idx2.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
-		  BL_BENCH_COLLECTIVE_END(test, "get_branches", branch_pts.size(), comm);
+        // then find branches.
+        BL_BENCH_START(test);
+        std::vector<typename CountDBGType::TupleType> branch_pts =
+            idx2.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
+        BL_BENCH_COLLECTIVE_END(test, "get_branches", branch_pts.size(), comm);
 
-		  bool no_branches = mxx::all_of((branch_pts.size() == 0), comm);
-		  if (!no_branches) {
-			  // global sort
-			  BL_BENCH_START(test);
-			  mxx::sort(branch_pts.begin(), branch_pts.end(), [](typename CountDBGType::TupleType const & x,
-					  typename CountDBGType::TupleType const & y){
-				  return x.first < y.first;
-			  }, comm);
-			  BL_BENCH_COLLECTIVE_END(test, "psort branches", branch_pts.size(), comm);   // this is for ordered output.
-		  }
+        if (comm.rank() == 0) printf("PSORT BRANCHES\n");
 
-		  // and print.
-		  BL_BENCH_START(test);
-		  {
-			  std::stringstream ss;
-			  ss.clear();
-			  std::for_each(branch_pts.begin(), branch_pts.end(),
-					  ::bliss::debruijn::operation::graph::print_graph_node<KmerType>(ss));
-			  write_mpiio(branch_filename, ss.str().c_str(), ss.str().length(), comm);
+        int has_data = (branch_pts.size() == 0) ? 0 : 1;
+        int all_has_data = mxx::allreduce(has_data, comm);
+        if (all_has_data > 0) {
+          // global sort
+          BL_BENCH_START(test);
+          mxx::comm subcomm = (all_has_data == comm.size()) ? comm.copy() : comm.split(has_data);
+          if (has_data == 1) {
+            mxx::sort(branch_pts.begin(), branch_pts.end(), [](typename CountDBGType::TupleType const & x,
+                typename CountDBGType::TupleType const & y){
+              return x.first < y.first;
+            }, subcomm);
+          }
+          BL_BENCH_COLLECTIVE_END(test, "psort branches", branch_pts.size(), comm);   // this is for ordered output.
+        }
 
-//			  std::ofstream ofs_branch_nodes(branch_filename);
-//			  ofs_branch_nodes << ss.str();
-//			  ofs_branch_nodes.close();
-		  }
-		  BL_BENCH_COLLECTIVE_END(test, "print branches (4)", branch_pts.size(), comm);
+        // and print.
+        BL_BENCH_START(test);
+        {
+          std::stringstream ss;
+          ss.clear();
+          std::for_each(branch_pts.begin(), branch_pts.end(),
+              ::bliss::debruijn::operation::graph::print_graph_node<KmerType>(ss));
+          write_mpiio(branch_filename, ss.str().c_str(), ss.str().length(), comm);
+
+  //			  std::ofstream ofs_branch_nodes(branch_filename);
+  //			  ofs_branch_nodes << ss.str();
+  //			  ofs_branch_nodes.close();
+        }
+        BL_BENCH_COLLECTIVE_END(test, "print branches (4)", branch_pts.size(), comm);
       }
 
 
       // ========== construct new graph with compacted chains and junction nodes.
       {
+        if (comm.rank() == 0) printf("PRINT CHAIN String\n");
+
           BL_BENCH_START(test);
           std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > result;
           result.reserve(chainmap.size());
@@ -1137,17 +1187,20 @@ int main(int argc, char** argv) {
         		  ::bliss::debruijn::operation::chain::to_compacted_chain_node<KmerType>());
           BL_BENCH_COLLECTIVE_END(test, "transform chain", chainmap.local_size(), comm);
 
-		  bool no_result = mxx::all_of((result.size() == 0), comm);
-		  if (!no_result) {
 
-			  // sort
-			  BL_BENCH_START(test);
-			  // first transform nodes so that we are pointing to canonical terminus k-mers.
-			  mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_rep_less<KmerType>());
-			  // global sort?
+          int has_data = (result.size() == 0) ? 0 : 1;
+          int all_has_data = mxx::allreduce(has_data, comm);
+          if (all_has_data > 0) {
+            // global sort
+            BL_BENCH_START(test);
+            mxx::comm subcomm = (all_has_data == comm.size()) ? comm.copy() : comm.split(has_data);
+            if (has_data == 1) {
+              mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_rep_less<KmerType>(), subcomm);
+            }
+            BL_BENCH_COLLECTIVE_END(test, "psort lmer", result.size(), comm);   // this is for constructing the chains
+          }
 
-			  BL_BENCH_COLLECTIVE_END(test, "psort lmer", result.size(), comm);   // this is for constructing the chains
-		  }
+
 		  // print out.
 		  BL_BENCH_START(test);
 		  {
@@ -1166,17 +1219,19 @@ int main(int argc, char** argv) {
 
 
 		//===  print chain nodes (1)
+      if (comm.rank() == 0) printf("PRINT CHAIN Nodes\n");
 
-		  no_result = mxx::all_of((result.size() == 0), comm);
-		  if (!no_result) {
 
-			  // sort
-			  BL_BENCH_START(test);
-			  // first transform nodes so that we are pointing to canonical terminus k-mers.
-			  mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_node_less<KmerType>(), comm);
-			  // global sort?
-			  BL_BENCH_COLLECTIVE_END(test, "psort kmer", result.size(), comm);  // this is for output ordering.
-		  }
+      if (all_has_data > 0) {
+        // global sort
+        BL_BENCH_START(test);
+        mxx::comm subcomm = (all_has_data == comm.size()) ? comm.copy() : comm.split(has_data);
+        if (has_data == 1) {
+          mxx::sort(result.begin(), result.end(), ::bliss::debruijn::operation::chain::chain_node_less<KmerType>(), subcomm);
+        }
+        BL_BENCH_COLLECTIVE_END(test, "psort kmer", result.size(), comm);  // this is for output ordering.
+      }
+
 
 		  // print out.
 		  BL_BENCH_START(test);
@@ -1197,12 +1252,15 @@ int main(int argc, char** argv) {
 
       // ===========  print compacted chain with left and right
       {
+        if (comm.rank() == 0) printf("COMPUTE CHAIN FREQ SUMMARY\n");
+
+
     	  // ==  first compute frequency summary, and store into a reduction map
     	  // allocate input
     	  using freq_type = std::pair<KmerType, std::tuple<CountType, size_t, CountType, CountType> >;
     	  std::vector< freq_type > freqs;
 
-		  BL_BENCH_START(test);
+    	  BL_BENCH_START(test);
     	  ::bliss::debruijn::operation::chain::to_compacted_chain_node<KmerType> get_chain_rep;
 
     	  // extract frequencies.
@@ -1212,7 +1270,7 @@ int main(int argc, char** argv) {
 
     		  freqs.emplace_back(std::get<1>(get_chain_rep(x)), ::std::tuple<CountType, size_t, CountType, CountType>(1, c, c, c));
     	  }
-		  BL_BENCH_COLLECTIVE_END(test, "get_freqs", freqs.size(), comm);
+    	  BL_BENCH_COLLECTIVE_END(test, "get_freqs", freqs.size(), comm);
 
     	  // create a reduction map
 		  BL_BENCH_START(test);
@@ -1229,15 +1287,16 @@ int main(int argc, char** argv) {
     	  // freq_map, idx2, and chainmap now all have same distribution.
     	  // search in chainmap to find canonical termini.
           BL_BENCH_START(test);
-          auto chain_rep = chainmap.find(::bliss::debruijn::filter::chain::IsCanonicalTerminus());
+          auto chain_rep = chainmap.find(::bliss::debruijn::filter::chain::IsCanonicalTerminusOrIsolated());
           BL_BENCH_COLLECTIVE_END(test, "chain rep", chain_rep.size(), comm);
 
+          if (comm.rank() == 0) printf("GATHER NON_REP_END EDGE FREQUENCY\n");
 
           KmerType L, R, cL, cR;
           //========= get the R frequencies (remote) and insert into a local map
           using edge_freq_type = std::tuple<KmerType, KmerType, std::tuple<CountType, CountType, CountType, CountType>,
 		  	  std::tuple<CountType, CountType, CountType, CountType>,
-			  std::tuple<CountType, CountType, CountType> >;
+		  	  std::tuple<CountType, CountType, CountType> >;
           std::vector<edge_freq_type> edge_freqs;
 
           // get query vector
@@ -1266,6 +1325,8 @@ int main(int argc, char** argv) {
           BL_BENCH_COLLECTIVE_END(test, "local_R_freqs", R_freq_map.size(), comm);
 
           // convert to tuple.
+          if (comm.rank() == 0) printf("CREATE CHAIN EDGE FREQUENCIES\n");
+
           BL_BENCH_START(test);
           bliss::debruijn::lex_less<KmerType> canonical;
           for (auto x : chain_rep) {
@@ -1339,16 +1400,24 @@ int main(int argc, char** argv) {
           BL_BENCH_COLLECTIVE_END(test, "gather_edge_freqs", edge_freqs.size(), comm);
 
 
-		  bool no_result = mxx::all_of((edge_freqs.size() == 0), comm);
-		  if (!no_result) {
+          int has_data = (edge_freqs.size() == 0) ? 0 : 1;
+          int all_has_data = mxx::allreduce(has_data, comm);
+          if (all_has_data > 0) {
+            // global sort
+            BL_BENCH_START(test);
+            mxx::comm subcomm = (all_has_data == comm.size()) ? comm.copy() : comm.split(has_data);
+            if (has_data == 1) {
+              mxx::sort(edge_freqs.begin(), edge_freqs.end(), [](edge_freq_type const & x, edge_freq_type const & y){
+                return std::get<0>(x) < std::get<0>(y);
+              }, subcomm);
+            }
+            BL_BENCH_COLLECTIVE_END(test, "psort edge_freqs", edge_freqs.size(), comm);   // this is for constructing the chains
+          }
 
-			  // sort
-			  BL_BENCH_START(test);
-			  mxx::sort(edge_freqs.begin(), edge_freqs.end(), [](edge_freq_type const & x, edge_freq_type const & y){
-				  return std::get<0>(x) < std::get<0>(y);
-			  }, comm);
-			  BL_BENCH_COLLECTIVE_END(test, "psort_edge_freqs", edge_freqs.size(), comm);
-		  }
+
+
+      if (comm.rank() == 0) printf("PRINT CHAIN EDGE FREQS\n");
+
           // print
           BL_BENCH_START(test);
           {

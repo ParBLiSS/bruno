@@ -56,6 +56,18 @@ namespace bliss {
             }
         };
 
+        struct IsTerminusOrIsolated {
+            /// does not filter by group of results.
+            template <typename Iter>
+            inline bool operator()(Iter first, Iter last) const {  return true; }
+
+            template <typename Kmer, typename Edge>
+            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+              return (std::get<2>(t.second) == 0) || (std::get<3>(t.second) == 0);
+            }
+        };
+
+
         struct IsCanonicalTerminus {
             /// does not filter by group of results.
             template <typename Iter>
@@ -75,7 +87,26 @@ namespace bliss {
             }
         };
 
+        struct IsCanonicalTerminusOrIsolated {
+            /// does not filter by group of results.
+            template <typename Iter>
+            inline bool operator()(Iter first, Iter last) const {  return true; }
 
+            template <typename Kmer, typename Edge>
+            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+              if (! ((std::get<2>(t.second) == 0) || (std::get<3>(t.second) == 0)) ) return false;
+
+              if ((std::get<2>(t.second) == 0) && (std::get<3>(t.second) == 0)) {
+                return true;
+              } else if (std::get<2>(t.second) == 0) {
+                return (t.first < std::get<1>(t.second).reverse_complement());
+              } else if (std::get<3>(t.second) == 0) {
+                return (t.first.reverse_complement() < std::get<0>(t.second));
+              } else {
+               return false;
+              }
+            }
+        };
 
         struct PointsToTermini {
             /// does not filter by group of results.
@@ -118,6 +149,20 @@ namespace bliss {
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
               return (std::get<2>(t.second) == max_distance) &&
                   (std::get<3>(t.second) == max_distance);
+            }
+        };
+
+        // points to internal node that are not cycles
+        struct IsPalindrome {
+
+            /// does not filter by group of results.
+            template <typename Iter>
+            inline bool operator()(Iter first, Iter last) const {  return true; }
+
+            // if both one or both of the edge are not pointing to a terminus, then this is a node that's in progress.
+            template <typename Kmer, typename Edge>
+            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+              return (t.first == t.first.reverse_complement());
             }
         };
 
