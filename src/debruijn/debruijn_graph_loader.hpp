@@ -78,7 +78,7 @@ namespace bliss
           K2merType tmp = k2mer >> 1;
           KmerType kmer(tmp.getData());  // copy the content.  sanitize is called by constructor.
 
-          std::cout << "k2mer " << bliss::utils::KmerUtils::toASCIIString(k2mer) << std::endl;
+          //std::cout << "k2mer " << bliss::utils::KmerUtils::toASCIIString(k2mer) << std::endl;
 
           // extract the biedge.
           edge_type edge;
