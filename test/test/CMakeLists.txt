@@ -19,10 +19,10 @@ if (BUILD_TEST_APPLICATIONS)
 #target_link_libraries(testKmerIndex_read_fasta ${EXTRA_LIBS})
 #-----------------
 
-add_executable(test_de_bruijn_graph_DNA4 test_de_bruijn_graph_construction.cpp)
-SET_TARGET_PROPERTIES(test_de_bruijn_graph_DNA4
-     PROPERTIES COMPILE_FLAGS "-DpDNA=4")
-target_link_libraries(test_de_bruijn_graph_DNA4 ${EXTRA_LIBS})
+#add_executable(test_de_bruijn_graph_DNA4 test_de_bruijn_graph_construction.cpp)
+#SET_TARGET_PROPERTIES(test_de_bruijn_graph_DNA4
+#     PROPERTIES COMPILE_FLAGS "-DpDNA=4")
+#target_link_libraries(test_de_bruijn_graph_DNA4 ${EXTRA_LIBS})
 
 add_executable(test_de_bruijn_graph_DNA5 test_de_bruijn_graph_construction.cpp)
 SET_TARGET_PROPERTIES(test_de_bruijn_graph_DNA5

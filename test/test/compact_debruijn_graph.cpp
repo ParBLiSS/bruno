@@ -1049,7 +1049,7 @@ int main(int argc, char** argv) {
           // lookup left by canonical
           it = res_map.find(lexless(kk));
 
-          // if left is at terminus, and we haven't updated it,
+          // if right is at terminus, and we haven't updated it,
           if (((std::get<2>(it->second) == 0) || (std::get<3>(it->second) == 0)) &&
               (std::get<3>(t.second) > 0)) {
             // update the current left
@@ -1313,7 +1313,9 @@ int main(int argc, char** argv) {
           {
 			  std::vector<KmerType> R_query;
 			  for (auto x : chain_rep) {
-				  if (::std::get<2>(x.second) == 0) {
+			    if ((::std::get<2>(x.second) == 0) && (::std::get<3>(x.second) == 0)) {
+			      R_query.emplace_back(x.first);
+			    } else if (::std::get<2>(x.second) == 0) {
 					  R_query.emplace_back(std::get<1>(x.second));
 				  } else if (::std::get<3>(x.second) == 0) {
 					  R_query.emplace_back(std::get<0>(x.second));
@@ -1340,18 +1342,18 @@ int main(int argc, char** argv) {
           for (auto x : chain_rep) {
         	  // first get the kmer strings
 
-        	  if (::std::get<2>(x.second) == 0) {
+            if ((::std::get<2>(x.second) == 0) && (::std::get<3>(x.second) == 0)) {
+              L = x.first;
+              R = x.first;
+            } else if (::std::get<2>(x.second) == 0) {
         		  L = x.first;
-        		  R = std::get<1>(x.second).reverse_complement();
-        		  // left
-//        		  ofs_chain_ends << bliss::utils::KmerUtils::toASCIIString(L) << "\t" <<
-//        				  bliss::utils::KmerUtils::toASCIIString(R) << "\t";
+//        		  R = std::get<1>(x.second).reverse_complement();  // opposite strand
+        		  R = std::get<1>(x.second); // we now want same strand as L.
 
         	  } else if (::std::get<3>(x.second) == 0) {
         		  L = x.first.reverse_complement();
-        		  R = std::get<0>(x.second);
-//        		  ofs_chain_ends << bliss::utils::KmerUtils::toASCIIString(L) << "\t" <<
-//        				  bliss::utils::KmerUtils::toASCIIString(R) << "\t";
+//        		  R = std::get<0>(x.second);  // opposite strand
+              R = std::get<0>(x.second).reverse_complement(); // we now want same strand as L.
         	  } else {
         		  std::cout << "ERROR" << std::endl;
         		  continue;
@@ -1383,19 +1385,35 @@ int main(int argc, char** argv) {
 
         	  cR = canonical(R);
         	  compact_edge = R_freq_map.find(cR);  // previously retrieved from remote.
-			  if (cR == R) {  // already canonical
-				  // get in edges of R
-				  std::get<0>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
-				  std::get<1>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
-				  std::get<2>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
-				  std::get<3>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
-			  } else {   // not canonical
-				  // get out edges of L, then complement each.  (reverse order)
-				  std::get<0>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
-				  std::get<1>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
-				  std::get<2>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
-				  std::get<3>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
-			  }
+// this assumes that R is on opposite strand as L
+//			  if (cR == R) {  // already canonical
+//				  // get in edges of R
+//				  std::get<0>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
+//				  std::get<1>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
+//				  std::get<2>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
+//				  std::get<3>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
+//			  } else {   // not canonical
+//				  // get out edges of R, then complement each.  (reverse order)
+//				  std::get<0>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
+//				  std::get<1>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
+//				  std::get<2>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
+//				  std::get<3>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
+//			  }
+
+// we now assume R is on same strand as L
+        if (cR == R) {  // already canonical
+          // get out edges of R
+          std::get<0>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
+          std::get<1>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
+          std::get<2>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
+          std::get<3>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
+        } else {   // not canonical
+          // get in edges of R, then complement each.  (reverse order)
+          std::get<0>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
+          std::get<1>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
+          std::get<2>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
+          std::get<3>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
+        }
 
         	  auto fre = freq_map.get_local_container().find(cL);
         	  std::get<0>(std::get<4>(ef)) = (static_cast<float>(std::get<1>(fre->second)) /  static_cast<float>(std::get<0>(fre->second)));

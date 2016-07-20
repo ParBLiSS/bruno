@@ -86,7 +86,7 @@ namespace bliss
       template <bool Q = HasQuality>
       FASTQSequence(IdType const & _id, size_t const & _record_size, size_t const& _seq_begin_offset, Iterator const & _begin, Iterator const & _end,
                     typename ::std::enable_if<!Q>::type* = 0) :
-        BaseType(_id, _record_size, _seq_begin_offset,  _seq_begin_offset, _begin, _end) {}
+        BaseType(_id, _record_size, _seq_begin_offset, _seq_begin_offset, _begin, _end) {}
 
       FASTQSequence(IdType const & _id, size_t const & _record_size, size_t const& _seq_begin_offset,
                     Iterator const & _seq_begin, Iterator const & _seq_end,
@@ -119,6 +119,10 @@ namespace bliss
 //      }
 
       static constexpr bool has_quality() { return HasQuality; }
+
+      // indicate if this record is truncated.  never happens for FASTQ
+      bool is_record_truncated_at_begin() const { return false; }
+      bool is_record_truncated_at_end() const { return false; }
     };
 
     /**

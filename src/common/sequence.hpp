@@ -360,6 +360,7 @@ namespace bliss
         Sequence& operator=(Sequence const & other) {
           id = other.id;
           record_size = other.record_size;
+          seq_offset = other.seq_offset;
           seq_begin_offset = other.seq_begin_offset;
           seq_begin = other.seq_begin;
           seq_end = other.seq_end;
@@ -378,6 +379,11 @@ namespace bliss
         size_t seq_global_offset() const  {
           return this->id.get_pos() + seq_begin_offset;
         }
+
+        // indicate if this record is truncated.  never happens for FASTQ
+        bool is_record_truncated_at_begin() const { return seq_begin_offset > seq_offset; }
+        bool is_record_truncated_at_end() const { return seq_begin_offset + seq_size() < record_size; }
+
     };
 
   } /* namespace common */

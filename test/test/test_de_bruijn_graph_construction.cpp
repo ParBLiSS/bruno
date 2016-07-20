@@ -80,8 +80,8 @@
 using Alphabet = bliss::common::DNA16;
 #elif (pDNA == 5)
 using Alphabet = bliss::common::DNA5;
-#elif (pDNA == 4)
-using Alphabet = bliss::common::DNA;
+//#elif (pDNA == 4)
+//using Alphabet = bliss::common::DNA;
 #endif
 
 
