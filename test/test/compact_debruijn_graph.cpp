@@ -120,7 +120,7 @@ using DBGNodeParser = bliss::debruijn::debruijn_graph_parser<KmerType>;
 using DBGMapType = ::bliss::debruijn::graph::simple_hash_compact_debruijn_graph_map<KmerType>;
 using DBGType = ::bliss::index::kmer::Index<DBGMapType, DBGNodeParser>;
 
-using CountType = uint16_t;
+using CountType = uint32_t;
 using CountDBGMapType = ::bliss::debruijn::graph::count_hash_compact_debruijn_graph_map<KmerType, CountType>;
 using CountDBGType = ::bliss::index::kmer::Index<CountDBGMapType, DBGNodeParser>;
 
@@ -207,7 +207,7 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 	for (size_t i = 0; i < iterations; ++i) {
 		curr_step = std::min(remainder, step);
 
-		res = MPI_File_write_at_all( fh, global_offset, data, curr_step, MPI_BYTE, &stat);
+		res = MPI_File_write_at_all( fh, global_offset, const_cast<char*>(data), curr_step, MPI_BYTE, &stat);
 
 		if (res != MPI_SUCCESS)
 		  throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "write", res, stat, comm));
@@ -391,10 +391,12 @@ int main(int argc, char** argv) {
     BL_BENCH_START(test);
     size_t total = 0;
     for (auto fn : filenames) {
-		if (comm.rank() == 0) printf("READING %s via posix\n", fn.c_str());
+      if (comm.rank() == 0) printf("READING %s via posix\n", fn.c_str());
 
-		file_data.push_back(idx.open_file<FileReaderType>(fn, comm));
-		total += file_data.back().getRange().size();
+      FileReaderType fobj(fn, KmerType::size + 1, comm);
+
+      file_data.push_back(fobj.read_file());
+      total += file_data.back().getRange().size();
 //		idx.read_file_posix<FileParser, DBGNodeParser>(fn, temp1, comm);
     }
     BL_BENCH_COLLECTIVE_END(test, "read", total, comm);
@@ -1207,7 +1209,13 @@ int main(int argc, char** argv) {
 			  std::stringstream ss;
 
 			  std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain<KmerType>(ss));
-			  write_mpiio(compacted_chain_str_filename, ss.str().c_str(), ss.str().length(), comm);
+			  // above will produce an extra newline character at the beginning of the first.  below special cases it to not print that character
+			  if (comm.rank() == 0) {
+          write_mpiio(compacted_chain_str_filename, ss.str().c_str() + 1, ss.str().length() - 1, comm);
+			  } else {
+			    write_mpiio(compacted_chain_str_filename, ss.str().c_str(), ss.str().length(), comm);
+			  }
+
 
 //			  std::ofstream ofs_chain_str(compacted_chain_str_filename);
 //			  ofs_chain_str << ss.str();

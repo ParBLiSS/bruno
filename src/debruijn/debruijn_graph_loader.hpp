@@ -80,7 +80,7 @@ namespace bliss
           // kmer generation iterator
           using KmerIter = bliss::common::KmerGenerationIterator<BaseCharIterator, KmerType>;
 
-
+          // handles the ascii to DNA16 mapping internally.
           using EdgeIterType = bliss::debruijn::iterator::biedge_generating_iterator<CharIter, ::bliss::common::DNA16>;
 
 
@@ -139,7 +139,7 @@ namespace bliss
           // kmer generation iterator
           using KmerIter = bliss::common::KmerGenerationIterator<BaseCharIterator, KmerType>;
 
-
+          // handles the ascii to DNA16 mapping internally.
           using EdgeIterType = bliss::debruijn::iterator::biedge_generating_iterator<CharIter, bliss::common::DNA16>;
 
           // also remove eol from quality score
