@@ -197,7 +197,6 @@ namespace bliss
             *output_iter = transformer(k2mer << 1);
             ++output_iter;
           }
-          std::cout << "sequence " << read << std::endl;
 
           return output_iter;
 
