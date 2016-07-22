@@ -45,6 +45,18 @@ SET_TARGET_PROPERTIES(compact_debruijn_graph_fasta
      PROPERTIES COMPILE_FLAGS "-DpDNA=16 -DpPARSER=FASTA")
 target_link_libraries(compact_debruijn_graph_fasta ${EXTRA_LIBS})
 
+add_executable(compact_debruijn_graph_low_mem_fastq compact_debruijn_graph_low_mem.cpp)
+SET_TARGET_PROPERTIES(compact_debruijn_graph_low_mem_fastq
+     PROPERTIES COMPILE_FLAGS "-DpDNA=16 -DpPARSER=FASTQ")
+target_link_libraries(compact_debruijn_graph_low_mem_fastq ${EXTRA_LIBS})
+
+add_executable(compact_debruijn_graph_low_mem_fasta compact_debruijn_graph_low_mem.cpp)
+SET_TARGET_PROPERTIES(compact_debruijn_graph_low_mem_fasta
+     PROPERTIES COMPILE_FLAGS "-DpDNA=16 -DpPARSER=FASTA")
+target_link_libraries(compact_debruijn_graph_low_mem_fasta ${EXTRA_LIBS})
+
+
+
 
 add_executable(test_get_file_size test_get_file_size.cpp)
 target_link_libraries(test_get_file_size ${EXTRA_LIBS})

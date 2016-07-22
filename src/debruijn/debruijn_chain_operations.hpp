@@ -43,6 +43,7 @@ namespace bliss {
 
 
         // k-mer is the target k-mer ON SAME STRAND as the canonical key kmer that this is used with.
+      	//    key k-mer is the source and chain_update_md contains the target of a directed edge
         //    i.e. if key kmer is canonical, Kmer in field is on same strand (whether Kmer itself is canonical or not)
         // char is an indicator of edge orientation.  + means OUT edge, - means IN edge.
         template <typename Kmer>
@@ -91,6 +92,7 @@ namespace bliss {
 
 
         // k-mer is the target k-mer ON SAME STRAND as the canonical key kmer that this is used with.
+        //    key k-mer is the source and chain_update_md contains the target of a directed edge
         //    i.e. if key kmer is canonical, Kmer in field is on same strand (whether Kmer itself is canonical or not)
         // int is the distance between Kmer and key kmer on the key kmer's strand.  - means Kmer is a terminal node, + means it's not..
         // char is indicator for edge orientation.   + means OUT edge, - means IN edge.
@@ -328,6 +330,27 @@ namespace bliss {
 
 
       } // namespace chain
+
+      namespace count_index {
+      template <typename CountType>
+      struct freq_summary {
+
+    	  inline CountType sat_add(CountType const & a, CountType const & b) {
+			CountType c = a + b;
+			return (c < a) ? -1 : c;
+		  }
+
+
+      	inline CountType operator()(
+      			CountType const & x,
+      			CountType const & y) {
+      		return sat_add(x, y);
+      	}
+
+      };
+
+
+      }
 
     } //namespace operation
 

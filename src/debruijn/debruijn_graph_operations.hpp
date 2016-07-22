@@ -38,6 +38,20 @@ namespace bliss {
 
       namespace graph {
 
+      /// update DBG node and edges.  effect is only entries already existing in the DBG are updated.
+      /// return 1 if updated, 0 if not updated
+      template <typename Kmer>
+      struct compact_multi_biedge_update {
+
+    	  template <typename Count>
+          size_t operator()(::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, Count> & x,
+        		  ::bliss::debruijn::compact_simple_biedge const & y)  {
+        	  x.update(y);
+        	  return 1;
+          }
+      };
+
+
 
         template <typename KMER>
         struct print_graph_node {
