@@ -100,12 +100,12 @@ namespace bliss
           static constexpr size_t maxEdgeCount = 4;
 
         protected:
-          COUNT sat_add(COUNT const & a, COUNT const & b) {
+          inline COUNT sat_add(COUNT const & a, COUNT const & b) {
             COUNT c = a + b;
             return (c < a) ? -1 : c;
           }
 
-          void sat_incr(COUNT & target) {
+          inline void sat_incr(COUNT & target) {
             target = sat_add(target, 1);
           }
 
@@ -284,12 +284,12 @@ namespace bliss
           static constexpr size_t maxEdgeCount = 5;
 
         protected:
-          COUNT sat_add(COUNT const & a, COUNT const & b) {
+          inline COUNT sat_add(COUNT const & a, COUNT const & b) {
             COUNT c = a + b;
             return (c < a) ? -1 : c;
           }
 
-          void sat_incr(COUNT & target) {
+          inline void sat_incr(COUNT & target) {
             target = sat_add(target, 1);
           }
 
@@ -473,12 +473,12 @@ namespace bliss
           static constexpr size_t maxEdgeCount = 5;
 
         protected:
-          COUNT sat_add(COUNT const & a, COUNT const & b) {
+          inline COUNT sat_add(COUNT const & a, COUNT const & b) {
             COUNT c = a + b;
             return (c < a) ? -1 : c;
           }
 
-          void sat_incr(COUNT & target) {
+          inline void sat_incr(COUNT & target) {
             target = sat_add(target, 1);
           }
 
