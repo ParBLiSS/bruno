@@ -511,7 +511,7 @@ int main(int argc, char** argv) {
 
       BL_BENCH_START(test);
       // then compute histogram
-      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(nodes, comm);
+      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(nodes.begin(), nodes.end(), comm);
       BL_BENCH_COLLECTIVE_END(test, "histogram", nodes.size(), comm);
     }
 

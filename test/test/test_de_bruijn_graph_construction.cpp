@@ -309,7 +309,7 @@ int main(int argc, char** argv) {
 
       BL_BENCH_START(test);
       // then compute histogram
-      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(nodes, comm);
+      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(nodes.begin(), nodes.end(), comm);
       BL_BENCH_COLLECTIVE_END(test, "histogram", nodes.size(), comm);
     }
 
@@ -324,7 +324,7 @@ int main(int argc, char** argv) {
 
       BL_BENCH_START(test);
       // then compute histogram
-      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(chain_nodes, comm);
+      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(chain_nodes.begin(), chain_nodes.end(), comm);
       BL_BENCH_COLLECTIVE_END(test, "chain_histogram", chain_nodes.size(), comm);
 
 
@@ -379,7 +379,7 @@ int main(int argc, char** argv) {
 
       BL_BENCH_START(test);
       // then compute histogram
-      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(nodes, comm);
+      ::bliss::debruijn::graph::print_compact_multi_biedge_histogram(nodes.begin(), nodes.end(), comm);
       BL_BENCH_COLLECTIVE_END(test, "branch_histogram", nodes.size(), comm);
 
       //          //=== get the neighbors of the branch points.  for information only.

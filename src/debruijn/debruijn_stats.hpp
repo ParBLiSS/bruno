@@ -36,8 +36,10 @@ namespace bliss {
 
     namespace graph {
 
-      template <typename Kmer, typename Edge>
-      void print_compact_multi_biedge_histogram(::std::vector<::std::pair<Kmer, Edge> > const & nodes, mxx::comm const & comm) {
+      template <typename Iterator>
+      void print_compact_multi_biedge_histogram(Iterator first, Iterator last, mxx::comm const & comm) {
+
+    	  using Edge = typename std::iterator_traits<Iterator>::value_type::second_type;
 
         std::vector<size_t> complete;
         {
@@ -45,8 +47,8 @@ namespace bliss {
           // 5 possibilities for number of in or out edges
           std::vector<size_t> histogram((Edge::maxEdgeCount + 1) * (Edge::maxEdgeCount + 1), 0UL);   // in count x out count
 
-          for (auto t : nodes) {
-            ++histogram[t.second.get_in_edge_count() * (Edge::maxEdgeCount + 1) + t.second.get_out_edge_count()];
+          for (auto it = first; it != last; ++it) {
+            ++histogram[it->second.get_in_edge_count() * (Edge::maxEdgeCount + 1) + it->second.get_out_edge_count()];
           }
 
           // then global reduction
