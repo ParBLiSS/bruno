@@ -396,7 +396,7 @@ INSTANTIATE_TEST_CASE_P(Bliss, FASTAParseTest, ::testing::Values(
     TestFileInfo(6,    246,    940, std::string("/test/data/test2.fasta")),
     TestFileInfo(4,    64,     512, std::string("/test/data/test.fasta")),
     TestFileInfo(5000, 335000, 1092580, std::string("/test/data/test.medium.fasta")),
-    TestFileInfo(2,    31155,  31245, std::string("/test/data/test.unitiqs.fasta"))
+    TestFileInfo(2,    31155,  31244, std::string("/test/data/test.unitiqs.fasta"))
 ));
 
 //INSTANTIATE_TEST_CASE_P(Bliss, FASTAParseProcedureTest, ::testing::Values(
