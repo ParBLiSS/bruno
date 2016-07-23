@@ -381,17 +381,25 @@ void make_chain_map(Index const & idx, ChainMapType & chainmap, mxx::comm const 
 
 	if (comm.rank() == 0) printf("MAKE CHAINMAP\n");
 	{
-		BL_BENCH_START(chain);
-		// find chain nodes
-		auto chain_nodes = idx.find_if(::bliss::debruijn::filter::graph::IsChainNode());  // not isolated, not branching, not palindrome
-		BL_BENCH_COLLECTIVE_END(chain, "get_chains", chain_nodes.size(), comm);
+//		BL_BENCH_START(chain);
+//		// find chain nodes
+//		auto chain_nodes = idx.find_if(::bliss::debruijn::filter::graph::IsChainNode());  // not isolated, not branching, not palindrome
+//		BL_BENCH_COLLECTIVE_END(chain, "get_chains", chain_nodes.size(), comm);
 
 		// insert into local container inside chainmap.
 		BL_BENCH_START(chain);
+		::bliss::debruijn::filter::graph::IsChainNode is_chain;
+		auto iter = idx.get_map().get_local_container().begin();
+		auto end = idx.get_map().get_local_container().end();
+
 
 		// initialize the chain map.  note that key kmers are canonical, same as in DBG.
 		// note also that edge k-mers have same orientation as key kmers, but may not be canonical.
-		for (auto t : chain_nodes) {
+//		for (auto t : chain_nodes) {
+		for (; iter != end; ++iter) {
+			if (!is_chain(*iter)) continue;
+			auto t = *iter;
+
 			ChainNodeType node(KmerType(), KmerType(), 0, 0);   // default node
 
 			// get the in neighbor
@@ -416,7 +424,7 @@ void make_chain_map(Index const & idx, ChainMapType & chainmap, mxx::comm const 
 			chainmap.get_local_container().insert(::std::make_pair(::std::move(t.first), ::std::move(node)));
 
 		}
-		BL_BENCH_COLLECTIVE_END(chain, "insert in chainmap.", chainmap.local_size(), comm);
+		BL_BENCH_COLLECTIVE_END(chain, "insert in chainmap", chainmap.local_size(), comm);
 
 		//========= report.
 		//      auto result = chainmap.find(::bliss::debruijn::filter::chain::IsTerminus());
@@ -425,43 +433,91 @@ void make_chain_map(Index const & idx, ChainMapType & chainmap, mxx::comm const 
 
 	}
 
+	// TODO: incremental update here...
 
 	if (comm.rank() == 0) printf("MARK TERMINI NEXT TO BRANCHES\n");
 	{
-
-		//=== find branching nodes. local computation.
-		BL_BENCH_START(chain);
-		auto nodes = idx.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
-		BL_BENCH_COLLECTIVE_END(chain, "get_branches", nodes.size(), comm);
-
-		//=== mark neighbors of branch points.
-		BL_BENCH_START(chain);
+		// ==  first compute frequency summary, and store into a reduction map
+		// allocate input
 		std::vector<std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > > all_neighbors;
-		all_neighbors.reserve(nodes.size() * 6);
+		size_t step = 1000000;
+		all_neighbors.reserve(step);   // do in steps of 1000000
+		size_t nsteps = (idx.local_size() + step - 1) / step;
+		nsteps = mxx::allreduce(nsteps, [](size_t const & x, size_t const & y){
+			return std::max(x, y);
+		}, comm);
 
-		for (auto t : nodes) {
-			neighbors.clear();
-			t.second.get_out_neighbors(t.first, neighbors);
-			for (auto n : neighbors) {
-				// insert as is.  let lex_less handle flipping it.
-				all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
-			}
-
-			neighbors.clear();
-			t.second.get_in_neighbors(t.first, neighbors);
-			for (auto n : neighbors) {
-				// insert as is.  let lex_less handle flipping it.
-				all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
-			}
-		}
-		BL_BENCH_COLLECTIVE_END(chain, "branch_neighbors", all_neighbors.size(), comm);
-
-
-		// mark chain termini that are adjacent to branch points, so we can mark them in the chainmap.
 		BL_BENCH_START(chain);
+		auto iter = idx.get_map().get_local_container().begin();
+		auto end = idx.get_map().get_local_container().end();
+		::bliss::debruijn::filter::graph::IsBranchPoint is_branch;
 		::bliss::debruijn::operation::chain::terminus_update<KmerType> updater;
-		size_t count = chainmap.update(all_neighbors, false, updater );
-		BL_BENCH_COLLECTIVE_END(chain, "update_termini", count, comm);
+		size_t count = 0;
+
+		for (size_t s = 0; s < nsteps; ++s) {
+
+			all_neighbors.clear();
+
+			// extract frequencies.
+			for (size_t i = 0; (i < step) && (iter != end); ++i, ++iter) {
+				// compute the chain rep
+				if (!is_branch(*iter)) continue;
+				auto t = *iter;
+
+				neighbors.clear();
+				t.second.get_out_neighbors(t.first, neighbors);
+				for (auto n : neighbors) {
+					// insert as is.  let lex_less handle flipping it.
+					all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
+				}
+
+				neighbors.clear();
+				t.second.get_in_neighbors(t.first, neighbors);
+				for (auto n : neighbors) {
+					// insert as is.  let lex_less handle flipping it.
+					all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
+				}
+			}
+
+			// create a reduction map
+			count += chainmap.update(all_neighbors, false, updater );  // collective comm
+		}
+		BL_BENCH_COLLECTIVE_END(chain, "update_termini", chainmap.local_size(), comm);
+
+
+//		//=== find branching nodes. local computation.
+//		BL_BENCH_START(chain);
+//		auto nodes = idx.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
+//		BL_BENCH_COLLECTIVE_END(chain, "get_branches", nodes.size(), comm);
+//
+//		//=== mark neighbors of branch points.
+//		BL_BENCH_START(chain);
+//		std::vector<std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > > all_neighbors;
+//		all_neighbors.reserve(nodes.size() * 6);
+//
+//		for (auto t : nodes) {
+//			neighbors.clear();
+//			t.second.get_out_neighbors(t.first, neighbors);
+//			for (auto n : neighbors) {
+//				// insert as is.  let lex_less handle flipping it.
+//				all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
+//			}
+//
+//			neighbors.clear();
+//			t.second.get_in_neighbors(t.first, neighbors);
+//			for (auto n : neighbors) {
+//				// insert as is.  let lex_less handle flipping it.
+//				all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
+//			}
+//		}
+//		BL_BENCH_COLLECTIVE_END(chain, "branch_neighbors", all_neighbors.size(), comm);
+//
+//
+//		// mark chain termini that are adjacent to branch points, so we can mark them in the chainmap.
+//		BL_BENCH_START(chain);
+//		::bliss::debruijn::operation::chain::terminus_update<KmerType> updater;
+//		size_t count = chainmap.update(all_neighbors, false, updater );
+//		BL_BENCH_COLLECTIVE_END(chain, "update_termini", count, comm);
 
 	}
 	BL_BENCH_REPORT_MPI_NAMED(chain, "chain_map", comm);
@@ -990,29 +1046,67 @@ void compute_freq_map(CompactedChainVecType const & compacted_chain,
 		FreqMapType & chain_freq_map,
 		mxx::comm const & comm) {
 
+//	BL_BENCH_INIT(chain_freq);
+//
+//	// ==  first compute frequency summary, and store into a reduction map
+//	// allocate input
+//	std::vector< std::pair<KmerType, FreqSummaryType > > freqs;
+//
+//	BL_BENCH_START(chain_freq);
+//	// extract frequencies.
+//	for (auto x : compacted_chain) {
+//		// compute the chain rep
+//		CountType c = count_idx.get_map().get_local_container().find(std::get<0>(x))->second;
+//
+//		// new key is the chain rep.
+//		freqs.emplace_back(std::get<1>(x), FreqSummaryType(1, c, c, c));
+//	}
+//	BL_BENCH_COLLECTIVE_END(chain_freq, "get_node_freqs", freqs.size(), comm);
+//
+//	// create a reduction map
+//	BL_BENCH_START(chain_freq);
+//	chain_freq_map.insert(freqs);   // collective comm.
+//	BL_BENCH_COLLECTIVE_END(chain_freq, "reduce_freq", chain_freq_map.local_size(), comm);
+//
+//	BL_BENCH_REPORT_MPI_NAMED(chain_freq, "chain counts", comm);
+
+
 	BL_BENCH_INIT(chain_freq);
 
 	// ==  first compute frequency summary, and store into a reduction map
 	// allocate input
 	std::vector< std::pair<KmerType, FreqSummaryType > > freqs;
+	size_t step = 1000000;
+	freqs.reserve(step);   // do in steps of 1000000
+	size_t nsteps = (compacted_chain.size() + step - 1) / step;
+	nsteps = mxx::allreduce(nsteps, [](size_t const & x, size_t const & y){
+		return std::max(x, y);
+	}, comm);
 
 	BL_BENCH_START(chain_freq);
-	// extract frequencies.
-	for (auto x : compacted_chain) {
-		// compute the chain rep
-		CountType c = count_idx.get_map().get_local_container().find(std::get<0>(x))->second;
+	auto iter = compacted_chain.begin();
+	auto end = compacted_chain.end();
+	CountType c = 0;
 
-		// new key is the chain rep.
-		freqs.emplace_back(std::get<1>(x), FreqSummaryType(1, c, c, c));
+	for (size_t s = 0; s < nsteps; ++s) {
+
+		freqs.clear();
+
+		// extract frequencies.
+		for (size_t i = 0; (i < step) && (iter != end); ++i, ++iter) {
+			// compute the chain rep
+			c = count_idx.get_map().get_local_container().find(std::get<0>(*iter))->second;
+
+			// new key is the chain rep.
+			freqs.emplace_back(std::get<1>(*iter), FreqSummaryType(1, c, c, c));
+		}
+
+		// create a reduction map
+		chain_freq_map.insert(freqs);   // collective comm.
 	}
-	BL_BENCH_COLLECTIVE_END(chain_freq, "get_node_freqs", freqs.size(), comm);
+	BL_BENCH_COLLECTIVE_END(chain_freq, "compute_freq", chain_freq_map.local_size(), comm);
 
-	// create a reduction map
-	BL_BENCH_START(chain_freq);
-	chain_freq_map.insert(freqs);   // collective comm.
-	BL_BENCH_COLLECTIVE_END(chain_freq, "reduce_freq", chain_freq_map.local_size(), comm);
-
-	BL_BENCH_REPORT_MPI_NAMED(chain_freq, "chain counts", comm);
+	BL_BENCH_REPORT_MPI_NAMED(chain_freq, "chain freqs", comm);
 }
 
 
