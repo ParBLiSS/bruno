@@ -315,10 +315,10 @@ namespace bliss {
         template <typename CountType>
         struct freq_summary {
 
-        	inline ::std::tuple<CountType, size_t, CountType, CountType> operator()(
-        			::std::tuple<CountType, size_t, CountType, CountType> const & x,
-        			::std::tuple<CountType, size_t, CountType, CountType> const & y) {
-        		return ::std::tuple<CountType, size_t, CountType, CountType>(
+        	inline ::std::tuple<size_t, size_t, CountType, CountType> operator()(
+        			::std::tuple<size_t, size_t, CountType, CountType> const & x,
+        			::std::tuple<size_t, size_t, CountType, CountType> const & y) {
+        		return ::std::tuple<size_t, size_t, CountType, CountType>(
         				std::get<0>(x) + std::get<0>(y),  // reduced nodes count
 						std::get<1>(x) + std::get<1>(y),  // node frequency
 						std::min(std::get<2>(x), std::get<2>(y)),
@@ -332,6 +332,7 @@ namespace bliss {
       } // namespace chain
 
       namespace count_index {
+
       template <typename CountType>
       struct freq_summary {
 

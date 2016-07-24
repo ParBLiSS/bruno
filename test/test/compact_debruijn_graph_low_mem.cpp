@@ -120,7 +120,7 @@ using DBGNodeParser = bliss::debruijn::debruijn_graph_parser<KmerType>;
 using DBGMapType = ::bliss::debruijn::graph::simple_hash_compact_debruijn_graph_map<KmerType>;
 using DBGType = ::bliss::index::kmer::Index<DBGMapType, DBGNodeParser>;
 
-using CountType = uint32_t;
+using CountType = uint16_t;
 using CountDBGMapType = ::bliss::debruijn::graph::count_hash_compact_debruijn_graph_map<KmerType, CountType>;
 using CountDBGType = ::bliss::index::kmer::Index<CountDBGMapType, DBGNodeParser>;
 
@@ -141,7 +141,7 @@ using CountMapType = ::dsc::counting_densehash_map<KmerType, CountType,
 using CountIndexType = ::bliss::index::kmer::CountIndex2<CountMapType>;
 
 
-using FreqSummaryType = std::tuple<CountType, size_t, CountType, CountType>;
+using FreqSummaryType = std::tuple<size_t, size_t, CountType, CountType>;
 using FreqMapType = ::dsc::reduction_densehash_map<KmerType, FreqSummaryType,
 		FreqMapParams,
 		::bliss::kmer::hash::sparsehash::special_keys<KmerType>,

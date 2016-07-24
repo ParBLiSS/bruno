@@ -1265,7 +1265,7 @@ int main(int argc, char** argv) {
 
     	  // ==  first compute frequency summary, and store into a reduction map
     	  // allocate input
-    	  using freq_type = std::pair<KmerType, std::tuple<CountType, size_t, CountType, CountType> >;
+    	  using freq_type = std::pair<KmerType, std::tuple<size_t, size_t, CountType, CountType> >;
     	  std::vector< freq_type > freqs;
 
     	  BL_BENCH_START(test);
@@ -1276,13 +1276,13 @@ int main(int argc, char** argv) {
     		  // compute the chain rep
     		  CountType c = idx2.get_map().get_local_container().find(x.first)->second.get_self_frequency();
 
-    		  freqs.emplace_back(std::get<1>(get_chain_rep(x)), ::std::tuple<CountType, size_t, CountType, CountType>(1, c, c, c));
+    		  freqs.emplace_back(std::get<1>(get_chain_rep(x)), ::std::tuple<size_t, size_t, CountType, CountType>(1, c, c, c));
     	  }
     	  BL_BENCH_COLLECTIVE_END(test, "get_freqs", freqs.size(), comm);
 
     	  // create a reduction map
 		  BL_BENCH_START(test);
-    	  using FreqMapType = ::dsc::reduction_densehash_map<KmerType, ::std::tuple<CountType, size_t, CountType, CountType>,
+    	  using FreqMapType = ::dsc::reduction_densehash_map<KmerType, ::std::tuple<size_t, size_t, CountType, CountType>,
     			  FreqMapParams,
 				   ::bliss::kmer::hash::sparsehash::special_keys<KmerType>,
 					::bliss::debruijn::operation::chain::freq_summary<CountType> >;
