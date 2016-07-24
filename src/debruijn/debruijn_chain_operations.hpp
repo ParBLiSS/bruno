@@ -223,8 +223,8 @@ namespace bliss {
             		  std::get<1>(x.second).reverse_complement();
 
               // now compare L and R, the smaller is the "representative" of a chain
-              // choosing one also chooses a strand
-              bool sense = (L < R);
+              // choosing one also chooses a strand.  prefer Left.
+              bool sense = (L <= R);
 
               // once the representative is chosen, the distance is set too.  negative is opposite strand from chain rep
               int dist = sense ? abs(std::get<2>(x.second)) : -(abs(std::get<3>(x.second)));

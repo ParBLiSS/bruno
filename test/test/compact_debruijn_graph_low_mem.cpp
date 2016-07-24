@@ -421,7 +421,7 @@ void make_chain_map(Index const & idx, ChainMapType & chainmap, mxx::comm const 
 			}
 
 			// chainmap uses the same distribution hash function and transform, so can insert locally.
-			chainmap.get_local_container().insert(::std::make_pair(::std::move(t.first), ::std::move(node)));
+			chainmap.get_local_container().insert(::std::make_pair(t.first, node));
 
 		}
 		BL_BENCH_COLLECTIVE_END(chain, "insert in chainmap", chainmap.local_size(), comm);
@@ -466,14 +466,14 @@ void make_chain_map(Index const & idx, ChainMapType & chainmap, mxx::comm const 
 
 				neighbors.clear();
 				t.second.get_out_neighbors(t.first, neighbors);
-				for (auto n : neighbors) {
+				for (auto n : neighbors) {  // OUT neighbor is used as IN edge
 					// insert as is.  let lex_less handle flipping it.
 					all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
 				}
 
 				neighbors.clear();
 				t.second.get_in_neighbors(t.first, neighbors);
-				for (auto n : neighbors) {
+				for (auto n : neighbors) {  // IN neighbor is used as OUT edge
 					// insert as is.  let lex_less handle flipping it.
 					all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
 				}
@@ -525,8 +525,6 @@ void make_chain_map(Index const & idx, ChainMapType & chainmap, mxx::comm const 
 
 
 void list_rank(ChainMapType & chainmap, mxx::comm const & comm) {
-
-
 
 	size_t iterations = 0;
 	size_t cycle_nodes = 0;
@@ -858,6 +856,8 @@ void count_edges(std::vector<KmerType> const & selected,
 		count += idx2.get_map().update(temp, false, updater);
 	}
 	BL_BENCH_COLLECTIVE_END(count_edge, "update_count", count, comm);
+
+	assert(selected.size() == idx2.local_size());
 
 	BL_BENCH_REPORT_MPI_NAMED(count_edge, "edge counts", comm);
 }
@@ -1441,6 +1441,7 @@ int main(int argc, char** argv) {
 				// get the edges counts for these kmers.
 				BL_BENCH_START(app);
 				count_edges(kmers, file_data, idx2, comm);
+				assert(idx2.local_size() == kmers.size());
 				BL_BENCH_COLLECTIVE_END(app, "branch_freq", idx2.local_size(), comm);
 			}  // enforce delete kmers vec
 
@@ -1536,7 +1537,7 @@ int main(int argc, char** argv) {
 
 	BL_BENCH_START(app);
 	print_chain_frequencies(compacted_chain_ends_filename, chain_rep, idx2, freq_map, comm);
-	BL_BENCH_COLLECTIVE_END(app, "print_chain_freq", chain_rep.size(), comm);
+	BL_BENCH_COLLECTIVE_END(app, "print_chain_freq (2)", chain_rep.size(), comm);
 
 	BL_BENCH_REPORT_MPI_NAMED(app, "app", comm);
 

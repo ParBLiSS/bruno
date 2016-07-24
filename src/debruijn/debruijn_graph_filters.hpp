@@ -40,7 +40,9 @@ namespace bliss {
 
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              return (t.first == t.first.reverse_complement()) || (t.second.get_in_edge_count() >= 2) || (t.second.get_out_edge_count() >= 2);
+              return (t.first == t.first.reverse_complement()) ||
+                  (t.second.get_in_edge_count() >= 2) ||
+                  (t.second.get_out_edge_count() >= 2);
             }
         };
 
@@ -78,7 +80,9 @@ namespace bliss {
 
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t)  const {
-              return (t.first != t.first.reverse_complement()) && (t.second.get_in_edge_count() == 1) && (t.second.get_out_edge_count() == 1);
+              return (t.first != t.first.reverse_complement()) &&
+                  (t.second.get_in_edge_count() == 1) &&
+                  (t.second.get_out_edge_count() == 1);
             }
         };
 
@@ -94,9 +98,7 @@ namespace bliss {
               uint8_t out = t.second.get_out_edge_count();
 
               return (t.first != t.first.reverse_complement()) &&
-            		  (((in == 0) && (out == 1)) ||
-                  ((in == 1) && (out == 0)) ||
-                  ((in == 1) && (out == 1)));
+            		  ((in < 2) && (out < 2));
             }
         };
 

@@ -78,8 +78,10 @@ namespace bliss {
               if (! ((std::get<2>(t.second) == 0) ^ (std::get<3>(t.second) == 0)) ) return false;
 
               if (std::get<2>(t.second) == 0) {
-            	  return (t.first < std::get<1>(t.second).reverse_complement());
+                // if same as right rev comp, mark as canonical
+            	  return (t.first <= std::get<1>(t.second).reverse_complement());
               } else if (std::get<3>(t.second) == 0) {
+                // if revcomp same as left, choose the left.
             	  return (t.first.reverse_complement() < std::get<0>(t.second));
               } else {
             	 return false;
@@ -94,13 +96,13 @@ namespace bliss {
 
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              if (! ((std::get<2>(t.second) == 0) || (std::get<3>(t.second) == 0)) ) return false;
-
               if ((std::get<2>(t.second) == 0) && (std::get<3>(t.second) == 0)) {
                 return true;
               } else if (std::get<2>(t.second) == 0) {
-                return (t.first < std::get<1>(t.second).reverse_complement());
+                // if same as right rev comp, mark as canonical
+                return (t.first <= std::get<1>(t.second).reverse_complement());
               } else if (std::get<3>(t.second) == 0) {
+                // if revcomp same as left, choose the left.
                 return (t.first.reverse_complement() < std::get<0>(t.second));
               } else {
                return false;
