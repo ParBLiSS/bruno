@@ -19,6 +19,10 @@ do
 	done
 done
 
+echo "compare unitiqs to original"
+diff q1/u_chain.fasta /home/tpan/src/bliss/test/data/test.unitiqs.fasta
+
+
 echo "COMPARE TO 1 proc, high mem, fastq"
 
 for i in 1 2 4 8 16
