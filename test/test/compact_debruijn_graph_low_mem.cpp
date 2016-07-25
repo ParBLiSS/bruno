@@ -1088,6 +1088,8 @@ void compute_freq_map(CompactedChainVecType const & compacted_chain,
 	auto end = compacted_chain.end();
 	CountType c = 0;
 
+	::bliss::debruijn::lex_less<KmerType> canonical;
+
 	for (size_t s = 0; s < nsteps; ++s) {
 
 		freqs.clear();
@@ -1095,7 +1097,7 @@ void compute_freq_map(CompactedChainVecType const & compacted_chain,
 		// extract frequencies.
 		for (size_t i = 0; (i < step) && (iter != end); ++i, ++iter) {
 			// compute the chain rep
-			c = count_idx.get_map().get_local_container().find(std::get<0>(*iter))->second;
+			c = count_idx.get_map().get_local_container().find(canonical(std::get<0>(*iter)))->second;
 
 			// new key is the chain rep.
 			freqs.emplace_back(std::get<1>(*iter), FreqSummaryType(1, c, c, c));

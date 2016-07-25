@@ -217,6 +217,8 @@ namespace bliss {
             	//    else we get the last character in the reverse complement of the current kmer  (same as complement of first char)
             	// 3. we also choose the corresponding distance.  sign indicates if the kmer and the chain rep are on same strand.
 
+            	assert(x.first <= x.first.reverse_complement());  // ensure the key is lex smaller.
+
               // if this is end node, L is set to node k-mer.  else left edge k-mer (and right k-mer revcomp)
               KMER L = (std::get<2>(x.second) == 0) ? x.first : std::get<0>(x.second);
               KMER R = (std::get<3>(x.second) == 0) ? x.first.reverse_complement() :
@@ -226,8 +228,11 @@ namespace bliss {
               // choosing one also chooses a strand.  prefer Left.
               bool sense = (L <= R);
 
+              // switch the kmer to the same strand as the chain representative.
+              KMER K = sense ? x.first : x.first.reverse_complement();
+
               // once the representative is chosen, the distance is set too.  negative is opposite strand from chain rep
-              int dist = sense ? abs(std::get<2>(x.second)) : -(abs(std::get<3>(x.second)));
+              int dist = sense ? abs(std::get<2>(x.second)) : abs(std::get<3>(x.second));
 
 
 //              auto md = x.second;
@@ -239,9 +244,9 @@ namespace bliss {
 //
 //              }
 
-
-              // store the canonical kmer, the representative 5' end, and dist (sign bit indicate if same strand).
-              return ::bliss::debruijn::chain::compacted_chain_node<KMER>(x.first, sense ? L : R, dist);
+              // we choose the representative at 5' end, and the k-mer on the same strand.
+              // we can determine the strand relative to canonical of K later.
+              return ::bliss::debruijn::chain::compacted_chain_node<KMER>(K, sense ? L : R, dist);
             }
         };
 
@@ -282,12 +287,15 @@ namespace bliss {
                     		std::endl << bliss::utils::KmerUtils::toASCIIString(std::get<1>(x));
                 }
                 else {
-                    // recall that left and right are on same strand as kmer.
-                    // so if we have sense (L/IN), we want the last char from the kmer as the next
-                    //    if we have antisense (R/OUT), we want the complement of first char from the kmer as the next
-                	char ch = (std::get<2>(x) > 0) ?
-                		(std::get<0>(x).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1)) :
-						KMER::KmerAlphabet::TO_COMPLEMENT[(std::get<0>(x) >> (KMER::size - 1)).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1)];
+//                   //  recall that left and right are on same strand as kmer.
+//                   //  so if we have sense (L/IN), we want the last char from the kmer as the next
+//                   //     if we have antisense (R/OUT), we want the complement of first char from the kmer as the next
+//                	char ch = (std::get<2>(x) > 0) ?
+//                		(std::get<0>(x).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1)) :
+//						KMER::KmerAlphabet::TO_COMPLEMENT[(std::get<0>(x) >> (KMER::size - 1)).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1)];
+
+                	// we've already put the kmer on the same strand as the chain rep.
+                	char ch = std::get<0>(x).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1);
 
                 	os << static_cast<unsigned char>(KMER::KmerAlphabet::TO_ASCII[ch]);
                 }
@@ -298,15 +306,18 @@ namespace bliss {
         template <typename KMER>
         struct print_chain_node {
         	std::ostream & os;
+        	::bliss::debruijn::lex_less<KMER> canonical;
 
         	print_chain_node(std::ostream & _os) : os(_os) {};
 
 
             inline void operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x) {
-            	os << bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) << "\t" <<
+            	KMER canon = canonical(std::get<0>(x));
+
+            	os << bliss::utils::KmerUtils::toASCIIString(canon) << "\t" <<
             			bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << "\t" <<
-						abs(std::get<2>(x)) << "\t" <<
-						((std::get<2>(x) < 0) ? "0" : "1") << std::endl;
+						std::get<2>(x) << "\t" <<
+						((std::get<0>(x) == canon) ? "1" : "0") << std::endl;
             }
         };
 
