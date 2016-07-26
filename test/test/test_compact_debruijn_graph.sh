@@ -29,10 +29,10 @@ for i in 1 2 4 8 16
 do
 	for s in 'a' 'q'
 	do 
-	
+		echo "compare ${s}${i}"
 		diff q1 ${s}${i}
 		
+		echo "compare l${s}${i}"
 		diff q1 l${s}${i}
-		
 	done
 done
