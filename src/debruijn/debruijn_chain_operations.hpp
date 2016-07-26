@@ -301,6 +301,44 @@ namespace bliss {
                 }
             }
         };
+        template <typename KMER>
+        struct debug_print_chain {
+          std::ostream & os;
+
+          debug_print_chain(std::ostream & _os) : os(_os) {};
+
+
+            inline void operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x) {
+//              if (std::get<1>(x) == 0) printf("\n[CHAIN] %s", bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)).c_str());
+//              else printf("%c", KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
+// debug              //else printf("\n%d %c", std::get<1>(x), KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
+
+                if (std::get<2>(x) == 0) {
+                  //bliss::debruijn::lex_less<KMER> canonical;
+                  os << std::endl << ">" << //bliss::utils::KmerUtils::toASCIIString(canonical(std::get<0>(x))) <<
+                        std::endl <<
+                        bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << " : " <<
+                        bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) << " : " <<
+                        static_cast<int>(std::get<2>(x))  << std::endl;
+                }
+                else {
+//                   //  recall that left and right are on same strand as kmer.
+//                   //  so if we have sense (L/IN), we want the last char from the kmer as the next
+//                   //     if we have antisense (R/OUT), we want the complement of first char from the kmer as the next
+//                  char ch = (std::get<2>(x) > 0) ?
+//                    (std::get<0>(x).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1)) :
+//            KMER::KmerAlphabet::TO_COMPLEMENT[(std::get<0>(x) >> (KMER::size - 1)).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1)];
+
+                  // we've already put the kmer on the same strand as the chain rep.
+                  //char ch = std::get<0>(x).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1);
+                  os <<
+                  bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << " : " <<
+                  bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) << " : " <<
+                  static_cast<int>(std::get<2>(x)) << std::endl;
+
+                }
+            }
+        };
 
 
         template <typename KMER>

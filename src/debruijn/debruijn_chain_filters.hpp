@@ -153,20 +153,20 @@ namespace bliss {
                   (std::get<3>(t.second) == max_distance);
             }
         };
-
-        // points to internal node that are not cycles
-        struct IsPalindrome {
-
-            /// does not filter by group of results.
-            template <typename Iter>
-            inline bool operator()(Iter first, Iter last) const {  return true; }
-
-            // if both one or both of the edge are not pointing to a terminus, then this is a node that's in progress.
-            template <typename Kmer, typename Edge>
-            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              return (t.first == t.first.reverse_complement());
-            }
-        };
+// not used.
+//        // points to internal node that are not cycles
+//        struct IsPalindrome {
+//
+//            /// does not filter by group of results.
+//            template <typename Iter>
+//            inline bool operator()(Iter first, Iter last) const {  return true; }
+//
+//            // if both one or both of the edge are not pointing to a terminus, then this is a node that's in progress.
+//            template <typename Kmer, typename Edge>
+//            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+//              return (t.first == t.first.reverse_complement());
+//            }
+//        };
 
         // points to internal node that are not cycles
         struct IsUncompactedNode {

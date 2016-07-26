@@ -236,7 +236,7 @@ namespace bliss
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
-          void get_out_neighbors(Kmer const & kmer, std::vector<std::pair<Kmer, CountType> > & neighbors) {
+          void get_out_neighbors(Kmer const & kmer, std::vector<std::pair<Kmer, CountType> > & neighbors) const {
             static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
                           "kmer and edge should use the same alphabet.");
             neighbors.clear();
@@ -253,7 +253,7 @@ namespace bliss
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
-          void get_in_neighbors(Kmer const & kmer, std::vector<std::pair<Kmer, CountType> > & neighbors) {
+          void get_in_neighbors(Kmer const & kmer, std::vector<std::pair<Kmer, CountType> > & neighbors) const {
             static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
                           "kmer and edge should use the same alphabet.");
             neighbors.clear();
@@ -424,7 +424,7 @@ namespace bliss
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
-          void get_out_neighbors(Kmer const & kmer, std::vector<std::pair<Kmer, CountType> > & neighbors) {
+          void get_out_neighbors(Kmer const & kmer, std::vector<std::pair<Kmer, CountType> > & neighbors) const {
             static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
                           "kmer and edge should use the same alphabet.");
             neighbors.clear();
@@ -441,7 +441,7 @@ namespace bliss
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
-          void get_in_neighbors(Kmer const & kmer, std::vector<std::pair<Kmer, CountType> > & neighbors) {
+          void get_in_neighbors(Kmer const & kmer, std::vector<std::pair<Kmer, CountType> > & neighbors) const {
             static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
                           "kmer and edge should use the same alphabet.");
             neighbors.clear();
@@ -621,7 +621,7 @@ namespace bliss
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
-          void get_out_neighbors(Kmer const & kmer, std::vector<std::pair<Kmer, CountType> > & neighbors) {
+          void get_out_neighbors(Kmer const & kmer, std::vector<std::pair<Kmer, CountType> > & neighbors) const {
             static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
                           "kmer and edge should use the same alphabet.");
             neighbors.clear();
@@ -638,7 +638,7 @@ namespace bliss
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
-          void get_in_neighbors(Kmer const & kmer, std::vector<std::pair<Kmer, CountType> > & neighbors) {
+          void get_in_neighbors(Kmer const & kmer, std::vector<std::pair<Kmer, CountType> > & neighbors) const {
             static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
                           "kmer and edge should use the same alphabet.");
             neighbors.clear();
@@ -766,7 +766,7 @@ namespace bliss
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
-          void get_out_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) {
+          void get_out_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) const {
             static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
                           "kmer and edge should use the same alphabet.");
             neighbors.clear();
@@ -781,7 +781,7 @@ namespace bliss
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
-          void get_in_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) {
+          void get_in_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) const {
             static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
                           "kmer and edge should use the same alphabet.");
             neighbors.clear();
@@ -946,7 +946,7 @@ namespace bliss
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
-          void get_out_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) {
+          void get_out_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) const {
             static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
                           "kmer and edge should use the same alphabet.");
             neighbors.clear();
@@ -961,7 +961,7 @@ namespace bliss
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
-          void get_in_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) {
+          void get_in_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) const {
             static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
                           "kmer and edge should use the same alphabet.");
             neighbors.clear();
@@ -1098,7 +1098,7 @@ namespace bliss
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
-          void get_out_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) {
+          void get_out_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) const {
             static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
                           "kmer and edge should use the same alphabet.");
             neighbors.clear();
@@ -1113,7 +1113,7 @@ namespace bliss
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
-          void get_in_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) {
+          void get_in_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) const {
             static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
                           "kmer and edge should use the same alphabet.");
             neighbors.clear();
