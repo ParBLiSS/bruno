@@ -877,21 +877,77 @@ class DenseHashKmerMultimapTest : public ::testing::Test
 
     }
 
-    template <typename Kmer = T,
+    template <typename Kmer = T, bool canonical,
     		template <typename> class Transform = ::fsc::identity,
 			typename Hash, typename Equal>
-    ::fsc::densehash_map<Kmer, uint32_t, ::bliss::kmer::hash::sparsehash::special_keys<Kmer>, Transform, Hash, Equal>
+    ::fsc::densehash_map<Kmer, uint32_t, ::bliss::kmer::hash::sparsehash::special_keys<Kmer, canonical>, Transform, Hash, Equal>
     make_kmer_map() {
-		return ::fsc::densehash_map<Kmer, uint32_t, ::bliss::kmer::hash::sparsehash::special_keys<Kmer>, Transform, Hash, Equal >();
+//    	::bliss::kmer::hash::sparsehash::special_keys<Kmer, canonical> specials;
+//    	if (canonical) std::cout << "CANONICAL ";
+//    	Kmer t;
+//    	std::cout << "keys:\t" << std::hex;
+//    	for (int i = Kmer::nWords - 1; i >= 0; --i) {
+//    		t = specials.generate(0);
+//    		std::cout << t.getData()[i] << " ";
+//    	}
+//    	std::cout << std::endl << "\t" << std::hex;
+//    	for (int i = Kmer::nWords - 1; i >= 0; --i) {
+//    		t = specials.generate(1);
+//    		std::cout << t.getData()[i] << " ";
+//    	}
+//    	std::cout << std::endl;
+//    	if (!canonical) {
+//    		std::cout << "\t" << std::hex;
+//			for (int i = Kmer::nWords - 1; i >= 0; --i) {
+//				t = specials.invert(specials.generate(0));
+//				std::cout << t.getData()[i] << " ";
+//			}
+//			std::cout << std::endl << "\t" << std::hex;
+//			for (int i = Kmer::nWords - 1; i >= 0; --i) {
+//				t = specials.invert(specials.generate(1));
+//				std::cout << t.getData()[i] << " ";
+//			}
+//			std::cout << std::endl;
+//    	}
+
+		return ::fsc::densehash_map<Kmer, uint32_t, ::bliss::kmer::hash::sparsehash::special_keys<Kmer, canonical>, Transform, Hash, Equal >();
     }
 
 
-    template <typename Kmer = T,
+    template <typename Kmer = T, bool canonical,
     		template <typename> class Transform = ::fsc::identity,
 			typename Hash, typename Equal>
-    ::fsc::densehash_multimap<Kmer, uint32_t, ::bliss::kmer::hash::sparsehash::special_keys<Kmer>, Transform, Hash, Equal>
+    ::fsc::densehash_multimap<Kmer, uint32_t, ::bliss::kmer::hash::sparsehash::special_keys<Kmer, canonical>, Transform, Hash, Equal>
     make_kmer_multimap() {
-		return ::fsc::densehash_multimap<Kmer, uint32_t, ::bliss::kmer::hash::sparsehash::special_keys<Kmer>,  Transform, Hash, Equal >();
+//    	::bliss::kmer::hash::sparsehash::special_keys<Kmer, canonical> specials;
+//    	if (canonical) std::cout << "CANONICAL ";
+//    	Kmer t;
+//    	std::cout << "keys:\t" << std::hex;
+//    	for (int i = Kmer::nWords - 1; i >= 0; --i) {
+//    		t = specials.generate(0);
+//    		std::cout << t.getData()[i] << " ";
+//    	}
+//    	std::cout << std::endl << "\t" << std::hex;
+//    	for (int i = Kmer::nWords - 1; i >= 0; --i) {
+//    		t = specials.generate(1);
+//    		std::cout << t.getData()[i] << " ";
+//    	}
+//    	std::cout << std::endl;
+//    	if (!canonical) {
+//    		std::cout << "\t" << std::hex;
+//			for (int i = Kmer::nWords - 1; i >= 0; --i) {
+//				t = specials.invert(specials.generate(0));
+//				std::cout << t.getData()[i] << " ";
+//			}
+//			std::cout << std::endl << "\t" << std::hex;
+//			for (int i = Kmer::nWords - 1; i >= 0; --i) {
+//				t = specials.invert(specials.generate(1));
+//				std::cout << t.getData()[i] << " ";
+//			}
+//			std::cout << std::endl;
+//    	}
+
+    	return ::fsc::densehash_multimap<Kmer, uint32_t, ::bliss::kmer::hash::sparsehash::special_keys<Kmer, canonical>,  Transform, Hash, Equal >();
     }
 
 
@@ -909,7 +965,7 @@ class DenseHashKmerMultimapTest : public ::testing::Test
     	using Equal2 = ::fsc::sparsehash::compare<Kmer, Equal, Transform>;
 
 
-    	auto test = make_kmer_map<Kmer, Transform, THash, Equal2>();
+    	auto test = make_kmer_map<Kmer, canonical, Transform, THash, Equal2>();
 		::std::unordered_map<Kmer, uint32_t, THash, Equal1> gold;
 		::std::vector<std::pair<Kmer, uint32_t> > entries;
 
@@ -961,7 +1017,7 @@ class DenseHashKmerMultimapTest : public ::testing::Test
     	using Equal2 = ::fsc::sparsehash::compare<Kmer, Equal, Transform>;
 
 
-    	auto test = make_kmer_map<Kmer, Transform, THash, Equal2>();
+    	auto test = make_kmer_map<Kmer, canonical, Transform, THash, Equal2>();
 		::std::unordered_map<Kmer, uint32_t, THash, Equal1> gold;
 		::std::vector<std::pair<Kmer, uint32_t> > entries;
 
@@ -1033,7 +1089,7 @@ class DenseHashKmerMultimapTest : public ::testing::Test
     	using Equal1 = ::fsc::TransformedComparator<Kmer, Equal, Transform>;
     	using Equal2 = ::fsc::sparsehash::compare<Kmer, Equal, Transform>;
 
-    	auto test = make_kmer_map<Kmer, Transform, THash, Equal2>();
+    	auto test = make_kmer_map<Kmer, canonical, Transform, THash, Equal2>();
 		::std::unordered_map<Kmer, uint32_t, THash, Equal1> gold;
 		::std::vector<std::pair<Kmer, uint32_t> > entries;
 
@@ -1071,7 +1127,7 @@ class DenseHashKmerMultimapTest : public ::testing::Test
     	using Equal2 = ::fsc::sparsehash::compare<Kmer, Equal, Transform>;
 
 
-    	auto test = make_kmer_multimap<Kmer, Transform, THash, Equal2>();
+    	auto test = make_kmer_multimap<Kmer, canonical, Transform, THash, Equal2>();
 		::std::unordered_multimap<Kmer, uint32_t, THash, Equal1> gold;
 		::std::vector<std::pair<Kmer, uint32_t> > entries;
 
@@ -1124,7 +1180,7 @@ class DenseHashKmerMultimapTest : public ::testing::Test
     	using Equal2 = ::fsc::sparsehash::compare<Kmer, Equal, Transform>;
 
 
-    	auto test = make_kmer_multimap<Kmer, Transform, THash, Equal2>();
+    	auto test = make_kmer_multimap<Kmer, canonical, Transform, THash, Equal2>();
 		::std::unordered_multimap<Kmer, uint32_t, THash, Equal1> gold;
 		::std::vector<std::pair<Kmer, uint32_t> > entries;
 
@@ -1198,7 +1254,7 @@ class DenseHashKmerMultimapTest : public ::testing::Test
     	using Equal2 = ::fsc::sparsehash::compare<Kmer, Equal, Transform>;
 
 
-    	auto test = make_kmer_multimap<Kmer, Transform, THash, Equal2>();
+    	auto test = make_kmer_multimap<Kmer, canonical, Transform, THash, Equal2>();
 		::std::unordered_multimap<Kmer, uint32_t, THash, Equal1> gold;
 		::std::vector<std::pair<Kmer, uint32_t> > entries;
 

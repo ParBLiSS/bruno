@@ -431,10 +431,10 @@ protected:
     using container_const_range = ::std::pair<container_const_iterator, container_const_iterator>;
 
 
-    template <typename InputIt>
-    InputIt partition_input(InputIt first, InputIt last) {
-    	return ::std::stable_partition(first, last, splitter);
-    }
+//    template <typename InputIt>
+//    InputIt partition_input(InputIt first, InputIt last) {
+//    	return ::std::stable_partition(first, last, splitter);
+//    }
 
   public:
     using key_type              = Key;
@@ -465,6 +465,8 @@ protected:
     	upper_map.set_empty_key(specials.invert(specials.generate(0)));
     	upper_map.set_deleted_key(specials.invert(specials.generate(1)));
     	splitter.upper_bound = specials.get_splitter();
+
+    	//printf("using densehash_map split map\n");
     };
 
     template<class InputIt>
@@ -592,13 +594,24 @@ protected:
     template <class InputIt>
     void insert(InputIt first, InputIt last) {
 
-        InputIt middle = partition_input(first, last);
+    	// not doing partitioning, because InputIt may not be writable.
+//        InputIt middle = partition_input(first, last);
+//
+//        lower_map.resize(static_cast<float>(lower_map.size() + ::std::distance(first, middle)) / lower_map.max_load_factor() ) ;
+//        lower_map.insert(first, middle);
+//
+//        upper_map.resize(static_cast<float>(upper_map.size() + ::std::distance(middle, last)) / upper_map.max_load_factor()) ;
+//        upper_map.insert(middle, last);
 
-        lower_map.resize(static_cast<float>(lower_map.size() + ::std::distance(first, middle)) / lower_map.max_load_factor() ) ;
-        lower_map.insert(first, middle);
 
-        upper_map.resize(static_cast<float>(upper_map.size() + ::std::distance(middle, last)) / upper_map.max_load_factor()) ;
-        upper_map.insert(middle, last);
+    	size_t count = ::std::count_if(first, last, splitter);
+    	lower_map.resize(static_cast<float>(lower_map.size() + count) / lower_map.max_load_factor() ) ;
+    	upper_map.resize(static_cast<float>(upper_map.size() + (std::distance(first, last) - count)) / upper_map.max_load_factor() ) ;
+
+    	for (auto it = first; it != last; ++it) {
+    		this->insert(*it);
+    	}
+
     }
 
     /// inserting a vector
@@ -623,33 +636,51 @@ protected:
 
       size_t count = 0;
 
-      auto middle = partition_input(input.begin(), input.end());
+      // not doing partition, saves 1 linear scan
+//      auto middle = partition_input(input.begin(), input.end());
+//
+//      // do update
+//      for (auto iit = input.begin(); iit != middle; ++iit) {
+//        auto iter = lower_map.find(iit->first);
+//        if (iter == lower_map.end()) {
+////          // TONY: temporary.  for testing only
+////          assert(lower_map.find(iit->first.reverse_complement()) == lower_map.end());
+////          assert(upper_map.find(iit->first.reverse_complement()) == upper_map.end());
+//          continue;
+//        }
+//
+//        // update the entry
+//        count += op((*iter).second, iit->second );
+//      }
+//
+//      for (auto iit = middle; iit != input.end(); ++iit) {
+//        auto iter = upper_map.find(iit->first);
+//        if (iter == upper_map.end()) {
+////          // TONY: temporary.  for testing only
+////          assert(lower_map.find(iit->first.reverse_complement()) == lower_map.end());
+////          assert(upper_map.find(iit->first.reverse_complement()) == upper_map.end());
+//          continue;
+//        }
+//
+//        // update the entry
+//        count += op((*iter).second, iit->second );
+//      }
 
-      // do update
-      for (auto iit = input.begin(); iit != middle; ++iit) {
-        auto iter = lower_map.find(iit->first);
-        if (iter == lower_map.end()) {
-//          // TONY: temporary.  for testing only
-//          assert(lower_map.find(iit->first.reverse_complement()) == lower_map.end());
-//          assert(upper_map.find(iit->first.reverse_complement()) == upper_map.end());
-          continue;
-        }
+      for (auto iit = input.begin(); iit != input.end(); ++iit) {
+    	  auto k = iit->first;
+    	  if (splitter(k)) {
+			  auto iter = lower_map.find(k);
+			  if (iter == lower_map.end()) continue;
 
-        // update the entry
-        count += op((*iter).second, iit->second );
-      }
+			  // update the entry
+			  count += op((*iter).second, iit->second );
+    	  } else {
+			  auto iter = upper_map.find(k);
+			  if (iter == upper_map.end()) continue;
 
-      for (auto iit = middle; iit != input.end(); ++iit) {
-        auto iter = upper_map.find(iit->first);
-        if (iter == upper_map.end()) {
-//          // TONY: temporary.  for testing only
-//          assert(lower_map.find(iit->first.reverse_complement()) == lower_map.end());
-//          assert(upper_map.find(iit->first.reverse_complement()) == upper_map.end());
-          continue;
-        }
-
-        // update the entry
-        count += op((*iter).second, iit->second );
+			  // update the entry
+			  count += op((*iter).second, iit->second );
+    	  }
       }
 
       return count;
@@ -666,28 +697,51 @@ protected:
 
       size_t count = 0;
 
-      InputIt middle = partition_input(first, last);
+  	// not doing partitioning, because InputIt may not be writable.
+//      InputIt middle = partition_input(first, last);
+//
+//      // mark for erasure
+//      for (; first != middle; ++first) {
+//        auto iter = lower_map.find(*(first));
+//        if (iter == lower_map.end()) continue;
+//
+//        if (pred(*iter)) {
+//        	lower_map.erase(iter);
+//        	++count;
+//        }
+//      }
+//
+//      for (; first != last; ++first) {
+//        auto iter = upper_map.find(*(first));
+//        if (iter == upper_map.end()) continue;
+//
+//        if (pred(*iter)) {
+//        	upper_map.erase(iter);
+//        	++count;
+//        }
+//      }
 
-      // mark for erasure
-      for (; first != middle; ++first) {
-        auto iter = lower_map.find(*(first));
-        if (iter == lower_map.end()) continue;
+      for (auto iit = first; iit != last; ++iit) {
+    	  auto k = *iit;
+    	  if (splitter(k)) {
+			  auto iter = lower_map.find(k);
+			  if (iter == lower_map.end()) continue;
 
-        if (pred(*iter)) {
-        	lower_map.erase(iter);
-        	++count;
-        }
+			  if (pred(*iter)) {
+				lower_map.erase(iter);
+				++count;
+			  }
+    	  } else {
+			  auto iter = upper_map.find(k);
+			  if (iter == upper_map.end()) continue;
+
+			  if (pred(*iter)) {
+				upper_map.erase(iter);
+				++count;
+			  }
+    	  }
       }
 
-      for (; first != last; ++first) {
-        auto iter = upper_map.find(*(first));
-        if (iter == upper_map.end()) continue;
-
-        if (pred(*iter)) {
-        	upper_map.erase(iter);
-        	++count;
-        }
-      }
 
       return count;
     }
@@ -703,27 +757,43 @@ protected:
 
         size_t count = 0;
 
+    	// not doing partitioning, because InputIt may not be writable.
+//        InputIt middle = partition_input(first, last);
+//
+//
+//        // mark for erasure
+//        for (; first != middle; ++first) {
+//          auto iter = lower_map.find(*(first));
+//          if (iter == lower_map.end()) continue;
+//
+//          lower_map.erase(iter);
+//          ++count;
+//        }
+//
+//        for (; first != last; ++first) {
+//          auto iter = upper_map.find(*(first));
+//          if (iter == upper_map.end()) continue;
+//
+//          	upper_map.erase(iter);
+//          	++count;
+//        }
 
-        InputIt middle = partition_input(first, last);
+        for (auto iit = first; iit != last; ++iit) {
+      	  auto k = *iit;
+      	  if (splitter(k)) {
+			auto iter = lower_map.find(k);
+			if (iter == lower_map.end()) continue;
 
+			lower_map.erase(iter);
+			++count;
+      	  } else {
+			auto iter = upper_map.find(k);
+			if (iter == upper_map.end()) continue;
 
-        // mark for erasure
-        for (; first != middle; ++first) {
-          auto iter = lower_map.find(*(first));
-          if (iter == lower_map.end()) continue;
-
-          lower_map.erase(iter);
-          ++count;
+			upper_map.erase(iter);
+			++count;
+      	  }
         }
-
-        for (; first != last; ++first) {
-          auto iter = upper_map.find(*(first));
-          if (iter == upper_map.end()) continue;
-
-          	upper_map.erase(iter);
-          	++count;
-        }
-
 
         return count;
     }
@@ -838,6 +908,9 @@ class densehash_map<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator, fals
 		{
 		map.set_empty_key(specials.generate(0));
 		map.set_deleted_key(specials.generate(1));
+
+		//printf("using densehash_map single map\n");
+
 		};
 
     template<class InputIt>
@@ -1299,71 +1372,77 @@ class densehash_multimap {
     template <class InputIt>
     void insert_impl(InputIt first, InputIt last, supercontainer_type & map) {
 
-
-        // get previous sizes so we know where to start from
-        int64_t idx1 = vec1.size();
-        int64_t idxX = vecX.size();
-
         // reserve but do not yet copy in.  we will have random access to check if already exist,
         // so don't copying in does not save a whole lot.
         vec1.reserve(vec1.size() + std::distance(first, last));
 
         // iterator over all and insert into map.
-        std::pair<typename supercontainer_type::iterator, bool> insert_result;
-        Key k;
-        int64_t idx;
         for (InputIt it = first, max = last; it != max; ++it) {
-          k = (*it).first;
-
-          // try inserting
-          insert_result = map.insert(std::make_pair(k, idx1));
-
-          if (insert_result.second) {
-            // successful map insertion, so now insert into vec1.
-            vec1.emplace_back(*it);
-            // new map entry already inserted. just need to increment.
-            ++idx1;
-          } else {
-            // entry already there.  get the iterator and check the idx
-            idx = insert_result.first->second;
-            if (idx < 0) {
-              // previously inserted multiple entries, so reuse the vector, and insert
-              vecX[idx & ::std::numeric_limits<int64_t>::max()].emplace_back(*it);
-              // no map update is needed.
-            } else {
-              // previously inserted 1 entry. so
-              // update map with new vecX value
-              insert_result.first->second = idxX | ~(::std::numeric_limits<int64_t>::max());
-              // create a new entry in vecX
-              vecX.emplace_back(subcontainer_type());
-              // get previous value from vec1 and insert into vecX
-              vecX[idxX].emplace_back(std::move(vec1[idx]));
-              // insert new value into vecX
-              vecX[idxX].emplace_back(*it);
-              // update new vecX idx.
-              ++idxX;
-            }
-          }
+        	this->insert1_impl(*it);
         }
 
-        s += std::distance(first, last);
+//        s += std::distance(first, last);
 
         // TODO: compact
     }
 
+    template <typename TT>
+    void insert1_impl(TT const & x, supercontainer_type & map) {
+
+        // get previous sizes so we know where to start from
+        int64_t idx1 = vec1.size();
+        int64_t idxX = vecX.size();
+
+        Key k = x.first;
+
+        // try inserting
+        std::pair<typename supercontainer_type::iterator, bool> insert_result =
+        		map.insert(std::make_pair(k, idx1));
+
+        if (insert_result.second) {
+          // successful map insertion, so now insert into vec1.
+          vec1.emplace_back(x);
+          // new map entry already inserted. just need to increment.
+        } else {
+          // entry already there.  get the iterator and check the idx
+          int64_t idx = insert_result.first->second;
+          if (idx < 0) {
+            // previously inserted multiple entries, so reuse the vector, and insert
+            vecX[idx & ::std::numeric_limits<int64_t>::max()].emplace_back(x);
+            // no map update is needed.
+          } else {
+            // previously inserted 1 entry. so
+            // update map with new vecX value
+            insert_result.first->second = idxX | ~(::std::numeric_limits<int64_t>::max());
+            // create a new entry in vecX
+            vecX.emplace_back(subcontainer_type());
+            // get previous value from vec1 and insert into vecX
+            vecX[idxX].emplace_back(std::move(vec1[idx]));
+            // insert new value into vecX
+            vecX[idxX].emplace_back(x);
+            // update new vecX idx.
+          }
+        }
+        ++s;
+    }
 
 
     template <typename InputIt, typename Pred>
     void erase_impl(InputIt first, InputIt last, Pred const & pred, supercontainer_type & map) {
 
-      size_t dist = 0;
-      int64_t idx;
       // mark for erasure
       for (; first != last; ++first) {
-        auto iter = map.find(*first);
-        if (iter == map.end()) continue;
+    	  this->erase1_impl(*first, pred, map);
+      }
 
-        idx = iter->second;
+    }
+
+    template <typename Pred>
+    void erase1_impl(Key const & k, Pred const & pred, supercontainer_type & map ) {
+        auto iter = map.find(k);
+        if (iter == map.end()) return;
+
+        int64_t idx = iter->second;
 
         if (idx < 0) {
 
@@ -1372,7 +1451,7 @@ class densehash_multimap {
           // multi.
           auto new_end = ::std::remove_if(vec.begin(), vec.end(), pred);
 
-          dist = std::distance(new_end, vec.end());
+          size_t dist = std::distance(new_end, vec.end());
 
           if (dist == vec.size()) {
             // remove entry from map.
@@ -1405,23 +1484,23 @@ class densehash_multimap {
             map.erase(iter);
           }
         }
-
-      }
-
     }
-
-
 
     template <typename InputIt>
     void erase_impl(InputIt first, InputIt last, supercontainer_type & map) {
 
-      int64_t idx;
       // mark for erasure
       for (; first != last; ++first) {
-        auto iter = map.find(*first);
-        if (iter == map.end()) continue;
+    	  this->erase1_impl(*first, map);
+      }
 
-        idx = iter->second;
+    }
+
+    void erase1_impl(Key const & k, supercontainer_type & map) {
+        auto iter = map.find(k);
+        if (iter == map.end()) return;
+
+        int64_t idx = iter->second;
 
         if (idx < 0) {
           // multi.
@@ -1436,8 +1515,6 @@ class densehash_multimap {
 
         // now clear the map entry.
         map.erase(iter);
-      }
-
     }
 
 
@@ -1561,6 +1638,8 @@ class densehash_multimap {
     	upper_map.set_empty_key(specials.invert(specials.generate(0)));
     	upper_map.set_deleted_key(specials.invert(specials.generate(1)));
     	splitter.upper_bound = specials.get_splitter();
+
+//    	printf("using densehash_multimap split map\n");
     };
 
     template<class InputIt>
@@ -1692,14 +1771,22 @@ class densehash_multimap {
 
         if (first == last) return;
 
-        auto middle = partition_input(first, last);
-
-        lower_map.resize(static_cast<float>(lower_map.size() + std::distance(first, middle)) / lower_map.max_load_factor());
-        insert_impl(first, middle, lower_map);
-        upper_map.resize(static_cast<float>(upper_map.size() + std::distance(first, middle)) / upper_map.max_load_factor());
-        insert_impl(middle, last, upper_map);
+//        auto middle = partition_input(first, last);
+//
+//        lower_map.resize(static_cast<float>(lower_map.size() + std::distance(first, middle)) / lower_map.max_load_factor());
+//        insert_impl(first, middle, lower_map);
+//        upper_map.resize(static_cast<float>(upper_map.size() + std::distance(middle, last)) / upper_map.max_load_factor());
+//        insert_impl(middle, last, upper_map);
 
         // TODO: compact
+    	size_t count = ::std::count_if(first, last, splitter);
+    	lower_map.resize(static_cast<float>(lower_map.size() + count) / lower_map.max_load_factor() ) ;
+    	upper_map.resize(static_cast<float>(upper_map.size() + (std::distance(first, last) - count)) / upper_map.max_load_factor() ) ;
+
+    	for (auto it = first; it != last; ++it) {
+    		if (splitter((*it).first)) this->insert1_impl(*it, lower_map);
+    		else this->insert1_impl(*it, upper_map);
+    	}
     }
 
     /// inserting sorted range
@@ -1719,9 +1806,14 @@ class densehash_multimap {
 
       size_t before = s;
 
-      auto middle = partition_input(first, last);
-      erase_impl(first, middle, pred, lower_map);
-      erase_impl(middle, last, pred, upper_map);
+//      auto middle = partition_input(first, last);
+//      erase_impl(first, middle, pred, lower_map);
+//      erase_impl(middle, last, pred, upper_map);
+
+      for (auto it = first; it != last; ++it) {
+  		if (splitter(*it)) this->erase1_impl(*it, pred, lower_map);
+  		else this->erase1_impl(*it, pred, upper_map);
+      }
 
       return before - s;
     }
@@ -1736,9 +1828,14 @@ class densehash_multimap {
 
       size_t before = s;
 
-      auto middle = partition_input(first, last);
-      erase_impl(first, middle, lower_map);
-      erase_impl(middle, last, upper_map);
+//      auto middle = partition_input(first, last);
+//      erase_impl(first, middle, lower_map);
+//      erase_impl(middle, last, upper_map);
+
+      for (auto it = first; it != last; ++it) {
+  		if (splitter(*it)) this->erase1_impl(*it, lower_map);
+  		else this->erase1_impl(*it, upper_map);
+      }
 
       return before - s;
     }
@@ -1858,7 +1955,8 @@ class densehash_multimap<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator,
 		{
 		map.set_empty_key(specials.generate(0));
 		map.set_deleted_key(specials.generate(1));
-		};
+    	//printf("using densehash_multimap single map\n");
+	};
 
     template<class InputIt>
     densehash_multimap(InputIt first, InputIt last) :
