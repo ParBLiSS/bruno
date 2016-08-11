@@ -129,7 +129,7 @@ using ChainNodeType = ::bliss::debruijn::simple_biedge<KmerType>;
 //using ChainMapParams = ::bliss::index::kmer::CanonicalDebuijnHashMapParams<K>;
 using ChainMapType = ::dsc::densehash_map<KmerType, ChainNodeType,
     ::bliss::debruijn::CanonicalDeBruijnHashMapParams,
-     ::bliss::kmer::hash::sparsehash::special_keys<KmerType> >;
+     ::bliss::kmer::hash::sparsehash::special_keys<KmerType, true> >;
 
 template <typename Key>
 using FreqMapParams = ::bliss::index::kmer::CanonicalHashMapParams<Key>;
@@ -1284,7 +1284,7 @@ int main(int argc, char** argv) {
 		  BL_BENCH_START(test);
     	  using FreqMapType = ::dsc::reduction_densehash_map<KmerType, ::std::tuple<size_t, size_t, CountType, CountType>,
     			  FreqMapParams,
-				   ::bliss::kmer::hash::sparsehash::special_keys<KmerType>,
+				   ::bliss::kmer::hash::sparsehash::special_keys<KmerType, true>,
 					::bliss::debruijn::operation::chain::freq_summary<CountType> >;
 
     	  FreqMapType freq_map(comm);

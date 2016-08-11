@@ -52,10 +52,10 @@ namespace bliss {
 		  >
 		  class compact_debruijn_graph_map : 
   public ::dsc::densehash_map<Kmer, Edge, MapParams, 
-        ::bliss::kmer::hash::sparsehash::special_keys<Kmer>, 
+        ::bliss::kmer::hash::sparsehash::special_keys<Kmer, true>,
 		    Alloc> {
 			  using Base = ::dsc::densehash_map<Kmer, Edge, MapParams,
-        ::bliss::kmer::hash::sparsehash::special_keys<Kmer>, 
+        ::bliss::kmer::hash::sparsehash::special_keys<Kmer, true>,
 		         Alloc>;
 
 			public:
@@ -80,6 +80,8 @@ namespace bliss {
 			protected:
 			  Edge dummy;
 
+			public:
+
 			  /**
 			   * @brief insert new elements in the distributed unordered_multimap.
 			   * @param first
@@ -92,15 +94,16 @@ namespace bliss {
           this->local_reserve(before + ::std::distance(first, last));
 
           for (auto it = first; it != last; ++it) {
-            auto result = this->c.insert(::std::make_pair(it->first, Edge()));   // TODO: reduce number of allocations.
+            auto result = this->c.insert(::std::make_pair((*it).first, Edge()));   // TODO: reduce number of allocations.
             // failed insertion - means an entry is already there, so reduce
-            result.first->second.update(it->second);
+            result.first->second.update((*it).second);
           }
 
           if (this->c.size() != before) this->local_changed = true;
 
           return this->c.size() - before;
 			  }
+
 
 			  /**
 			   * @brief insert new elements in the distributed unordered_multimap.
@@ -128,7 +131,6 @@ namespace bliss {
 
 			  }
 
-			public:
 			  compact_debruijn_graph_map(const mxx::comm& _comm) : Base(_comm) {/*do nothing*/}
 
 			  virtual ~compact_debruijn_graph_map() {/*do nothing*/};

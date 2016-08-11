@@ -100,7 +100,7 @@ using ChainNodeType = ::bliss::debruijn::simple_biedge<KmerType>;
 //using ChainMapParams = ::bliss::index::kmer::CanonicalHashMapParams<K>;
 using ChainMapType = ::dsc::densehash_map<KmerType, ChainNodeType,
     ::bliss::debruijn::CanonicalDeBruijnHashMapParams,
-     ::bliss::kmer::hash::sparsehash::special_keys<KmerType> >;
+     ::bliss::kmer::hash::sparsehash::special_keys<KmerType, true> >;
 
 using ChainVecType = ::std::vector<std::pair<KmerType, ChainNodeType> >;
 
