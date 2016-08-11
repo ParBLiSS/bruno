@@ -54,6 +54,7 @@
 
 #include "common/kmer_iterators.hpp"
 #include "iterators/zip_iterator.hpp"
+#include "iterators/unzip_iterator.hpp"
 #include "index/quality_score_iterator.hpp"
 
 #include "index/kmer_index.hpp"
@@ -129,14 +130,14 @@ using ChainNodeType = ::bliss::debruijn::simple_biedge<KmerType>;
 //using ChainMapParams = ::bliss::index::kmer::CanonicalDebuijnHashMapParams<K>;
 using ChainMapType = ::dsc::densehash_map<KmerType, ChainNodeType,
 		::bliss::debruijn::CanonicalDeBruijnHashMapParams,
-		 ::bliss::kmer::hash::sparsehash::special_keys<KmerType> >;
+		 ::bliss::kmer::hash::sparsehash::special_keys<KmerType, true> >;
 
 template <typename Key>
 using FreqMapParams = ::bliss::index::kmer::CanonicalHashMapParams<Key>;
 
 using CountMapType = ::dsc::counting_densehash_map<KmerType, CountType,
 		FreqMapParams,
-		::bliss::kmer::hash::sparsehash::special_keys<KmerType> >;
+		::bliss::kmer::hash::sparsehash::special_keys<KmerType, true> >;
 
 using CountIndexType = ::bliss::index::kmer::CountIndex2<CountMapType>;
 
@@ -144,7 +145,7 @@ using CountIndexType = ::bliss::index::kmer::CountIndex2<CountMapType>;
 using FreqSummaryType = std::tuple<size_t, size_t, CountType, CountType>;
 using FreqMapType = ::dsc::reduction_densehash_map<KmerType, FreqSummaryType,
 		FreqMapParams,
-		::bliss::kmer::hash::sparsehash::special_keys<KmerType>,
+		::bliss::kmer::hash::sparsehash::special_keys<KmerType, true>,
 		::bliss::debruijn::operation::chain::freq_summary<CountType> >;
 
 using CompactedChainVecType = std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> >;
@@ -296,6 +297,187 @@ void build_index(::std::vector<::bliss::io::file_data> const & file_data, Index 
 
 	BL_BENCH_REPORT_MPI_NAMED(build, "insert", comm);
 }
+
+
+
+/*
+ * @brief  build an index with thresholded k+2-mers.  note that the threshold is specified for k+2-mers, not k-mers, and is exclusive.
+ * @details		The goal is to identify erroneous edges and nodes.  k+2 mer satisfies this goal.  the only case that is
+ * 				not dealt with is when there is 1 erroneous edge, and the other edge is good,
+ * 				in which case the good edge's final count would be lower.
+ * 				The hope is that the next k+2-mer would have enough count to make this boundary case insignificant.
+ * @note		The k-mer counts are generated from the center k of k+2-mers
+ * @note 		Filtering after the dbg is build loses context of biedge - can only operate on edges, and the central k-mer
+ * 				(dbg node) count is based on the biedge.
+ * @note		Finally, counting k+1-mer is tricky also because it does not have the symmetry, so canonical changes which side
+ * 				of k+1-mer the owning k-mer sits on.  This means that easiest way to do the k-mer
+ * 				counting is to count both ends.  however, due to high number of reads, not all k-mers are counted 2x,
+ * 				 so we can't simply divide the count by 2 to get the true count.
+ * @note		counting using k+2 mer and filter would result in missing nodes - prev node with valid edge pointing to (non-existent) node with invalid edge
+ * 				have to use a hybrid approach - read in k+2-mers, but check if should insert using 2 k+1 mer.
+ * @tparam Index		Type of the debruijn graph
+ * @param file_data		Input raw file type
+ * @param idx			debruijn graph to build
+ * @param lower_thresh	inclusive lower threshold for INCLUDING a k+2 mers.  note this is not threshold of edge or node frequency.
+ * @param upper_thresh	exclusive upper threshold for INCLUDING a k+2 mers.  note this is not threshold of edge or node frequency.
+ * @param comm			mpi communicator.
+ */
+template <typename Index>
+void build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data, Index & idx,
+		CountType const & lower_thresh, CountType const & upper_thresh,  mxx::comm const & comm) {
+	BL_BENCH_INIT(build);
+
+	if (comm.rank() == 0) printf("PARSING\n");
+
+	// k+2 mer type
+	using K2merToEdge = ::bliss::debruijn::k2mer_to_edge<KmerType>;
+
+	using K2merType = typename K2merToEdge::K2merType;
+	using CountMap2Type = ::dsc::counting_densehash_map<K2merType, CountType,
+			FreqMapParams,
+			::bliss::kmer::hash::sparsehash::special_keys<K2merType, true> >;
+	using K2merParser = ::bliss::index::kmer::KmerParser<K2merType>;
+
+	// count map.  not that it should use the same hash function as Index.
+	using K1merType	= ::bliss::common::Kmer<KmerType::size + 1, typename KmerType::KmerAlphabet, typename KmerType::KmerWordType>;
+	using CountMap1Type = ::dsc::counting_densehash_map<K1merType, CountType,
+			FreqMapParams,
+			::bliss::kmer::hash::sparsehash::special_keys<K1merType, true> >;
+	using K1merParser = ::bliss::index::kmer::KmerParser<K1merType>;
+
+	// count the k+2-mers
+	CountMap2Type counter(comm);
+
+	BL_BENCH_START(build);
+	{
+		::std::vector<K2merType> temp;
+		for (auto x : file_data) {
+			temp.clear();
+			comm.barrier();  // need to sync this, since the parser needs to collectively parse the records.
+			idx.template parse_file_data<FileParser, K2merParser>(x, temp, comm);
+			comm.barrier();  // need to sync again.
+			counter.insert(temp);  // this distributes the counts according to k-mer hash.
+		}
+	}
+	BL_BENCH_COLLECTIVE_END(build, "parse and count k2mer", counter.local_size(), comm);
+
+	BL_BENCH_START(build);
+	// now filter out the low frequency (and high frequency) ones.
+	counter.erase([&lower_thresh, &upper_thresh](typename CountMap2Type::value_type const & x) {
+		return ((x.second < lower_thresh) || (x.second >= upper_thresh));
+	});
+	BL_BENCH_COLLECTIVE_END(build, "filter k2mer", counter.local_size(), comm);
+
+	// get the first k+2-mers.  used for leading and trailing k_1
+	using FirstK2merParser = ::bliss::debruijn::FirstKmerParser<K2merType>;
+	{
+		BL_BENCH_START(build);
+
+		::std::vector<K2merType> temp;
+		::std::vector<std::pair< typename CountMap2Type::key_type, typename CountMap2Type::mapped_type> > found;
+		::std::vector<std::pair<KmerType, ::bliss::debruijn::compact_simple_biedge> > firsts;
+		::fsc::back_emplace_iterator<::std::vector<std::pair<KmerType, ::bliss::debruijn::compact_simple_biedge> > > emplacer(firsts);
+		::bliss::debruijn::first_k2mer_to_edge<KmerType> trans;
+		for (auto x : file_data) {
+			// get the first k+2 mers.
+			temp.clear();
+			comm.barrier();  // need to sync this, since the parser needs to collectively parse the records.
+			idx.template parse_file_data<FileParser, FirstK2merParser>(x, temp, comm);
+
+			// find ones that are present
+			counter.find(temp).swap(found);
+
+			// transform to extract the k2mers, convert to simple edge pairs, and insert into vector.
+			// later use std::copy with 2 transform iterators?
+			firsts.clear();
+			::std::transform(found.begin(), found.end(), emplacer,
+					[&trans](typename CountMap2Type::value_type const & x){
+				return trans(x.first);
+			});
+			// then collectively insert.
+			idx.insert(firsts);
+		}
+		BL_BENCH_COLLECTIVE_END(build, "first k2mer", firsts.size(), comm);
+	}
+
+	// get the first k+2-mers.  used for leading and trailing k_1
+	using LastK2merParser = ::bliss::debruijn::LastKmerParser<K2merType>;
+	{
+		BL_BENCH_START(build);
+		::std::vector<K2merType> temp;
+		::std::vector<std::pair< typename CountMap2Type::key_type, typename CountMap2Type::mapped_type> > found;
+		::std::vector<std::pair<KmerType, ::bliss::debruijn::compact_simple_biedge> > lasts;
+		::fsc::back_emplace_iterator<::std::vector<std::pair<KmerType, ::bliss::debruijn::compact_simple_biedge> > > emplacer(lasts);
+		::bliss::debruijn::last_k2mer_to_edge<KmerType> trans;
+		for (auto x : file_data) {
+			// get the first k+2 mers.
+			temp.clear();
+			comm.barrier();  // need to sync this, since the parser needs to collectively parse the records.
+			idx.template parse_file_data<FileParser, LastK2merParser>(x, temp, comm);
+
+			// find ones that are present
+			counter.find(temp).swap(found);
+
+			// transform to extract the k2mers
+			// later use std::copy with 2 transform iterators?
+			lasts.clear();
+			::std::transform(found.begin(), found.end(), emplacer,
+					[&trans](typename CountMap2Type::value_type const & x){
+				return trans(x.first);
+			});
+			// then collectively insert - have to move stuff to the right proc.
+			idx.insert(lasts);
+		}
+		BL_BENCH_COLLECTIVE_END(build, "last k2mer", lasts.size(), comm);
+	}
+
+	BL_BENCH_START(build);
+	{
+		::std::vector<std::pair<KmerType, ::bliss::debruijn::compact_simple_biedge> > middles;
+		::fsc::back_emplace_iterator<::std::vector<std::pair<KmerType, ::bliss::debruijn::compact_simple_biedge> > > emplacer(middles);
+		::bliss::debruijn::k2mer_to_edge<KmerType> trans;
+
+		std::transform(counter.get_local_container().begin(), counter.get_local_container().end(), emplacer,
+				[&trans](typename CountMap2Type::value_type const & x){
+								return trans(x.first);
+							});
+		idx.insert(middles);
+	}
+//  FOR SOME REASON NOTHING IS INSERTED USING CODE BELOW.
+//	// now use a transform iterator to convert the thresholded k-mers to kmer+compact_simple_biedge form, and insert into dbg
+//	// this part is local without communications
+//	// now insert into idx2 local map. okay to insert just 1 instance of each k-mer into the map here.
+//	using count_to_kmer_iter = ::bliss::iterator::UnzipIterator<typename CountMap2Type::const_iterator, 0, true>;
+//	using kmer_to_biedge_iter = ::bliss::iterator::transform_iterator<count_to_kmer_iter,
+//			::bliss::debruijn::k2mer_to_edge<KmerType> >;
+//	::bliss::debruijn::k2mer_to_edge<KmerType> trans;
+//
+//	typename CountMap2Type::const_iterator count_start = counter.get_local_container().cbegin();
+//	typename CountMap2Type::const_iterator count_end = counter.get_local_container().cend();
+//
+//	count_to_kmer_iter kmer_start(count_start);
+//	count_to_kmer_iter kmer_end(count_end);
+//
+//	kmer_to_biedge_iter edge_start(kmer_start, trans);
+//	kmer_to_biedge_iter edge_end(kmer_end, trans);
+//
+//	idx.get_map().local_insert(edge_start, edge_end);
+	BL_BENCH_COLLECTIVE_END(build, "valid k2mers", idx.local_size(), comm);
+
+
+	// because of the filtering, we may have edges pointing to non-existent nodes.  we create these nodes here
+	// (and the reverse edges)
+	// out edges.
+
+
+
+
+	size_t total = idx.size();
+	if (comm.rank() == 0) printf("total size after insert/rehash is %lu\n", total);
+
+	BL_BENCH_REPORT_MPI_NAMED(build, "filtered_insert", comm);
+}
+
 
 
 template <typename Index>
@@ -1319,6 +1501,7 @@ int main(int argc, char** argv) {
 	std::string out_prefix;
 	out_prefix.assign("./output");
 
+	CountType lower, upper;
 
 	//  std::string queryname(filename);
 	//  int sample_ratio = 100;
@@ -1344,14 +1527,22 @@ int main(int argc, char** argv) {
 		// such as "-n Bishop".
 		TCLAP::ValueArg<std::string> outputArg("O", "output_prefix", "Prefix for output files, including directory", false, "", "string", cmd);
 
+		TCLAP::ValueArg<CountType> lowerThreshArg("L", "lower_thresh", "Lower Threshold for Kmer and Edge frequency", false, 0, "uint16", cmd);
+		TCLAP::ValueArg<CountType> upperThreshArg("U", "upper_thresh", "Upper Threshold for Kmer and Edge frequency", false,
+				std::numeric_limits<CountType>::max(), "uint16", cmd);
+
 		//    TCLAP::ValueArg<std::string> fileArg("F", "file", "FASTQ file path", false, filename, "string", cmd);
 		TCLAP::UnlabeledMultiArg<std::string> fileArg("filenames", "FASTA or FASTQ file names", false, "string", cmd);
+
 
 		// Parse the argv array.
 		cmd.parse( argc, argv );
 
 		filenames = fileArg.getValue();
 		out_prefix = outputArg.getValue();
+
+		lower = lowerThreshArg.getValue();
+		upper = upperThreshArg.getValue();
 
 	} catch (TCLAP::ArgException &e)  // catch any exceptions
 	{
@@ -1420,7 +1611,11 @@ int main(int argc, char** argv) {
 	{
 		BL_BENCH_START(app);
 		DBGType idx(comm);
-		build_index(file_data, idx, comm);
+		if ((lower > 1) || (upper < std::numeric_limits<CountType>::max())) {
+			build_index_thresholded(file_data, idx, lower, upper, comm);
+		} else {
+			build_index(file_data, idx, comm);
+		}
 		BL_BENCH_COLLECTIVE_END(app, "dbg", idx.local_size(), comm);
 
 		BL_BENCH_START(app);
