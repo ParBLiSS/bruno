@@ -27,6 +27,7 @@
 #include <tuple>
 #include <utility>
 #include "debruijn/debruijn_chain_node.hpp"
+#include "utils/kmer_utils.hpp"
 
 namespace bliss {
   namespace debruijn {
@@ -61,11 +62,11 @@ namespace bliss {
               if (y.second < 0) {  // IN edge
 
 // commented for performance
-//                if ((std::get<2>(x) != 1) || (y.first != std::get<0>(x))) {
-//                  std::cout << "y: " << bliss::utils::KmerUtils::toASCIIString(y.first) <<
-//                      ", y ?= x[in] " << std::get<2>(x) << ": " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) <<
-//                      ", x[out] " << std::get<3>(x) << ": " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << std::endl;
-//                }
+                if ((std::get<2>(x) != 1) || (y.first != std::get<0>(x))) {
+                  std::cout << "y: " << bliss::utils::KmerUtils::toASCIIString(y.first) <<
+                      ", y ?= x[in] " << std::get<2>(x) << ": " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) <<
+                      ", x[out] " << std::get<3>(x) << ": " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << std::endl;
+                }
 
                 //assert(std::get<2>(x) == 1);   // just to make sure that the edge we're trying to update is not already "cut".
                 assert(y.first == std::get<0>(x));   // just to make sure that we are talking about the same kmer.
@@ -126,9 +127,9 @@ namespace bliss {
 //                        ( ( std::get<2>(x) > 0 ) && ((dist != std::get<2>(x) ) || ((dist == std::get<2>(x)) && (std::get<0>(y) == std::get<0>(x)))) )) )
 //                {
 //
-//                  std::cout << "NEW:\tin dist " << std::get<1>(y) << " kmer: " << std::get<0>(y) << std::endl;
-//                  std::cout << "\tin dist " << std::get<2>(x) << " kmer: " << std::get<0>(x) << std::endl;
-//                  std::cout << "\tout dist " << std::get<3>(x) << " kmer: " << std::get<1>(x) << std::endl;
+//                  std::cout << "NEW:\tin dist " << std::get<1>(y) << " kmer: " << ::bliss::utils::KmerUtils::toASCIIString(std::get<0>(y)) << std::endl;
+//                  std::cout << "\tin dist " << std::get<2>(x) << " kmer: " << ::bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) << std::endl;
+//                  std::cout << "\tout dist " << std::get<3>(x) << " kmer: " << ::bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << std::endl;
 //                }
 
 
@@ -162,9 +163,9 @@ namespace bliss {
 //                    !(( ( std::get<3>(x) < 0 ) && ((dist < -(std::get<3>(x)) ) || ((dist == -(std::get<3>(x))) && (std::get<0>(y) == std::get<1>(x)))) ) ||
 //                        ( ( std::get<3>(x) > 0 ) && ((dist != std::get<3>(x) ) || ((dist == std::get<3>(x)) && (std::get<0>(y) == std::get<1>(x)))) ))
 //                ) {
-//                  std::cout << "NEW:\tout dist " << std::get<1>(y) << " kmer: " << std::get<0>(y) << std::endl;
-//                  std::cout << "\tin dist " << std::get<2>(x) << " kmer: " << std::get<0>(x) << std::endl;
-//                  std::cout << "\tout dist " << std::get<3>(x) << " kmer: " << std::get<1>(x) << std::endl;
+//                  std::cout << "NEW:\tout dist " << std::get<1>(y) << " kmer: " << ::bliss::utils::KmerUtils::toASCIIString(std::get<0>(y)) << std::endl;
+//                  std::cout << "\tin dist " << std::get<2>(x) << " kmer: " << ::bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) << std::endl;
+//                  std::cout << "\tout dist " << std::get<3>(x) << " kmer: " << ::bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << std::endl;
 //                }
 
                 // some checks

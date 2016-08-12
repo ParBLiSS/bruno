@@ -92,72 +92,6 @@ namespace bliss
         }
     };
 
-    template <typename KmerType>
-    struct first_k2mer_to_edge {
-        using Alphabet = typename KmerType::KmerAlphabet;
-
-        static_assert(::std::is_same<Alphabet, ::bliss::common::DNA16>::value ||
-                      ::std::is_same<Alphabet, ::bliss::common::DNA6>::value ||
-                       ::std::is_same<Alphabet, ::bliss::common::RNA6>::value,
-                        "Only alphabets with explicit gap character is supported in order to represent empty edges.");
-
-        using EdgeAlphabet = ::bliss::common::DNA16;
-        using edge_type = ::bliss::debruijn::compact_simple_biedge;
-
-        using K2merType = ::bliss::common::Kmer<KmerType::size + 2, Alphabet, typename KmerType::KmerWordType>;
-
-        ::std::pair<KmerType, edge_type> operator()(K2merType const & k2mer) {
-          // make the k-mer from first k of k+2-mer
-          K2merType tmp = k2mer >> 2;
-          KmerType kmer(tmp.getData());  // copy the content.  sanitize is called by constructor.
-
-          //std::cout << "k2mer " << bliss::utils::KmerUtils::toASCIIString(k2mer) << std::endl;
-
-          // extract the biedge.
-          edge_type edge;
-          unsigned char right = ((k2mer.getData()[0]) >> K2merType::bitsPerChar) & ((0x1 << K2merType::bitsPerChar) - 1); // right char
-          // no left
-
-          edge.getDataRef()[0] = EdgeAlphabet::FROM_ASCII[Alphabet::TO_ASCII[right]];
-
-          return std::make_pair(kmer, edge);
-        }
-    };
-
-
-    template <typename KmerType>
-    struct last_k2mer_to_edge {
-        using Alphabet = typename KmerType::KmerAlphabet;
-
-        static_assert(::std::is_same<Alphabet, ::bliss::common::DNA16>::value ||
-                      ::std::is_same<Alphabet, ::bliss::common::DNA6>::value ||
-                       ::std::is_same<Alphabet, ::bliss::common::RNA6>::value,
-                        "Only alphabets with explicit gap character is supported in order to represent empty edges.");
-
-        using EdgeAlphabet = ::bliss::common::DNA16;
-        using edge_type = ::bliss::debruijn::compact_simple_biedge;
-
-        using K2merType = ::bliss::common::Kmer<KmerType::size + 2, Alphabet, typename KmerType::KmerWordType>;
-
-        ::std::pair<KmerType, edge_type> operator()(K2merType const & k2mer) {
-          // make the k-mer from last k of k+2-mer
-          KmerType kmer(k2mer.getData());  // copy the content.  sanitize is called by constructor.
-
-          //std::cout << "k2mer " << bliss::utils::KmerUtils::toASCIIString(k2mer) << std::endl;
-
-          // extract the biedge.
-          edge_type edge;
-          // no right
-          unsigned char left  = (k2mer >> (K2merType::size - 2)).getData()[0] & ((0x1 << K2merType::bitsPerChar) - 1); // left char
-
-          edge.getDataRef()[0] = (EdgeAlphabet::FROM_ASCII[Alphabet::TO_ASCII[left]] << 4);
-
-          return std::make_pair(kmer, edge);
-        }
-    };
-
-
-
     /**
      * @brief  generate de bruijn graph nodes (k-mers) and edges (compacted left and right edges) from reads
      * @details  internally, read a k+2-mer.  if k+2-mer is the beginning or end, generate additional shifted version.
@@ -317,8 +251,10 @@ namespace bliss
     		KmerIterType end(BaseCharIterator(eolend, bliss::common::ASCII2<Alphabet>()), false);
 
     //    printf("First: pos %lu kmer %s\n", read.id.id, bliss::utils::KmerUtils::toASCIIString(*start).c_str());
-    		if (start != end) {
-    			*output_iter = *start;
+    		assert(start != end);
+
+    		if (!(read.is_record_truncated_at_begin())) {
+    			*output_iter = (*start) >> 1;
     			++output_iter;
     		}
 
@@ -382,8 +318,10 @@ namespace bliss
     //    printf("First: pos %lu kmer %s\n", read.id.id, bliss::utils::KmerUtils::toASCIIString(*start).c_str());
     		assert(start != end);
 
-			*output_iter = *start;
-			++output_iter;
+    		if (!(read.is_record_truncated_at_end())) {
+				*output_iter = (*start) << 1;
+				++output_iter;
+    		}
 
     		return output_iter;
 
