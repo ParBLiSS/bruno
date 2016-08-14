@@ -251,6 +251,9 @@ namespace bliss
     		KmerIterType end(BaseCharIterator(eolend, bliss::common::ASCII2<Alphabet>()), false);
 
     //    printf("First: pos %lu kmer %s\n", read.id.id, bliss::utils::KmerUtils::toASCIIString(*start).c_str());
+    		if (start == end) {
+    			std::cout << "start == end.  seq: " << read << std::endl;
+    		}
     		assert(start != end);
 
     		if (!(read.is_record_truncated_at_begin())) {
