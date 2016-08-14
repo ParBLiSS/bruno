@@ -408,25 +408,25 @@ void filter_node_by_edge_frequency(Counter const & counter, std::vector<K2merTyp
 
 		// neither edge has high enough frequency.  skip it.
 		if ((lc == 0) && (rc == 0)) {
-//			std::cout << "rank " << comm.rank() << " pos " << j << " type0 " << bliss::utils::KmerUtils::toASCIIString(kmers[i]) << std::endl;
+//			std::cout << "rank " << comm.rank() << " pos " << i << "->" << j << " type0 " << bliss::utils::KmerUtils::toASCIIString(kmers[i]) << std::endl;
 			continue;
 		}
 		if ((lc > 0) && (rc > 0)) {
 			// both sides have high enough frequency.  keep as is (move to new position)
 			kmers[j] = kmers[i];
-//			std::cout << "rank " << comm.rank() << " pos " << j << " type3 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;
+//			std::cout << "rank " << comm.rank() << " pos " << i << "->" << j << " type3 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;
 			++count3;
 		} else if (lc > 0) {
 			// left side is valid
 			kmers[j] = kmers[i];
 			kmers[j].getDataRef()[0] &= lmask.getData()[0];
-			std::cout << "rank " << comm.rank() << " pos " << j << " type2 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;;
+			std::cout << "rank " << comm.rank() << " pos " << i << "->" << j << " type2 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;;
 			++count2;
 		} else {
 			// right side is valid
 			kmers[j] = kmers[i];
 			kmers[j] &= rmask;
-			std::cout << "rank " << comm.rank() << " pos " << j << " type1 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;;
+			std::cout << "rank " << comm.rank() << " pos " << i << "->" << j << " type1 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;;
 			++count1;
 		}
 		++j;

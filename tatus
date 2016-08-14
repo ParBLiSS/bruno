@@ -1,0 +1,40 @@
+[1mdiff --git a/ext/sparsehash b/ext/sparsehash[m
+[1m--- a/ext/sparsehash[m
+[1m+++ b/ext/sparsehash[m
+[36m@@ -1 +1 @@[m
+[31m-Subproject commit 4a36398d442cc86f47d2d7e751596cc2430ad135[m
+[32m+[m[32mSubproject commit 4a36398d442cc86f47d2d7e751596cc2430ad135-dirty[m
+[1mdiff --git a/test/test/compact_debruijn_graph_low_mem.cpp b/test/test/compact_debruijn_graph_low_mem.cpp[m
+[1mindex 6d2532a..8beae7b 100644[m
+[1m--- a/test/test/compact_debruijn_graph_low_mem.cpp[m
+[1m+++ b/test/test/compact_debruijn_graph_low_mem.cpp[m
+[36m@@ -408,25 +408,25 @@[m [mvoid filter_node_by_edge_frequency(Counter const & counter, std::vector<K2merTyp[m
+ [m
+ 		// neither edge has high enough frequency.  skip it.[m
+ 		if ((lc == 0) && (rc == 0)) {[m
+[31m-//			std::cout << "rank " << comm.rank() << " pos " << j << " type0 " << bliss::utils::KmerUtils::toASCIIString(kmers[i]) << std::endl;[m
+[32m+[m[32m//			std::cout << "rank " << comm.rank() << " pos " << i << "->" << j << " type0 " << bliss::utils::KmerUtils::toASCIIString(kmers[i]) << std::endl;[m
+ 			continue;[m
+ 		}[m
+ 		if ((lc > 0) && (rc > 0)) {[m
+ 			// both sides have high enough frequency.  keep as is (move to new position)[m
+ 			kmers[j] = kmers[i];[m
+[31m-//			std::cout << "rank " << comm.rank() << " pos " << j << " type3 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;[m
+[32m+[m[32m//			std::cout << "rank " << comm.rank() << " pos " << i << "->" << j << " type3 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;[m
+ 			++count3;[m
+ 		} else if (lc > 0) {[m
+ 			// left side is valid[m
+ 			kmers[j] = kmers[i];[m
+ 			kmers[j].getDataRef()[0] &= lmask.getData()[0];[m
+[31m-			std::cout << "rank " << comm.rank() << " pos " << j << " type2 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;;[m
+[32m+[m			[32mstd::cout << "rank " << comm.rank() << " pos " << i << "->" << j << " type2 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;;[m
+ 			++count2;[m
+ 		} else {[m
+ 			// right side is valid[m
+ 			kmers[j] = kmers[i];[m
+ 			kmers[j] &= rmask;[m
+[31m-			std::cout << "rank " << comm.rank() << " pos " << j << " type1 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;;[m
+[32m+[m			[32mstd::cout << "rank " << comm.rank() << " pos " << i << "->" << j << " type1 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;;[m
+ 			++count1;[m
+ 		}[m
+ 		++j;[m
