@@ -345,9 +345,9 @@ void filter_node_by_edge_frequency(Counter const & counter, std::vector<K2merTyp
 				[](K2merType const & x) {
 			return K1merType((x >> 1).getData());  // left k+1-mer, shift out the right 1 character.
 		});
-		for (auto k : query) {
-			std::cout << "rank " << comm.rank() << " query L k+1 mer " << bliss::utils::KmerUtils::toASCIIString(k) << std::endl;
-		}
+//		for (auto k : query) {
+//			std::cout << "rank " << comm.rank() << " query L k+1 mer " << bliss::utils::KmerUtils::toASCIIString(k) << std::endl;
+//		}
 		// query - cannot rely on 1 to 1 correspondence with k+2-mer, so use a map locally.
 		auto results = counter.template count<true, ::fsc::TruePredicate>(query);
 		// insert into a local map
@@ -362,9 +362,9 @@ void filter_node_by_edge_frequency(Counter const & counter, std::vector<K2merTyp
 				[](K2merType const & x){
 			return K1merType(x.getData());  // right k+1-mer, constructor of K1merType will sanitize.
 		});
-		for (auto k : query) {
-			std::cout << "rank " << comm.rank() << " query R k+1 mer " << bliss::utils::KmerUtils::toASCIIString(k) << std::endl;
-		}
+//		for (auto k : query) {
+//			std::cout << "rank " << comm.rank() << " query R k+1 mer " << bliss::utils::KmerUtils::toASCIIString(k) << std::endl;
+//		}
 		// query - cannot rely on 1 to 1 correspondence with k+2-mer, so use a map locally.
 		counter.template count<true, ::fsc::TruePredicate>(query).swap(results);
 		// insert into a local map
@@ -408,13 +408,13 @@ void filter_node_by_edge_frequency(Counter const & counter, std::vector<K2merTyp
 
 		// neither edge has high enough frequency.  skip it.
 		if ((lc == 0) && (rc == 0)) {
-			std::cout << "rank " << comm.rank() << " pos " << j << " type0 " << bliss::utils::KmerUtils::toASCIIString(kmers[i]) << std::endl;
+//			std::cout << "rank " << comm.rank() << " pos " << j << " type0 " << bliss::utils::KmerUtils::toASCIIString(kmers[i]) << std::endl;
 			continue;
 		}
 		if ((lc > 0) && (rc > 0)) {
 			// both sides have high enough frequency.  keep as is (move to new position)
 			kmers[j] = kmers[i];
-			std::cout << "rank " << comm.rank() << " pos " << j << " type3 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;
+//			std::cout << "rank " << comm.rank() << " pos " << j << " type3 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;
 			++count3;
 		} else if (lc > 0) {
 			// left side is valid
