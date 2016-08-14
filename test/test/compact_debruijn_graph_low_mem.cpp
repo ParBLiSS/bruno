@@ -318,11 +318,11 @@ void filter_node_by_edge_frequency(Counter const & counter, std::vector<K2merTyp
 	K2merType lmask;
 	memset(lmask.getDataRef(), 0xFF, sizeof(typename K2merType::KmerWordType) * K2merType::nWords);
 	lmask <<= 1;  // already sanitizing after
-	std::cout << "lmask " << ::bliss::utils::KmerUtils::toASCIIString(lmask) << std::endl;
+	//std::cout << "lmask " << ::bliss::utils::KmerUtils::toASCIIString(lmask) << std::endl;
 	K2merType rmask;
 	memset(rmask.getDataRef(), 0xFF, sizeof(typename K2merType::KmerWordType) * K2merType::nWords);
 	rmask >>= 1;  // already sanitizing before
-	std::cout << "rmask " << ::bliss::utils::KmerUtils::toASCIIString(rmask) << std::endl;
+	//std::cout << "rmask " << ::bliss::utils::KmerUtils::toASCIIString(rmask) << std::endl;
 
 	using K1merCountMap = typename Counter::local_container_type;
 	K1merCountMap l_results_map, r_results_map;
@@ -531,7 +531,7 @@ void build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_
 			// transform and insert.
 			nodes.clear();
 			::std::transform(temp.begin(), temp.end(), emplacer, trans);
-			printf("temp 1 size: %ld  nodes %ld\n", temp.size(), nodes.size());
+			//printf("temp 1 size: %ld  nodes %ld\n", temp.size(), nodes.size());
 			idx.insert(nodes);
 
 			// == first
@@ -544,10 +544,10 @@ void build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_
 			// transform and insert.
 			nodes.clear();
 			::std::transform(temp.begin(), temp.end(), emplacer, trans);
-			printf("temp 2 size: %ld  nodes %ld\n", temp.size(), nodes.size());
-			for (auto x : temp) {
-				std::cout << " first k+1 mer " << bliss::utils::KmerUtils::toASCIIString(x) << std::endl;
-			}
+			//printf("temp 2 size: %ld  nodes %ld\n", temp.size(), nodes.size());
+//			for (auto x : temp) {
+//				std::cout << " first k+1 mer " << bliss::utils::KmerUtils::toASCIIString(x) << std::endl;
+//			}
 			idx.insert(nodes);
 
 			// == last
@@ -560,10 +560,10 @@ void build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_
 			// transform and insert.
 			nodes.clear();
 			::std::transform(temp.begin(), temp.end(), emplacer, trans);
-			printf("temp 3 size: %ld  nodes %ld\n", temp.size(), nodes.size());
-			for (auto x : temp) {
-				std::cout << " last k+1 mer " << bliss::utils::KmerUtils::toASCIIString(x) << std::endl;
-			}
+//			printf("temp 3 size: %ld  nodes %ld\n", temp.size(), nodes.size());
+//			for (auto x : temp) {
+//				std::cout << " last k+1 mer " << bliss::utils::KmerUtils::toASCIIString(x) << std::endl;
+//			}
 			idx.insert(nodes);
 		}
 	}
@@ -594,7 +594,7 @@ void check_index(Index const & idx, mxx::comm const & comm) {
 	auto cc = idx.get_map().get_local_container();
 	for (auto it = cc.begin(); it != cc.end(); ++it) {
 
-		std::cout << "kmer: " << ::bliss::utils::KmerUtils::toASCIIString(it->first) << " edge " << it->second << std::endl;
+		//std::cout << "kmer: " << ::bliss::utils::KmerUtils::toASCIIString(it->first) << " edge " << it->second << std::endl;
 
 		neighbors.clear();
 		it->second.get_out_neighbors(it->first, neighbors);
