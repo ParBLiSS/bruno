@@ -18,16 +18,16 @@ do
 
 		
 		mkdir -p tmp/tl1${s}${i}
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fastq -T -L 1 -O tmp/tl1${s}${i}/s /home/tpan/src/bliss/test/data/test.star.unitiqs.fastq > tmp/tl1${s}${i}_s.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fastq -T -L 1 -O tmp/tl1${s}${i}/s2 /home/tpan/src/bliss/test/data/test.star2.unitiqs.fastq > tmp/tl1${s}${i}_s2.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fastq -T -L 1 -O tmp/tl1${s}${i}/u /home/tpan/src/bliss/test/data/test.unitiqs.fastq > tmp/tl1${s}${i}_u.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fastq -T -L 1 -O tmp/tl1${s}${i}/t /home/tpan/src/bliss/test/data/test.short.unitiqs.fastq > tmp/tl1${s}${i}_t.log 2>&1
+		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fast${s} -T -L 1 -O tmp/tl1${s}${i}/s /home/tpan/src/bliss/test/data/test.star.unitiqs.fast${s} > tmp/tl1${s}${i}_s.log 2>&1
+		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fast${s} -T -L 1 -O tmp/tl1${s}${i}/s2 /home/tpan/src/bliss/test/data/test.star2.unitiqs.fast${s} > tmp/tl1${s}${i}_s2.log 2>&1
+		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fast${s} -T -L 1 -O tmp/tl1${s}${i}/u /home/tpan/src/bliss/test/data/test.unitiqs.fast${s} > tmp/tl1${s}${i}_u.log 2>&1
+		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fast${s} -T -L 1 -O tmp/tl1${s}${i}/t /home/tpan/src/bliss/test/data/test.short.unitiqs.fast${s} > tmp/tl1${s}${i}_t.log 2>&1
 	
 		mkdir -p tmp/tl2${s}${i}
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fastq -T -L 2 -O tmp/tl2${s}${i}/s /home/tpan/src/bliss/test/data/test.star.unitiqs.fastq > tmp/tl2${s}${i}_s.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fastq -T -L 2 -O tmp/tl2${s}${i}/s2 /home/tpan/src/bliss/test/data/test.star2.unitiqs.fastq > tmp/tl2${s}${i}_s2.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fastq -T -L 2 -O tmp/tl2${s}${i}/u /home/tpan/src/bliss/test/data/test.unitiqs.fastq > tmp/tl2${s}${i}_u.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fastq -T -L 2 -O tmp/tl2${s}${i}/t /home/tpan/src/bliss/test/data/test.short.unitiqs.fastq > tmp/tl2${s}${i}_t.log 2>&1
+		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fast${s} -T -L 2 -O tmp/tl2${s}${i}/s /home/tpan/src/bliss/test/data/test.star.unitiqs.fast${s} > tmp/tl2${s}${i}_s.log 2>&1
+		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fast${s} -T -L 2 -O tmp/tl2${s}${i}/s2 /home/tpan/src/bliss/test/data/test.star2.unitiqs.fast${s} > tmp/tl2${s}${i}_s2.log 2>&1
+		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fast${s} -T -L 2 -O tmp/tl2${s}${i}/u /home/tpan/src/bliss/test/data/test.unitiqs.fast${s} > tmp/tl2${s}${i}_u.log 2>&1
+		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_low_mem_fast${s} -T -L 2 -O tmp/tl2${s}${i}/t /home/tpan/src/bliss/test/data/test.short.unitiqs.fast${s} > tmp/tl2${s}${i}_t.log 2>&1
 		
 		
 		

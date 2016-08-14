@@ -178,6 +178,10 @@ namespace bliss
           KmerIter start(base_start, true);
           KmerIter end(base_end, false);
 
+          if (start == end) {
+        	  return output_iter;
+          }
+
           // process the first if the seq_begin is at the beginning of the record.
           if (! read.is_record_truncated_at_begin()) {
             *output_iter = transformer((*start) >> 1);
@@ -253,8 +257,9 @@ namespace bliss
     //    printf("First: pos %lu kmer %s\n", read.id.id, bliss::utils::KmerUtils::toASCIIString(*start).c_str());
     		if (start == end) {
     			std::cout << "start == end.  seq: " << read << std::endl;
+    			return output_iter;
     		}
-    		assert(start != end);
+//    		assert(start != end);
 
     		if (!(read.is_record_truncated_at_begin())) {
     			*output_iter = (*start) >> 1;
@@ -308,7 +313,10 @@ namespace bliss
     		bliss::index::kmer::NonEOLIter<typename SeqType::IteratorType> eolend(neol, read.seq_end);
 
     		size_t count = std::distance(eolstart, eolend);
-    		if (count < KmerType::size) return output_iter;
+    		if (count < KmerType::size) {
+    			std::cout << "start == end.  seq: " << read << std::endl;
+    			return output_iter;
+    		}
 
     		//== move to last.
     		std::advance(eolstart, count - KmerType::size );
@@ -319,7 +327,8 @@ namespace bliss
     		KmerIterType end(BaseCharIterator(eolend, bliss::common::ASCII2<Alphabet>()), false);
 
     //    printf("First: pos %lu kmer %s\n", read.id.id, bliss::utils::KmerUtils::toASCIIString(*start).c_str());
-    		assert(start != end);
+    		//assert(start != end);
+    		if (start == end) return output_iter;
 
     		if (!(read.is_record_truncated_at_end())) {
 				*output_iter = (*start) << 1;
