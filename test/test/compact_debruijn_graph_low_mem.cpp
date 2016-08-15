@@ -377,7 +377,7 @@ void filter_node_by_edge_frequency(Counter const & counter, std::vector<K2merTyp
 	// if both present, let the k-mer through
 	// if just one side, zero out the other side.
 	size_t i = 0, j = 0;
-	size_t count3 = 0, count2 = 0, count1 = 0;
+	size_t count3 = 0, count2 = 0, count1 = 0, count0 = 0;
 	CountType lc, rc;
 	K1merType L, R;
 	::bliss::kmer::transform::lex_less<K1merType> canonical;
@@ -408,6 +408,7 @@ void filter_node_by_edge_frequency(Counter const & counter, std::vector<K2merTyp
 
 		// neither edge has high enough frequency.  skip it.
 		if ((lc == 0) && (rc == 0)) {
+			++count0;
 //			std::cout << "rank " << comm.rank() << " pos " << i << "->" << j << " type0 " << bliss::utils::KmerUtils::toASCIIString(kmers[i]) << std::endl;
 			continue;
 		}
@@ -420,18 +421,19 @@ void filter_node_by_edge_frequency(Counter const & counter, std::vector<K2merTyp
 			// left side is valid
 			kmers[j] = kmers[i];
 			kmers[j].getDataRef()[0] &= lmask.getData()[0];
-			std::cout << "rank " << comm.rank() << " pos " << i << "->" << j << " type2 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;;
+			//std::cout << "rank " << comm.rank() << " pos " << i << "->" << j << " type2 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;;
 			++count2;
 		} else {
 			// right side is valid
 			kmers[j] = kmers[i];
 			kmers[j] &= rmask;
-			std::cout << "rank " << comm.rank() << " pos " << i << "->" << j << " type1 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;;
+			//std::cout << "rank " << comm.rank() << " pos " << i << "->" << j << " type1 " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) << std::endl;;
 			++count1;
 		}
 		++j;
 	}
-	std::cout << "rank " << comm.rank() << " total " << i << " found " << j << " type 3 " << count3 << " type 2 " << count2 << " type 1 " << count1 << std::endl;
+	std::cout << "rank " << comm.rank() << " total " << i << " found " << j << " type3 " << count3 <<
+			" type2 " << count2 << " type1 " << count1 << " type0 " << count0 << std::endl;
 	BL_BENCH_COLLECTIVE_END(filter_nodes, "transform", j, comm);
 
 
