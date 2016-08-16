@@ -1241,11 +1241,11 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 		local_offsets[i] += local_offsets[i-1];
 	}
 	// global prefix scan.  only for procs that have data.
-	::mxx::comm subcomm = comm.split(local_offsets.size() > 0);
-	size_t global_offset = 0;
-	if (local_offsets.size() > 0) {
-		global_offset = ::mxx::exscan(local_offsets.back(), subcomm);
-	}
+//	::mxx::comm subcomm = comm.split(local_offsets.size() > 0);
+//	size_t global_offset = 0;
+//	if (local_offsets.size() > 0) {
+//		global_offset = ::mxx::exscan(local_offsets.back(), subcomm);
+//	}
 	BL_BENCH_COLLECTIVE_END(valid_print, "read size", local_offsets.size(), comm);
 
 
