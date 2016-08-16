@@ -1195,6 +1195,143 @@ void print_branch_edge_frequencies(
 
 }
 
+/// printsthe first and last valid k-mer positions in each read.
+/// this is for rahul's distance constraints, no no
+template <typename FP = FileParser<typename ::bliss::io::file_data::container::const_iterator>, typename Index,
+		typename std::enable_if<std::is_same<FP,
+				::bliss::io::FASTQParser<typename ::bliss::io::file_data::container::const_iterator> >::value, int>::type = 1>
+void print_valid_kmer_pos_in_reads(std::string const & filename,
+		::bliss::io::file_data const & fdata, Index & idx,
+		mxx::comm const & comm) {
+	// parse through the reads
+	BL_BENCH_INIT(valid_print);
+
+	BL_BENCH_START(valid_print);
+	std::vector<KmerType> kmers;
+
+	// also get the read's starting positions in the output kmer vector
+	std::vector<size_t>  local_offsets;
+
+	using LocalCountMapType = ::dsc::counting_densehash_map<KmerType, size_t,
+			FreqMapParams,
+			::bliss::kmer::hash::sparsehash::special_keys<KmerType, true> >;
+
+	typename LocalCountMapType::local_container_type counter;
+	typename LocalCountMapType::local_container_type::const_iterator it;
+
+	std::stringstream ss;
+
+	kmers.clear();
+	local_offsets.clear();
+
+	ss.str(std::string());
+	BL_BENCH_COLLECTIVE_END(valid_print, "init", fdata.getRange().size(), comm);
+
+	BL_BENCH_START(valid_print);
+	// get the kmers
+	idx.template parse_file_data<FileParser, ::bliss::index::kmer::KmerParser<KmerType> >(fdata, kmers, comm);
+	BL_BENCH_COLLECTIVE_END(valid_print, "parse kmers", kmers.size(), comm);
+
+
+	BL_BENCH_START(valid_print);
+	// get the read lengths
+	idx.template parse_file_data<FileParser, ::bliss::debruijn::ReadLengthParser<KmerType> >(fdata, local_offsets, comm);
+	// prefix scan to get the offsets
+	for (size_t i = 1; i < local_offsets.size(); ++i) {
+		local_offsets[i] += local_offsets[i-1];
+	}
+	// global prefix scan.  only for procs that have data.
+	::mxx::comm subcomm = comm.split(local_offsets.size() > 0);
+	size_t global_offset = 0;
+	if (local_offsets.size() > 0) {
+		global_offset = ::mxx::exscan(local_offsets.back(), subcomm);
+	}
+	BL_BENCH_COLLECTIVE_END(valid_print, "read size", local_offsets.size(), comm);
+
+
+	BL_BENCH_START(valid_print);
+	// for all k_mers, check existence.  use the node's kmers.  put into a local count map
+	{
+		counter.reset();
+		auto results = idx.count(kmers);
+		counter.insert(results);
+	}
+	BL_BENCH_COLLECTIVE_END(valid_print, "local count", counter.size(), comm);
+
+
+	BL_BENCH_START(valid_print);
+	// get the kmers again - earlier kmer vector is scrambled by idx.count.
+	kmers.clear();
+	idx.template parse_file_data<FileParser, ::bliss::index::kmer::KmerParser<KmerType> >(fdata, kmers, comm);
+	BL_BENCH_COLLECTIVE_END(valid_print, "reparse", kmers.size(), comm);
+
+
+	BL_BENCH_START(valid_print);
+	// linear scan to output the valid positions
+	int64_t rstart = 0;
+	int64_t rend, vstart, vend;
+	for (size_t i = 0; i < local_offsets.size(); ++i) {
+		rend = static_cast<int64_t>(local_offsets[i]);
+		vstart = -1;
+		vend = -1;
+
+		std::cout << "global offset " << global_offset << " local offsets : " << rstart << " - " << rend << std::endl;
+
+		for (int64_t j = rstart; j < rend; ++j) {
+
+
+			it = counter.find(kmers[j]);
+
+			if (it != counter.end()) {
+				std::cout << "rank " << comm.rank() << " pos " << j << " rstart " << rstart <<
+						" query " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) <<
+						" result " << bliss::utils::KmerUtils::toASCIIString((*it).first) <<
+						" start count " << (*it).second << std::endl;
+				// kmer exists in the debruijn graph
+				if ((*it).second > 0) {
+					//print the first pos.
+					vstart = j - rstart;
+					break;
+				}
+			}
+		}
+
+		if (vstart > -1) {
+			for (int64_t j = rend - 1; j >= rstart; --j) {
+				it = counter.find(kmers[j]);
+
+				if (it != counter.end()) {
+					std::cout << "rank " << comm.rank() << " pos " << j << " rstart " << rstart <<
+							" query " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) <<
+							" result " << bliss::utils::KmerUtils::toASCIIString((*it).first) <<
+							" end count " << (*it).second << std::endl;
+					if ((*it).second > 0) {
+						vend = j - rstart;
+						break;
+					}
+				}
+			}
+		}
+
+		// get ready for next read.
+		rstart = rend;
+
+		// print start and end, and
+		ss << vstart << "\t" << vend << std::endl;
+	}
+	BL_BENCH_COLLECTIVE_END(valid_print, "find start-end", local_offsets.size(), comm);
+
+
+	// write out to file
+	BL_BENCH_START(valid_print);
+	write_mpiio(filename, ss.str().c_str(), ss.str().length(), comm);
+
+	BL_BENCH_COLLECTIVE_END(valid_print, "print", ss.str().length(), comm);
+
+
+	BL_BENCH_REPORT_MPI_NAMED(valid_print, "read_pos_print", comm);
+
+}
 
 CompactedChainVecType to_compacted_chain(ChainMapType const & chainmap,
 		mxx::comm const & comm) {
@@ -1741,6 +1878,28 @@ int main(int argc, char** argv) {
 		printf("rank %d finished checking index\n", comm.rank());
 
 		// TODO: filter out, or do something, about "N".  May have to add back support for ASCII edge encoding so that we can use DNA5 alphabet
+
+		// == PRINT == valid k-mers files
+		if (thresholding) {
+
+#if (pPARSER == FASTA)
+		if (comm.rank() == 0) printf("WARNING: outputing first/last valid kmer position for each read is supported for FASTQ format only.\n");
+#elif (pPARSER == FASTQ)
+
+		BL_BENCH_START(app);
+		for (size_t i = 0; i < filenames.size(); ++i) {
+			std::string fn(out_prefix);
+
+			fn.append(".");
+			fn.append(std::to_string(i));
+			fn.append(".valid");
+
+			print_valid_kmer_pos_in_reads(fn, file_data[i], idx, comm);
+		}
+		BL_BENCH_COLLECTIVE_END(app, "print_valid_kmer_pos", filenames.size(), comm);
+#endif
+		}
+
 
 		// == PRINT == prep branch for printing
 		{

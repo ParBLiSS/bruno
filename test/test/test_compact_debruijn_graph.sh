@@ -54,11 +54,14 @@ do
 		diff tmp/q1 tmp/l${s}${i}
 
 		echo "compare tl1${s}${i}"
-		diff tmp/q1 tmp/tl1${s}${i}
-		
+		diff -x "*.valid" tmp/q1 tmp/tl1${s}${i}
+
 		echo "compare tl2${s}${i}"
-		diff tmp/tl2q1 tmp/tl2${s}${i}
+		diff -x "*.valid" tmp/tl2q1 tmp/tl2${s}${i}
+		
 	done
 	
+	echo "compare tl2q${i}"
+	diff tmp/tl2q1 tmp/tl2q${i}
 
 done
