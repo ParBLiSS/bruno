@@ -1275,7 +1275,7 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 		vstart = -1;
 		vend = -1;
 
-		std::cout << "global offset " << global_offset << " local offsets : " << rstart << " - " << rend << std::endl;
+		//std::cout << "global offset " << global_offset << " local offsets : " << rstart << " - " << rend << std::endl;
 
 		for (int64_t j = rstart; j < rend; ++j) {
 
@@ -1283,10 +1283,10 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 			it = counter.find(kmers[j]);
 
 			if (it != counter.end()) {
-				std::cout << "rank " << comm.rank() << " pos " << j << " rstart " << rstart <<
-						" query " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) <<
-						" result " << bliss::utils::KmerUtils::toASCIIString((*it).first) <<
-						" start count " << (*it).second << std::endl;
+//				std::cout << "rank " << comm.rank() << " pos " << j << " rstart " << rstart <<
+//						" query " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) <<
+//						" result " << bliss::utils::KmerUtils::toASCIIString((*it).first) <<
+//						" start count " << (*it).second << std::endl;
 				// kmer exists in the debruijn graph
 				if ((*it).second > 0) {
 					//print the first pos.
@@ -1301,10 +1301,10 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 				it = counter.find(kmers[j]);
 
 				if (it != counter.end()) {
-					std::cout << "rank " << comm.rank() << " pos " << j << " rstart " << rstart <<
-							" query " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) <<
-							" result " << bliss::utils::KmerUtils::toASCIIString((*it).first) <<
-							" end count " << (*it).second << std::endl;
+//					std::cout << "rank " << comm.rank() << " pos " << j << " rstart " << rstart <<
+//							" query " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) <<
+//							" result " << bliss::utils::KmerUtils::toASCIIString((*it).first) <<
+//							" end count " << (*it).second << std::endl;
 					if ((*it).second > 0) {
 						vend = j - rstart;
 						break;
