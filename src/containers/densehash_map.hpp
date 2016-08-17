@@ -630,7 +630,7 @@ protected:
 
 
     template <typename V, typename Updater>
-    size_t update(::std::vector<::std::pair<Key, V> > & input, Updater & op) {
+    size_t update(::std::vector<::std::pair<Key, V> > & input, Updater const & op) {
 
       if (input.size() == 0) return 0;
 
@@ -681,6 +681,25 @@ protected:
 			  // update the entry
 			  count += op((*iter).second, iit->second );
     	  }
+      }
+
+      return count;
+    }
+
+    // non distributed version
+    template <typename Filter, typename Updater>
+    size_t update(Filter const & fop, Updater const & op) {
+      size_t count = 0;
+
+      for (auto iter = lower_map.begin(); iter != lower_map.end(); ++iter) {
+        if (fop(*iter)) {
+          count += op((*iter).second);
+        }
+      }
+      for (auto iter = upper_map.begin(); iter != upper_map.end(); ++iter) {
+        if (fop(*iter)) {
+          count += op((*iter).second);
+        }
       }
 
       return count;
@@ -1035,9 +1054,8 @@ class densehash_map<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator, fals
       return map.insert(x);
     }
 
-
     template <typename V, typename Updater>
-    size_t update(::std::vector<::std::pair<Key, V> > & input, Updater & op) {
+    size_t update(::std::vector<::std::pair<Key, V> > & input, Updater const & op) {
 
       if (input.size() == 0) return 0;
 
@@ -1059,6 +1077,19 @@ class densehash_map<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator, fals
       return count;
     }
 
+    // non distributed version
+    template <typename Filter, typename Updater>
+    size_t update(Filter const & fop, Updater const & op) {
+      size_t count = 0;
+
+      for (auto iter = map.begin(); iter != map.end(); ++iter) {
+        if (fop(*iter)) {
+          count += op((*iter).second);
+        }
+      }
+
+      return count;
+    }
 
 
     template <typename InputIt, typename Pred>
