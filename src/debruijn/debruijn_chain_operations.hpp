@@ -56,7 +56,7 @@ namespace bliss {
         template <typename Kmer>
         struct terminus_update {
             size_t operator()(::bliss::debruijn::simple_biedge<Kmer> & x,
-                              terminus_update_md<Kmer> const & y)  {
+                              terminus_update_md<Kmer> const & y) const {
               assert(y.second != 0);  // second entry should not be 0.
 
               if (y.second < 0) {  // IN edge
@@ -108,7 +108,7 @@ namespace bliss {
 
             /// update the chain node.  return 1 if updated, 0 if not.
             size_t operator()(::bliss::debruijn::simple_biedge<Kmer> & x,
-                              chain_update_md<Kmer> const & y)  {
+                              chain_update_md<Kmer> const & y) const {
 
               assert(std::get<2>(y) != 0);   // orientation needs to be 1 or -1
 

@@ -45,7 +45,7 @@ namespace bliss {
 
     	  template <typename Count>
           size_t operator()(::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, Count> & x,
-        		  ::bliss::debruijn::compact_simple_biedge const & y)  {
+        		  ::bliss::debruijn::compact_simple_biedge const & y) const {
         	  x.update(y);
         	  return 1;
           }
