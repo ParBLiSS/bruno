@@ -2262,6 +2262,7 @@ namespace dsc  // distributed std container
           return 0;
         }
 
+        sorted_input = false;
 
 //        typename Base::Base::Base::Base::InputTransform trans;
 //
@@ -2279,7 +2280,7 @@ namespace dsc  // distributed std container
 //        if (this->comm.size() > 1) {
 //          BL_BENCH_START(insert);
 //          // first remove duplicates.  sort, then get unique, finally remove the rest.  may not be needed
-//          auto recv_counts = ::dsc::distribute(temp, this->key_to_rank, false, this->comm);
+//          auto recv_counts = ::dsc::distribute(temp, this->key_to_rank, sorted_input, this->comm);
 //          BLISS_UNUSED(recv_counts);
 //          BL_BENCH_END(insert, "dist_data", input.size());
 //        }
@@ -2313,7 +2314,7 @@ namespace dsc  // distributed std container
         if (this->comm.size() > 1) {
           BL_BENCH_START(insert);
           // first remove duplicates.  sort, then get unique, finally remove the rest.  may not be needed
-          auto recv_counts = ::dsc::distribute(input, this->key_to_rank, false, this->comm);
+          auto recv_counts = ::dsc::distribute(input, this->key_to_rank, sorted_input, this->comm);
           BLISS_UNUSED(recv_counts);
           BL_BENCH_END(insert, "dist_data", input.size());
         }
