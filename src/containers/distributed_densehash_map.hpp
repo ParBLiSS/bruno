@@ -2263,42 +2263,89 @@ namespace dsc  // distributed std container
         }
 
 
-        typename Base::Base::Base::Base::InputTransform trans;
+//        typename Base::Base::Base::Base::InputTransform trans;
+//
+//        BL_BENCH_START(insert);
+//        ::std::vector<::std::pair<Key, T> > temp;
+//        temp.reserve(input.size());
+//        ::fsc::back_emplace_iterator<::std::vector<::std::pair<Key, T> > > emplace_iter(temp);
+//        ::std::transform(input.begin(), input.end(), emplace_iter, [&trans](Key const & x) {
+//        	return ::std::make_pair(trans(x), T(1));
+//        });
+//        BL_BENCH_END(insert, "convert", input.size());
+//
+//
+//        // communication part
+//        if (this->comm.size() > 1) {
+//          BL_BENCH_START(insert);
+//          // first remove duplicates.  sort, then get unique, finally remove the rest.  may not be needed
+//          auto recv_counts = ::dsc::distribute(temp, this->key_to_rank, false, this->comm);
+//          BLISS_UNUSED(recv_counts);
+//          BL_BENCH_END(insert, "dist_data", input.size());
+//        }
+//
+//        //
+//        //        // after communication, sort again to keep unique  - may not be needed
+//        //        local_reduction(input, sorted_input);
+//
+//        // local compute part.  called by the communicator.
+//        BL_BENCH_START(insert);
+//        size_t count = 0;
+//        if (!::std::is_same<Predicate, ::fsc::TruePredicate>::value)
+//          count = this->Base::local_insert(temp.begin(), temp.end(), pred);
+//        else
+//          count = this->Base::local_insert(temp.begin(), temp.end());
+//        BL_BENCH_END(insert, "local_insert", this->local_size());
+//
+//
+//        ::std::vector<::std::pair<Key, T> >().swap(temp);  // clear the temp.
 
+
+        //========== LOWER MEM VERSION
+
+        // transform input first.
         BL_BENCH_START(insert);
-        ::std::vector<::std::pair<Key, T> > temp;
-        temp.reserve(input.size());
-        ::fsc::back_emplace_iterator<::std::vector<::std::pair<Key, T> > > emplace_iter(temp);
-        ::std::transform(input.begin(), input.end(), emplace_iter, [&trans](Key const & x) {
-        	return ::std::make_pair(trans(x), T(1));
-        });
-        BL_BENCH_END(insert, "convert", input.size());
+        this->transform_input(input);
+        BL_BENCH_END(insert, "transform_input", input.size());
 
-
+        // then send the raw k-mers.
         // communication part
         if (this->comm.size() > 1) {
           BL_BENCH_START(insert);
           // first remove duplicates.  sort, then get unique, finally remove the rest.  may not be needed
-          auto recv_counts = ::dsc::distribute(temp, this->key_to_rank, sorted_input, this->comm);
+          auto recv_counts = ::dsc::distribute(input, this->key_to_rank, false, this->comm);
           BLISS_UNUSED(recv_counts);
           BL_BENCH_END(insert, "dist_data", input.size());
         }
 
-        //
-        //        // after communication, sort again to keep unique  - may not be needed
-        //        local_reduction(input, sorted_input);
-
-        // local compute part.  called by the communicator.
+        // once received, then transform and locally insert.
         BL_BENCH_START(insert);
         size_t count = 0;
+        size_t step_size = 1000000;
+        size_t iters = input.size() / step_size;
+        size_t rem = input.size() % step_size;
+        auto it = input.begin();
+        // do in blocks of 1M...
+        ::std::vector<::std::pair<Key, T> > temp(step_size);
+        for (size_t i = 0; i < iters; ++i) {
+          ::std::transform(it, it + step_size, temp.begin(), [](Key const & x) {
+            return ::std::make_pair(x, T(1));
+          });
+          it += step_size;
+          if (!::std::is_same<Predicate, ::fsc::TruePredicate>::value)
+            count = this->Base::local_insert(temp.begin(), temp.end(), pred);
+          else
+            count = this->Base::local_insert(temp.begin(), temp.end());
+        }
+        // remainder
+        ::std::transform(it, it + rem, temp.begin(), [](Key const & x) {
+          return ::std::make_pair(x, T(1));
+        });
         if (!::std::is_same<Predicate, ::fsc::TruePredicate>::value)
-          count = this->Base::local_insert(temp.begin(), temp.end(), pred);
+          count = this->Base::local_insert(temp.begin(), temp.begin() + rem, pred);
         else
-          count = this->Base::local_insert(temp.begin(), temp.end());
+          count = this->Base::local_insert(temp.begin(), temp.begin() + rem);
         BL_BENCH_END(insert, "local_insert", this->local_size());
-
-
-        ::std::vector<::std::pair<Key, T> >().swap(temp);  // clear the temp.
 
 
         BL_BENCH_REPORT_MPI_NAMED(insert, "count_densehash_map:insert_key", this->comm);

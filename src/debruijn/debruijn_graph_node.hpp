@@ -457,7 +457,7 @@ namespace bliss
           }
       };
 
-
+      /// special version of DNA16 multi_biedge that counts only the DNA6 subset of characters.
       template<typename COUNT, typename DUMMY>
       class compact_multi_biedge<::bliss::common::DNA16, COUNT, DUMMY> {
 
