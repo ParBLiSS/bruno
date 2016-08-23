@@ -378,10 +378,10 @@ std::vector<bool> select_k2mers_by_edge_frequency(std::vector<K2merType> const &
 
     // query left and insert into local map
     {
-      size_t query_size = query.size();
+//      size_t query_size = query.size();
 
       auto remote_counts = k1mer_counter.template count<true, ::fsc::TruePredicate>(query);
-      size_t res_size = remote_counts.size();
+//      size_t res_size = remote_counts.size();
 
       for (auto x : remote_counts) {
         if (x.second > 0) local_counts.insert(::std::make_pair(x.first, static_cast<typename K1merCountMap::mapped_type>(x.second)));
@@ -403,10 +403,10 @@ std::vector<bool> select_k2mers_by_edge_frequency(std::vector<K2merType> const &
 
     // query left and insert into local map
     {
-      size_t query_size = query.size();
+//      size_t query_size = query.size();
 
       auto remote_counts = k1mer_counter.template count<true, ::fsc::TruePredicate>(query);
-      size_t res_size = remote_counts.size();
+//      size_t res_size = remote_counts.size();
 
       for (auto x : remote_counts) {
         if (x.second > 0) local_counts.insert(::std::make_pair(x.first, static_cast<typename K1merCountMap::mapped_type>(x.second)));
@@ -538,11 +538,11 @@ std::vector<bool> select_k2mers_by_edge_frequency_2(std::vector<K2merType> const
 
     //TODO: memory bottleneck HERE.
     {
-      size_t query_size = query.size();
+//      size_t query_size = query.size();
       local_counts.clear();
       // try not doing unique and see if not using an internal hash table
       auto remote_counts = k1mer_counter.template count<false, ::fsc::TruePredicate>(query);
-      size_t res_size = remote_counts.size();
+//      size_t res_size = remote_counts.size();
       for (auto x : remote_counts) {
         if (x.second > 0) local_counts.insert(::std::make_pair(x.first, static_cast<typename K1merCountMap::mapped_type>(x.second)));
       }
@@ -735,6 +735,10 @@ template <typename Index>
   return nodes;
 }
 
+
+// FILTERING ONLY WORKS WITH FASTQ files right now.
+#if (pPARSER == FASTQ)
+
 /*
  * @brief  build an index with thresholded k+2-mers.  note that the threshold is specified for k+2-mers, not k-mers, and is exclusive.
  * @details		The goal is to identify erroneous edges and nodes.  k+2 mer satisfies this goal.  the only case that is
@@ -837,7 +841,7 @@ template <typename Index>
 			nodes.clear();
 			::std::transform(temp.begin(), temp.end(), emplacer, trans);
 			//printf("temp 1 size: %ld  nodes %ld\n", temp.size(), nodes.size());
-			size_t node_size = nodes.size();
+//			size_t node_size = nodes.size();
 			idx.insert(nodes);
 //			std::cout << "rank " << comm.rank() << " input size " << node_size << " idx size " << idx.local_size() << " buckets " << idx.get_map().get_local_container().bucket_count() << std::endl;
 		}
@@ -859,6 +863,7 @@ template <typename Index>
 	return results;
 }
 
+#endif
 
 
 template <typename Index>
@@ -1417,9 +1422,11 @@ void count_edges(std::vector<KmerType> const & selected,
 	for (size_t i = 0; i < file_data.size(); ++i) {
 //		temp.clear();
 //		idx2.parse_file_data<FileParser, DBGNodeParser>(x, temp, comm);
+#if (pPARSER == FASTQ)
     if (thresholding)
       parse_and_filter_nodes(file_data[i], selected_edges[i], idx2, comm).swap(temp);
     else
+#endif
       parse_nodes(file_data[i], idx2, comm).swap(temp);
 
 		count += idx2.get_map().update(temp, false, updater);
@@ -1783,9 +1790,12 @@ void count_kmers(::std::vector<::bliss::io::file_data> const & file_data,
 	for (size_t i = 0; i < file_data.size(); ++i) {
 		//temp1.clear();
 		//count_idx.template parse_file_data<FileParser, DBGNodeParser>(x, temp1, comm);
+
+#if (pPARSER == FASTQ)
 	  if (thresholding)
       parse_and_filter_nodes(file_data[i], selected_edges[i], count_idx, comm).swap(temp1);
 	  else
+#endif
 	    parse_nodes(file_data[i], count_idx, comm).swap(temp1);
 
 		// copy out the kmer only.  overlap is k+1 plus any newline chars.  because of the newline chars, not practical to truncate x.
@@ -2082,7 +2092,10 @@ int main(int argc, char** argv) {
 	std::string out_prefix;
 	out_prefix.assign("./output");
 
+#if (pPARSER == FASTQ)
 	CountType lower, upper;
+#endif
+
 	bool thresholding = false;
 
 	//  std::string queryname(filename);
@@ -2124,16 +2137,25 @@ int main(int argc, char** argv) {
 		filenames = fileArg.getValue();
 		out_prefix = outputArg.getValue();
 
-		lower = lowerThreshArg.getValue();
-		upper = upperThreshArg.getValue();
+#if (pPARSER == FASTQ)
+    lower = lowerThreshArg.getValue();
+    upper = upperThreshArg.getValue();
+#endif
 
 		thresholding = threshArg.getValue();
+
+
 
 	} catch (TCLAP::ArgException &e)  // catch any exceptions
 	{
 		std::cerr << "error: " << e.error() << " for arg " << e.argId() << std::endl;
 		exit(-1);
 	}
+
+#if (pPARSER == FASTA)
+    if (thresholding)
+      throw std::invalid_argument("ERROR: FASTA version of debruijn graph compaction does not currently support filtering.");
+#endif
 
 	if (filenames.size() == 0) {
 		filename.assign(PROJ_SRC_DIR);
@@ -2200,11 +2222,13 @@ int main(int argc, char** argv) {
 		BL_BENCH_START(app);
 		DBGType idx(comm);
 //		if ((lower > 1) || (upper < std::numeric_limits<CountType>::max())) {
+#if (pPARSER == FASTQ)
 		if (thresholding) {
 			selected_edges = build_index_thresholded(file_data, idx, lower, upper, comm);
-		} else {
+		} else
+#endif
 			build_index(file_data, idx, comm);
-		}
+
 		BL_BENCH_COLLECTIVE_END(app, "construct", idx.local_size(), comm);
 
 		BL_BENCH_START(app);
@@ -2221,7 +2245,7 @@ int main(int argc, char** argv) {
 		if (thresholding) {
 
 #if (pPARSER == FASTA)
-		if (comm.rank() == 0) printf("WARNING: outputing first/last valid kmer position for each read is supported for FASTQ format only.\n");
+		if (comm.rank() == 0) printf("WARNING: outputting first/last valid kmer position for each read is supported for FASTQ format only.\n");
 #elif (pPARSER == FASTQ)
 
 		BL_BENCH_START(app);
