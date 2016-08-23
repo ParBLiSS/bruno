@@ -296,9 +296,9 @@ void build_index(::std::vector<::bliss::io::file_data> const & file_data, Index 
 	BL_BENCH_COLLECTIVE_END(build, "parse and insert", idx.local_size(), comm);
 
 	size_t total = idx.size();
-	if (comm.rank() == 0) printf("total size after insert/rehash is %lu\n", total);
+	if (comm.rank() == 0) printf("PARSING and INSERT DONE: total size after insert/rehash is %lu\n", total);
 
-	BL_BENCH_REPORT_MPI_NAMED(build, "insert", comm);
+	BL_BENCH_REPORT_MPI_NAMED(build, "construct", comm);
 }
 
 /**
@@ -310,6 +310,12 @@ void build_index(::std::vector<::bliss::io::file_data> const & file_data, Index 
  *               2  :  left in index
  *               3  :  both in index
  *          used to create a vector of uint8 flags indicating the types.
+ *
+ *          this step is using a significant amount of memory, because we are saving all previous results.
+ *          there is significant savings when reusing L results for R, but not as much from iteration to iteration.
+ *          this is affected by step size, of course - using 10M, we get 50 % decrease in 2nd iteration.
+ *          using 1M, later iterations can see 10x reduction.
+ *
  * @tparam  K2merType   K2mer input type
  * @tparam  Counter     K2mer Count index type
  * @param kmers         k2mers
@@ -320,7 +326,7 @@ void build_index(::std::vector<::bliss::io::file_data> const & file_data, Index 
  */
 template <typename K2merType, typename Counter>
 std::vector<bool> select_k2mers_by_edge_frequency(std::vector<K2merType> const & k2mers, Counter const & k1mer_counter, mxx::comm const & comm) {
-  static_assert(Counter::key_type::size > 0, "coutner kmer type should not be zero-mers.  possible?");
+  static_assert(Counter::key_type::size > 0, "counter kmer type should not be zero-mers.  possible?");
   static_assert(K2merType::size == Counter::key_type::size + 1, "counter kmer type should have length 1 less than the input kmer type to filter for implicit debruijn chain nodes");
 
   BL_BENCH_INIT(filter_nodes);
@@ -351,7 +357,7 @@ std::vector<bool> select_k2mers_by_edge_frequency(std::vector<K2merType> const &
   size_t jmin, jmax;
   K1merType k1;
   ::bliss::kmer::transform::lex_less<K1merType> canonical;
-  std::vector<::std::pair<K1merType, size_t> > remote_counts;
+  // std::vector<::std::pair<K1merType, size_t> > remote_counts;
   for (size_t i = 0; i < iterations; ++i) {
     // k2mers index for this iteration.
     jmin = std::min(k2mers.size(), i * step_size);
@@ -371,12 +377,17 @@ std::vector<bool> select_k2mers_by_edge_frequency(std::vector<K2merType> const &
     }
 
     // query left and insert into local map
-    k1mer_counter.template count<true, ::fsc::TruePredicate>(query).swap(remote_counts);
-    for (auto x : remote_counts) {
-      local_counts.insert(::std::make_pair(x.first, static_cast<typename K1merCountMap::mapped_type>(x.second)));
-    }
-    std::cout << "rank " << comm.rank() << " iter " << i << " L query " << query.size() << " result " << remote_counts.size() << " local counts " << local_counts.size() << std::endl;
+    {
+      size_t query_size = query.size();
 
+      auto remote_counts = k1mer_counter.template count<true, ::fsc::TruePredicate>(query);
+      size_t res_size = remote_counts.size();
+
+      for (auto x : remote_counts) {
+        if (x.second > 0) local_counts.insert(::std::make_pair(x.first, static_cast<typename K1merCountMap::mapped_type>(x.second)));
+      }
+//      std::cout << "rank " << comm.rank() << " iter " << i << " L query " << query_size << " result " << res_size << " local counts " << local_counts.size() << std::endl;
+    }
     // populate right query.  do left separately from right to reduce memory footprint.
     query.clear();
     for (size_t j = jmin; j < jmax; ++j) {
@@ -391,11 +402,152 @@ std::vector<bool> select_k2mers_by_edge_frequency(std::vector<K2merType> const &
     }
 
     // query left and insert into local map
-    k1mer_counter.template count<true, ::fsc::TruePredicate>(query).swap(remote_counts);
-    for (auto x : remote_counts) {
-      local_counts.insert(::std::make_pair(x.first, static_cast<typename K1merCountMap::mapped_type>(x.second)));
+    {
+      size_t query_size = query.size();
+
+      auto remote_counts = k1mer_counter.template count<true, ::fsc::TruePredicate>(query);
+      size_t res_size = remote_counts.size();
+
+      for (auto x : remote_counts) {
+        if (x.second > 0) local_counts.insert(::std::make_pair(x.first, static_cast<typename K1merCountMap::mapped_type>(x.second)));
+      }
+//      std::cout << "rank " << comm.rank() << " iter " << i << " R query " << query_size << " result " << res_size << " local counts " << local_counts.size() << std::endl;
     }
-    std::cout << "rank " << comm.rank() << " iter " << i << " R query " << query.size() << " result " << remote_counts.size() << " local counts " << local_counts.size() << std::endl;
+
+
+    // NOW go through k2mers again,
+    for (size_t j = jmin; j < jmax; ++j) {
+      // check each for query result
+
+      // get left as canonical.
+      k1 = canonical(K1merType((k2mers[j] >> 1).getData()));
+      // check local count
+      count_iter = local_counts.find(k1);
+      if (count_iter != local_counts.end()) {
+        // store result in bit vector.
+        results[2 * j] = true;
+//      } else {
+//        std::cerr << "rank " << comm.rank() << " ERROR query results should have contained L k+1mer " <<
+//            bliss::utils::KmerUtils::toASCIIString(k1);
+      }
+
+      // get right as canonical.
+      k1 = canonical(K1merType(k2mers[j].getData()));
+      // check local count
+      count_iter = local_counts.find(k1);
+      if (count_iter != local_counts.end()) {
+        // store result in bit vector;
+        results[2 * j + 1] = true;
+//      } else {
+//        std::cerr << "rank " << comm.rank() << " ERROR query results should have contained R k+1mer " <<
+//            bliss::utils::KmerUtils::toASCIIString(k1);
+      }
+
+    } // end scan of current step to create the bit vector.
+
+  }  // end iterations
+  BL_BENCH_COLLECTIVE_END(filter_nodes, "query_select", k2mers.size(), comm);
+
+
+  BL_BENCH_REPORT_MPI_NAMED(filter_nodes, "select_k2mers", comm);
+
+  if (comm.rank() == 0) std::cout << "bit vec size = " << sizeof(results) << std::endl;
+
+  return results;
+}
+
+template <typename K2merType, typename Counter>
+std::vector<bool> select_k2mers_by_edge_frequency_2(std::vector<K2merType> const & k2mers, Counter const & k1mer_counter, mxx::comm const & comm) {
+  static_assert(Counter::key_type::size > 0, "counter kmer type should not be zero-mers.  possible?");
+  static_assert(K2merType::size == Counter::key_type::size + 1, "counter kmer type should have length 1 less than the input kmer type to filter for implicit debruijn chain nodes");
+
+  BL_BENCH_INIT(filter_nodes);
+
+  // define k1mer type
+  using K1merType = ::bliss::common::Kmer<K2merType::size - 1, typename K2merType::KmerAlphabet, typename K2merType::KmerWordType>;
+
+  // create a mask.
+  BL_BENCH_START(filter_nodes);
+  std::vector<bool> results(k2mers.size() * 2, false);
+
+  size_t step_size = 4000000;
+  size_t iterations = (k2mers.size() + step_size - 1) / step_size;
+  iterations = ::mxx::allreduce(iterations, [](size_t const & x, size_t const & y){
+    return std::max(x, y);
+  }, comm);
+
+  // local storage of query results.
+  ::std::vector<K1merType> query(std::min(step_size, k2mers.size()));  // let it grow as needed.
+  using K1merCountMap = typename Counter::local_container_type;
+  using K1merCountMapIter = typename K1merCountMap::const_iterator;
+  K1merCountMap local_counts;  // let it grow as needed.  incrementally built up.
+  K1merCountMapIter count_iter;
+  BL_BENCH_COLLECTIVE_END(filter_nodes, "init", k2mers.size(), comm);
+
+  // do left and right together, in batches of step_size.
+  BL_BENCH_START(filter_nodes);
+
+  //TODO: memory bottleneck HERE.
+
+  size_t jmin, jmax;
+  K1merType k1;
+  ::bliss::kmer::transform::lex_less<K1merType> canonical;
+  std::vector<::std::pair<K1merType, size_t> > remote_counts;
+  for (size_t i = 0; i < iterations; ++i) {
+    // k2mers index for this iteration.
+    jmin = std::min(k2mers.size(), i * step_size);
+    jmax = std::min(k2mers.size(), jmin + step_size);
+
+    // populate left query.  do left separately from right to reduce memory footprint.
+    // NOTE: do both and no checking local counts from prev iteration.
+    // next time, do check and update the bit vec here and later.
+    query.clear();
+    for (size_t j = jmin; j < jmax; ++j) {
+      // get left as canonical.
+      k1 = canonical(K1merType((k2mers[j] >> 1).getData()));
+      //query.emplace_back(k1);
+
+      count_iter = local_counts.find(k1);
+      if (count_iter == local_counts.end()) {
+    	  query.emplace_back(k1);
+      } else {
+//    	  if (*(count_iter).second > 0) {
+    		  results[2 * j] = true;
+//    	  }
+      }
+
+      k1 = canonical(K1merType(k2mers[j].getData()));
+      //query.emplace_back(k1);
+
+
+      // assuming that we covered all k+1 mers by the left of k+2-mers, we don't need to do right k+1mers also.
+      // this should be true because we parsed the first and last k+1 mers as k+2 mers.
+      count_iter = local_counts.find(k1);
+      if (count_iter != local_counts.end()) {
+//    	  query.emplace_back(k1);
+//      } else {
+////    	  if (*(count_iter).second > 0) {
+    		  results[2 * j + 1] = true;
+////    	  }
+      }
+
+    }
+
+    // query left and insert into local map.
+    // NOTE: clear local map each time to reduce memory use.
+
+    //TODO: memory bottleneck HERE.
+    {
+      size_t query_size = query.size();
+      local_counts.clear();
+      // try not doing unique and see if not using an internal hash table
+      auto remote_counts = k1mer_counter.template count<false, ::fsc::TruePredicate>(query);
+      size_t res_size = remote_counts.size();
+      for (auto x : remote_counts) {
+        if (x.second > 0) local_counts.insert(::std::make_pair(x.first, static_cast<typename K1merCountMap::mapped_type>(x.second)));
+      }
+//      std::cout << "rank " << comm.rank() << " iter " << i << " RL query " << query_size << " result " << res_size << " local counts " << local_counts.size() << std::endl;
+    }
 
 
 
@@ -409,10 +561,10 @@ std::vector<bool> select_k2mers_by_edge_frequency(std::vector<K2merType> const &
       count_iter = local_counts.find(k1);
       if (count_iter != local_counts.end()) {
         // store result in bit vector.
-        results[2 * j] = ((*count_iter).second > 0);
-      } else {
-        std::cerr << "rank " << comm.rank() << " ERROR query results should have contained L k+1mer " <<
-            bliss::utils::KmerUtils::toASCIIString(k1);
+        results[2 * j] = true; //((*count_iter).second > 0);
+//      } else {
+//        std::cerr << "rank " << comm.rank() << " ERROR query results should have contained L k+1mer " <<
+//            bliss::utils::KmerUtils::toASCIIString(k1);
       }
 
       // get right as canonical.
@@ -421,10 +573,10 @@ std::vector<bool> select_k2mers_by_edge_frequency(std::vector<K2merType> const &
       count_iter = local_counts.find(k1);
       if (count_iter != local_counts.end()) {
         // store result in bit vector;
-        results[2 * j + 1] = ((*count_iter).second > 0);
-      } else {
-        std::cerr << "rank " << comm.rank() << " ERROR query results should have contained R k+1mer " <<
-            bliss::utils::KmerUtils::toASCIIString(k1);
+        results[2 * j + 1] = true;
+//      } else {
+//        std::cerr << "rank " << comm.rank() << " ERROR query results should have contained R k+1mer " <<
+//            bliss::utils::KmerUtils::toASCIIString(k1);
       }
 
     } // end scan of current step to create the bit vector.
@@ -437,6 +589,7 @@ std::vector<bool> select_k2mers_by_edge_frequency(std::vector<K2merType> const &
 
   return results;
 }
+
 
 
 /**
@@ -502,19 +655,20 @@ void filter_k2mers(std::vector<bool> const & edge_filter, std::vector<K2merType>
 		}
 		++j;
 	}
-	std::cout << "rank " << comm.rank() << " total " << i << " found " << j << " type3 " << count3 <<
-			" type2 " << count2 << " type1 " << count1 << " type0 " << count0 << std::endl;
+//	std::cout << "rank " << comm.rank() << " total " << i << " found " << j << " type3 " << count3 <<
+//			" type2 " << count2 << " type1 " << count1 << " type0 " << count0 << std::endl;
 	BL_BENCH_COLLECTIVE_END(filter_edges, "transform", j, comm);
 
 
 	BL_BENCH_START(filter_edges);
 	// erase what's left.
-	std::vector<K2merType> x(k2mers.begin(), k2mers.begin() + j);
-	k2mers.swap(x);
+//	std::vector<K2merType> x(k2mers.begin(), k2mers.begin() + j);
+//	k2mers.swap(x);
+	k2mers.erase(k2mers.begin() + j, k2mers.end());
 	BL_BENCH_COLLECTIVE_END(filter_edges, "filter", k2mers.size(), comm);
 
 
-	BL_BENCH_REPORT_MPI_NAMED(filter_edges, "filter_edges", comm);
+	BL_BENCH_REPORT_MPI_NAMED(filter_edges, "filter_k2mers", comm);
 
 }
 
@@ -556,7 +710,7 @@ template <typename Index>
                                                                          ::std::vector<bool> const & selected,
                                                                           Index const & idx,
                                                                           mxx::comm const & comm) {
-  using K2merType = typename DBGNodeParser::K2merType;
+	using K2merType = typename DBGNodeParser::K2merType;
 
   ::std::vector<K2merType> temp;
 
@@ -609,7 +763,8 @@ template <typename Index>
 		CountType const & lower_thresh, CountType const & upper_thresh,  mxx::comm const & comm) {
 	BL_BENCH_INIT(build);
 
-	if (comm.rank() == 0) printf("PARSING\n");
+	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT\n");
+
 
 	// k+2 mer types
 	using K2merToEdge = ::bliss::debruijn::k2mer_to_edge<KmerType>;
@@ -672,7 +827,7 @@ template <typename Index>
 		  idx.template parse_file_data<FileParser, ::bliss::debruijn::PaddedKmerParser<K2merType>>(x, temp, comm);
 
 			// filter temp by k1mer
-			auto selected = select_k2mers_by_edge_frequency(temp, counter, comm);
+			auto selected = select_k2mers_by_edge_frequency_2(temp, counter, comm);
 			filter_k2mers(selected, temp, comm);
 
 			// save the selected edges
@@ -682,11 +837,12 @@ template <typename Index>
 			nodes.clear();
 			::std::transform(temp.begin(), temp.end(), emplacer, trans);
 			//printf("temp 1 size: %ld  nodes %ld\n", temp.size(), nodes.size());
+			size_t node_size = nodes.size();
 			idx.insert(nodes);
-
+//			std::cout << "rank " << comm.rank() << " input size " << node_size << " idx size " << idx.local_size() << " buckets " << idx.get_map().get_local_container().bucket_count() << std::endl;
 		}
 	}
-	BL_BENCH_COLLECTIVE_END(build, "insert", idx.local_size(), comm);
+	BL_BENCH_COLLECTIVE_END(build, "filtered_insert", idx.local_size(), comm);
 
 
 	// because of the filtering, we may have edges pointing to non-existent nodes.  we create these nodes here
@@ -694,9 +850,11 @@ template <typename Index>
 	// out edges.
 
 	size_t total = idx.size();
-	if (comm.rank() == 0) printf("total size after insert/rehash is %lu\n", total);
+	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT: total size after insert/rehash is %lu\n", total);
 
-	BL_BENCH_REPORT_MPI_NAMED(build, "filtered_insert", comm);
+
+
+	BL_BENCH_REPORT_MPI_NAMED(build, "filtered_construct", comm);
 
 	return results;
 }
@@ -1319,6 +1477,51 @@ void print_branch_edge_frequencies(
 
 }
 
+void print_branch_fasta(
+    std::string const & filename,
+    CountDBGType const & idx2,
+    mxx::comm const & comm) {
+
+  if (comm.rank() == 0) printf("PRINT BRANCH KMERS\n");
+  BL_BENCH_INIT(branch_print);
+
+  // then find branches.
+  BL_BENCH_START(branch_print);
+  std::vector<typename CountDBGType::TupleType> branch_pts =
+      idx2.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
+  BL_BENCH_COLLECTIVE_END(branch_print, "get_branch_counts", branch_pts.size(), comm);
+
+  // sort the branches
+  int has_data = (branch_pts.size() == 0) ? 0 : 1;
+  int all_has_data = mxx::allreduce(has_data, comm);
+  if (all_has_data > 0) {
+    // global sort
+    BL_BENCH_START(branch_print);
+    mxx::comm subcomm = (all_has_data == comm.size()) ? comm.copy() : comm.split(has_data);
+    if (has_data == 1) {
+      mxx::sort(branch_pts.begin(), branch_pts.end(), [](typename CountDBGType::TupleType const & x,
+          typename CountDBGType::TupleType const & y){
+        return x.first < y.first;
+      }, subcomm);
+    }
+    BL_BENCH_COLLECTIVE_END(branch_print, "psort branches", branch_pts.size(), comm);   // this is for ordered output.
+  }
+
+  // and print.
+  BL_BENCH_START(branch_print);
+
+  std::stringstream ss;
+  ss.clear();
+  std::for_each(branch_pts.begin(), branch_pts.end(),
+      ::bliss::debruijn::operation::graph::print_graph_node_fasta<KmerType>(ss));
+  write_mpiio(filename, ss.str().c_str(), ss.str().length(), comm);
+
+  BL_BENCH_COLLECTIVE_END(branch_print, "print branches (6)", branch_pts.size(), comm);
+
+  BL_BENCH_REPORT_MPI_NAMED(branch_print, "branch_print", comm);
+
+}
+
 /// printsthe first and last valid k-mer positions in each read.
 /// this is for rahul's distance constraints, no no
 template <typename FP = FileParser<typename ::bliss::io::file_data::container::const_iterator>, typename Index,
@@ -1376,9 +1579,13 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 	BL_BENCH_START(valid_print);
 	// for all k_mers, check existence.  use the node's kmers.  put into a local count map
 	{
-		counter.reset();
+		counter.clear();
 		auto results = idx.count(kmers);
+//		std::cout << "rank " << comm.rank() << " result size " << results.size() << " reserved " << results.capacity() << std::endl;
+		counter.resize(results.size());
+//    std::cout << "rank " << comm.rank() << " before insert counter size " << counter.size() << " bucket count " << counter.bucket_count() <<  std::endl;
 		counter.insert(results);
+//		std::cout << "rank " << comm.rank() << " after insert counter size " << counter.size() << " bucket count " << counter.bucket_count() << 	std::endl;
 	}
 	BL_BENCH_COLLECTIVE_END(valid_print, "local count", counter.size(), comm);
 
@@ -1975,6 +2182,8 @@ int main(int argc, char** argv) {
 	std::string branch_filename(out_prefix);
 	branch_filename.append("_branch.edges");
 
+  std::string branch_fasta_filename(out_prefix);
+  branch_fasta_filename.append("_branch.fasta");
 
 
 	// ================  read and get file
@@ -1996,7 +2205,7 @@ int main(int argc, char** argv) {
 		} else {
 			build_index(file_data, idx, comm);
 		}
-		BL_BENCH_COLLECTIVE_END(app, "dbg", idx.local_size(), comm);
+		BL_BENCH_COLLECTIVE_END(app, "construct", idx.local_size(), comm);
 
 		BL_BENCH_START(app);
 		print_edge_histogram(idx, comm);
@@ -2050,6 +2259,10 @@ int main(int argc, char** argv) {
 			BL_BENCH_START(app);
 			print_branch_edge_frequencies(branch_filename, idx2, comm);
 			BL_BENCH_COLLECTIVE_END(app, "print branch", idx2.local_size(), comm);
+
+			BL_BENCH_START(app);
+      print_branch_fasta(branch_fasta_filename, idx2, comm);
+      BL_BENCH_COLLECTIVE_END(app, "print branch fasta", idx2.local_size(), comm);
 		}  // enforce delete idx2.
 
 		// ==== make chain map

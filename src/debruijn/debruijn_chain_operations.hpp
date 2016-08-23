@@ -283,8 +283,8 @@ namespace bliss {
 // debug              //else printf("\n%d %c", std::get<1>(x), KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
 
                 if (std::get<2>(x) == 0) {
-                	//bliss::debruijn::lex_less<KMER> canonical;
-                	os << std::endl << ">" << //bliss::utils::KmerUtils::toASCIIString(canonical(std::get<0>(x))) <<
+                	bliss::debruijn::lex_less<KMER> canonical;
+                	os << std::endl << ">" << bliss::utils::KmerUtils::toASCIIString(canonical(std::get<0>(x))) <<
                     		std::endl << bliss::utils::KmerUtils::toASCIIString(std::get<1>(x));
                 }
                 else {

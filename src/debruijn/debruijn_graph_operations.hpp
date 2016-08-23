@@ -77,7 +77,18 @@ namespace bliss {
             }
         };
 
+        template <typename KMER>
+        struct print_graph_node_fasta {
+          std::ostream & os;
 
+          print_graph_node_fasta(std::ostream & _os) : os(_os) {};
+
+          template <typename Alphabet, typename CountType, typename DUMMY>
+            inline void operator()(std::pair<KMER, ::bliss::debruijn::graph::compact_multi_biedge<Alphabet, CountType, DUMMY> > const & x) {
+              os << ">" << bliss::utils::KmerUtils::toASCIIString(x.first) << std::endl;
+              os << bliss::utils::KmerUtils::toASCIIString(x.first) << std::endl;
+            }
+        };
 
       } // namespace graph
 
