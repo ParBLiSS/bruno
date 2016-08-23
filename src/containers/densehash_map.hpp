@@ -467,6 +467,12 @@ protected:
     	splitter.upper_bound = specials.get_splitter();
 
     	//printf("using densehash_map split map\n");
+
+    	lower_map.max_load_factor(0.7);
+      upper_map.max_load_factor(0.7);
+      lower_map.min_load_factor(0.3);
+      upper_map.min_load_factor(0.3);
+
     };
 
     template<class InputIt>
@@ -570,9 +576,8 @@ protected:
     }
 
     void resize(size_t const n) {
-      lower_map.resize(static_cast<float>(n) / 2.0 / lower_map.max_load_factor() );
-      upper_map.resize(static_cast<float>(n) / 2.0 / upper_map.max_load_factor() );
-
+      lower_map.resize(static_cast<float>(n) / 2.0 );
+      upper_map.resize(static_cast<float>(n) / 2.0 );
     }
 
     /// rehash for new count number of BUCKETS.  iterators are invalidated.
@@ -581,7 +586,11 @@ protected:
     }
 
     /// bucket count.  same as underlying buckets
-    size_type bucket_count() { return lower_map.bucket_count() + upper_map.bucket_count(); }
+    size_type bucket_count() {
+//      std::cout << " dense hash map - split " << std::endl;
+
+      return lower_map.bucket_count() + upper_map.bucket_count();
+    }
 
     /// max load factor.  this is the map's max load factor (vectors per bucket) x multiplicity = elements per bucket.  side effect is multiplicity is updated.
     float load_factor() {
@@ -597,19 +606,19 @@ protected:
     	// not doing partitioning, because InputIt may not be writable.
 //        InputIt middle = partition_input(first, last);
 //
-//        lower_map.resize(static_cast<float>(lower_map.size() + ::std::distance(first, middle)) / lower_map.max_load_factor() ) ;
+//        lower_map.resize(static_cast<float>(lower_map.size() + ::std::distance(first, middle)) ) ;
 //        lower_map.insert(first, middle);
 //
-//        upper_map.resize(static_cast<float>(upper_map.size() + ::std::distance(middle, last)) / upper_map.max_load_factor()) ;
+//        upper_map.resize(static_cast<float>(upper_map.size() + ::std::distance(middle, last)) ) ;
 //        upper_map.insert(middle, last);
 
-
-    	size_t count = ::std::count_if(first, last, splitter);
-    	lower_map.resize(static_cast<float>(lower_map.size() + count) / lower_map.max_load_factor() ) ;
-    	upper_map.resize(static_cast<float>(upper_map.size() + (std::distance(first, last) - count)) / upper_map.max_load_factor() ) ;
+    	// resizing ahead of time can potentially waste a lot of space.
+//    	size_t count = ::std::count_if(first, last, splitter);
+//    	lower_map.resize(static_cast<float>(lower_map.size() + count) ) ;
+//    	upper_map.resize(static_cast<float>(upper_map.size() + (std::distance(first, last) - count)) ) ;
 
     	for (auto it = first; it != last; ++it) {
-    		this->insert(*it);
+    		static_cast<void>(this->insert(*it));
     	}
 
     }
@@ -929,6 +938,8 @@ class densehash_map<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator, fals
 		map.set_deleted_key(specials.generate(1));
 
 		//printf("using densehash_map single map\n");
+    map.max_load_factor(0.7);
+    map.min_load_factor(0.3);
 
 		};
 
@@ -1015,7 +1026,7 @@ class densehash_map<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator, fals
     }
 
     void resize(size_t const n) {
-      map.resize(static_cast<float>(n) / map.max_load_factor());
+      map.resize(static_cast<float>(n));
     }
 
     /// rehash for new count number of BUCKETS.  iterators are invalidated.
@@ -1024,7 +1035,10 @@ class densehash_map<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator, fals
     }
 
     /// bucket count.  same as underlying buckets
-    size_type bucket_count() { return map.bucket_count(); }
+    size_type bucket_count() {
+//      std::cout << " dense hash map - single " << map.bucket_count() << " max/min load factors " << map.max_load_factor() << "/" << map.min_load_factor() << std::endl;
+      return map.bucket_count();
+    }
 
     /// max load factor.  this is the map's max load factor (vectors per bucket) x multiplicity = elements per bucket.  side effect is multiplicity is updated.
     float load_factor() {
@@ -1040,7 +1054,8 @@ class densehash_map<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator, fals
     // choices:  sort first, then insert in ranges, or no sort, insert one by one.  second is O(n) but pays the random access and mem realloc cost
     template <class InputIt>
     void insert(InputIt first, InputIt last) {
-      this->resize(map.size() + std::distance(first, last));
+    	// this could waste a lot of space
+    	// this->resize(map.size() + std::distance(first, last));
 
       map.insert(first, last);
     }
@@ -1671,6 +1686,11 @@ class densehash_multimap {
     	splitter.upper_bound = specials.get_splitter();
 
 //    	printf("using densehash_multimap split map\n");
+      lower_map.max_load_factor(0.7);
+      upper_map.max_load_factor(0.7);
+      lower_map.min_load_factor(0.3);
+      upper_map.min_load_factor(0.3);
+
     };
 
     template<class InputIt>
@@ -1773,8 +1793,9 @@ class densehash_multimap {
     }
 
     void resize(size_t const n) {
-      lower_map.resize(static_cast<float>(n) / 2.0 / lower_map.max_load_factor());
-      upper_map.resize(static_cast<float>(n) / 2.0 / lower_map.max_load_factor());
+      // densehash map resize takes into account the max_load_factor.
+      lower_map.resize(static_cast<float>(n) / 2.0);
+      upper_map.resize(static_cast<float>(n) / 2.0);
     }
 
     void rehash(size_type count) {
@@ -1782,10 +1803,13 @@ class densehash_multimap {
     }
 
     /// bucket count.  same as underlying buckets
-    size_type bucket_count() { return lower_map.bucket_count() + upper_map.bucket_count(); }
+    size_type bucket_count() {
+//      std::cout << " dense hash multimap - split " << std::endl;
+      return lower_map.bucket_count() + upper_map.bucket_count();
+    }
 
     /// max load factor.  this is the map's max load factor (vectors per bucket) x multiplicity = elements per bucket.  side effect is multiplicity is updated.
-    float max_load_factor() {
+    float load_factor() {
       return static_cast<float>(size()) / static_cast<float>(bucket_count());
     }
 
@@ -1804,15 +1828,17 @@ class densehash_multimap {
 
 //        auto middle = partition_input(first, last);
 //
-//        lower_map.resize(static_cast<float>(lower_map.size() + std::distance(first, middle)) / lower_map.max_load_factor());
+//        lower_map.resize(static_cast<float>(lower_map.size() + std::distance(first, middle)) );
 //        insert_impl(first, middle, lower_map);
-//        upper_map.resize(static_cast<float>(upper_map.size() + std::distance(middle, last)) / upper_map.max_load_factor());
+//        upper_map.resize(static_cast<float>(upper_map.size() + std::distance(middle, last)) );
 //        insert_impl(middle, last, upper_map);
 
-        // TODO: compact
+        // TODO: compact.
+
+        // multimap resize is okay.
     	size_t count = ::std::count_if(first, last, splitter);
-    	lower_map.resize(static_cast<float>(lower_map.size() + count) / lower_map.max_load_factor() ) ;
-    	upper_map.resize(static_cast<float>(upper_map.size() + (std::distance(first, last) - count)) / upper_map.max_load_factor() ) ;
+    	lower_map.resize(static_cast<float>(lower_map.size() + count) ) ;
+    	upper_map.resize(static_cast<float>(upper_map.size() + (std::distance(first, last) - count)) ) ;
 
     	for (auto it = first; it != last; ++it) {
     		if (splitter((*it).first)) this->insert1_impl(*it, lower_map);
@@ -1855,7 +1881,6 @@ class densehash_multimap {
                     "InputIt value type for erase cannot be converted to key type");
 
       if (first == last) return 0;
-
 
       size_t before = s;
 
@@ -1987,6 +2012,10 @@ class densehash_multimap<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator,
 		map.set_empty_key(specials.generate(0));
 		map.set_deleted_key(specials.generate(1));
     	//printf("using densehash_multimap single map\n");
+
+    map.max_load_factor(0.7);
+    map.min_load_factor(0.3);
+
 	};
 
     template<class InputIt>
@@ -2072,7 +2101,7 @@ class densehash_multimap<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator,
     }
 
     void resize(size_t const n) {
-      map.resize(static_cast<float>(n) / map.max_load_factor());
+      map.resize(static_cast<float>(n) );
     }
 
     void rehash(size_type count) {
@@ -2080,10 +2109,14 @@ class densehash_multimap<Key, T, SpecialKeys, Transform, Hash, Equal, Allocator,
     }
 
     /// bucket count.  same as underlying buckets
-    size_type bucket_count() { return map.bucket_count(); }
+    size_type bucket_count() {
+//      std::cout << " dense hash multimap - single " << std::endl;
+
+      return map.bucket_count();
+    }
 
     /// max load factor.  this is the map's max load factor (vectors per bucket) x multiplicity = elements per bucket.  side effect is multiplicity is updated.
-    float max_load_factor() {
+    float load_factor() {
       return static_cast<float>(map.size()) / static_cast<float>(map.bucket_count());
     }
 
