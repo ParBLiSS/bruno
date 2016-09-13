@@ -30,17 +30,19 @@
 #include <tuple>        // tuple and utility functions
 
 #include "common/alphabets.hpp"
+#include "common/kmer.hpp"
 
 namespace bliss
 {
   namespace debruijn
   {
     // data type for debruijn graph chain compaction
-    // first Kmer is in edge, second Kmer is out edge.  int is distance from end node.
+    // first Kmer is in edge, second Kmer is out edge.  int is distance from end nodes.
     // 0 means that this node is a terminus.  negative numbers indicate that the edge is pointing to a terminus
     // used with Kmer key in a map, to mean in-Kmer-out bi edge.
     template <typename KMER>
     using simple_biedge = ::std::tuple<KMER, KMER, int, int>;
+    //static_assert(sizeof(simple_biedge<::bliss::common::Kmer<31, ::bliss::common::DNA> >) == sizeof(::bliss::common::Kmer<31, ::bliss::common::DNA>) * 2 + 2 * sizeof(int), "size of simple biedge is not what's expected");
 
 
     namespace chain
@@ -58,7 +60,7 @@ namespace bliss
       template <typename KMER>
       using compacted_chain_node = ::std::tuple<KMER, KMER, int>;
 
-
+      //static_assert(sizeof(compacted_chain_node<::bliss::common::Kmer<31, ::bliss::common::DNA> >) == sizeof(::bliss::common::Kmer<31, ::bliss::common::DNA>) * 2 + sizeof(int), "size of compacted chain node is not what's expected");
     }/*namespace chain*/
 
 

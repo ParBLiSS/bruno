@@ -840,6 +840,7 @@ template <typename Index>
 			// transform and insert.
 			nodes.clear();
 			::std::transform(temp.begin(), temp.end(), emplacer, trans);
+			std::cout << "rank " << comm.rank() << " temp size " << temp.size() << " nodes " << nodes.size() << std::endl;
 			//printf("temp 1 size: %ld  nodes %ld\n", temp.size(), nodes.size());
 //			size_t node_size = nodes.size();
 			idx.insert(nodes);
@@ -1734,6 +1735,66 @@ void print_chain_string(std::string const & filename,
 
 }
 
+void print_chain_string_2(std::string const & filename,
+    CompactedChainVecType & compacted_chain,
+    mxx::comm const & comm) {
+  // ========== construct new graph with compacted chains and junction nodes.
+  BL_BENCH_INIT(print_chain_string);
+
+  if (comm.rank() == 0) printf("PRINT CHAIN String\n");
+
+  int has_data = (compacted_chain.size() == 0) ? 0 : 1;
+  int all_has_data = mxx::allreduce(has_data, comm);
+  if (all_has_data > 0) {
+    // global sort
+    BL_BENCH_START(print_chain_string);
+
+    // first distribute the data
+    bool sorted = false;
+    std::vector<size_t> recv_counts =
+        ::dsc::distribute(compacted_chain,
+                          ::bliss::debruijn::operation::chain::chain_node_to_rank<::bliss::debruijn::CanonicalDeBruijnHashMapParams, KmerType>(comm.size()),
+                           sorted, comm);
+    BL_BENCH_COLLECTIVE_END(print_chain_string, "distribute nodes", compacted_chain.size(), comm);  // this is for output ordering.
+
+
+    BL_BENCH_START(print_chain_string);
+    // next sort the data by terminus kmer and position
+    ::std::sort(compacted_chain.begin(), compacted_chain.end(), ::bliss::debruijn::operation::chain::chain_rep_less<KmerType>());
+    BL_BENCH_COLLECTIVE_END(print_chain_string, "sort lmer nodes", compacted_chain.size(), comm);   // this is for constructing the chains
+
+
+    // print out.
+    BL_BENCH_START(print_chain_string);
+    std::cout << "rank " << comm.rank() << " printing " << std::endl << std::flush;
+  }
+
+  std::stringstream ss;
+  std::for_each(compacted_chain.begin(), compacted_chain.end(), ::bliss::debruijn::operation::chain::print_chain<KmerType>(ss));
+
+  has_data = (ss.str().length() > 0) ? 1 : 0;
+  all_has_data = mxx::allreduce(has_data, comm);
+  if (all_has_data > 0) {
+    mxx::comm subcomm = (all_has_data == comm.size()) ? comm.copy() : comm.split(has_data);
+    // above will produce an extra newline character at the beginning of the first.  below special cases it to not print that character
+    if (has_data == 1) {
+      if (subcomm.rank() == 0) {
+
+        write_mpiio(filename, ss.str().c_str() + 1, ss.str().length() - 1, subcomm);
+      } else {
+        write_mpiio(filename, ss.str().c_str(), ss.str().length(), subcomm);
+      }
+    }
+    BL_BENCH_COLLECTIVE_END(print_chain_string, "print chain string (3a)", compacted_chain.size(), comm);
+  }
+
+
+  BL_BENCH_REPORT_MPI_NAMED(print_chain_string, "convert_chain", comm);
+
+}
+
+
+
 void print_chain_nodes(std::string const & filename,
 		CompactedChainVecType & compacted_chain,
 		mxx::comm const & comm) {
@@ -1750,6 +1811,7 @@ void print_chain_nodes(std::string const & filename,
 		BL_BENCH_START(print_chain_nodes);
 		mxx::comm subcomm = (all_has_data == comm.size()) ? comm.copy() : comm.split(has_data);
 		if (has_data == 1) {
+		  // sort by node's kmer (not the chain rep and position, since we need to have sorted k-mers.
 			mxx::sort(compacted_chain.begin(), compacted_chain.end(), ::bliss::debruijn::operation::chain::chain_node_less<KmerType>(), subcomm);
 		}
 		BL_BENCH_COLLECTIVE_END(print_chain_nodes, "psort kmer", compacted_chain.size(), comm);  // this is for output ordering.
@@ -1769,6 +1831,7 @@ void print_chain_nodes(std::string const & filename,
 	BL_BENCH_REPORT_MPI_NAMED(print_chain_nodes, "convert_chain", comm);
 
 }
+
 
 /// count kmers in chains.  compacted chain should have same distribution as would be for count index.
 void count_kmers(::std::vector<::bliss::io::file_data> const & file_data,
@@ -2222,11 +2285,13 @@ int main(int argc, char** argv) {
 		BL_BENCH_START(app);
 		DBGType idx(comm);
 //		if ((lower > 1) || (upper < std::numeric_limits<CountType>::max())) {
-#if (pPARSER == FASTQ)
 		if (thresholding) {
+#if (pPARSER == FASTQ)  // FASTA does not support thresholded index build because fasta reader is not yet handling overlaps correctly when dealing with k+2-mers.
 			selected_edges = build_index_thresholded(file_data, idx, lower, upper, comm);
-		} else
+#else
+			if (comm.rank() == 0) printf("ERROR: FASTA files does not yet support pre-filter by frequency.\n");
 #endif
+		} else
 			build_index(file_data, idx, comm);
 
 		BL_BENCH_COLLECTIVE_END(app, "construct", idx.local_size(), comm);
@@ -2347,7 +2412,7 @@ int main(int argc, char** argv) {
 
 		// now print chain string - order is destroyed via psort.
 		BL_BENCH_START(app);
-		print_chain_string(compacted_chain_str_filename, compacted_chain, comm);
+		print_chain_string_2(compacted_chain_str_filename, compacted_chain, comm);
 		BL_BENCH_COLLECTIVE_END(app, "chain_str", compacted_chain.size(), comm);
 
 		BL_BENCH_START(app);
@@ -2375,7 +2440,7 @@ int main(int argc, char** argv) {
 
 	BL_BENCH_START(app);
 	print_chain_frequencies(compacted_chain_ends_filename, chain_rep, idx2, freq_map, comm);
-	BL_BENCH_COLLECTIVE_END(app, "print_chain_freq (2)", chain_rep.size(), comm);
+	BL_BENCH_COLLECTIVE_END(app, "print_chain_freq", chain_rep.size(), comm);
 
 	BL_BENCH_REPORT_MPI_NAMED(app, "app", comm);
 

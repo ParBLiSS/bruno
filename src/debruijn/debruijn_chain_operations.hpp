@@ -251,6 +251,24 @@ namespace bliss {
             }
         };
 
+        template <template <typename> class HASHMAP_PARAM, typename KMER>
+        struct chain_node_to_rank {
+            typename HASHMAP_PARAM<KMER>::DistributionTransformedFunction hash;
+            const int p;
+
+            // 2x comm size to allow more even distribution?
+            chain_node_to_rank(int comm_size) :
+              hash(typename HASHMAP_PARAM<KMER>::template DistFunction<KMER>(ceilLog2(comm_size)),
+                              typename HASHMAP_PARAM<KMER>::template DistTransform<KMER>()),
+                  p(comm_size) {};
+
+            inline int operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x) const {
+              //            printf("KeyToRank operator. commsize %d  key.  hashed to %d, mapped to proc %d \n", p, proc_hash(Base::trans(x)), proc_hash(Base::trans(x)) % p);
+              return hash(std::get<1>(x)) % p;
+            }
+        };
+
+
         template <typename KMER>
         struct chain_rep_less {
             inline bool operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x,

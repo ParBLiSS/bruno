@@ -43,6 +43,15 @@ diff tmp/q1/u_chain.fasta ~/src/bliss/test/data/test.unitiqs.fasta
 echo "COMPARE TO 1 proc, high mem, fastq"
 echo "COMPARE TO 1 proc, low mem, filtered, fastq"
 
+sed -n 0~2p tmp/q1/s2_chain.fasta | sort > s2_chains.sorted.txt
+sed -n 0~2p tmp/q1/s_chain.fasta | sort > s_chains.sorted.txt
+sed -n 0~2p tmp/q1/u_chain.fasta | sort > u_chains.sorted.txt
+sed -n 0~2p tmp/q1/t_chain.fasta | sort > t_chains.sorted.txt
+
+sed -n 0~2p tmp/tl2q1/s2_chain.fasta | sort > tl2_s2_chains.sorted.txt
+sed -n 0~2p tmp/tl2q1/s_chain.fasta | sort > tl2_s_chains.sorted.txt
+
+
 for i in 1 2 4 8 16
 do
 	for s in 'a' 'q'
@@ -51,15 +60,47 @@ do
 		diff tmp/q1 tmp/${s}${i}
 		
 		echo "compare l${s}${i}"
-		diff -x "*_branch.fasta" tmp/q1 tmp/l${s}${i}
+		diff -x "*.fasta" tmp/q1 tmp/l${s}${i}
+
+		sed -n 0~2p tmp/l${s}${i}/s2_chain.fasta | sort > s2sorted.txt
+		diff s2_chains.sorted.txt s2sorted.txt
+
+		sed -n 0~2p tmp/l${s}${i}/s_chain.fasta | sort > ssorted.txt
+		diff s_chains.sorted.txt ssorted.txt
+
+		sed -n 0~2p tmp/l${s}${i}/u_chain.fasta | sort > usorted.txt
+		diff u_chains.sorted.txt usorted.txt
+
+		sed -n 0~2p tmp/l${s}${i}/t_chain.fasta | sort > tsorted.txt
+		diff t_chains.sorted.txt tsorted.txt
+
 		
 	done
 
 	echo "compare tl1q${i}"
-	diff -x "*.valid" -x "*_branch.fasta" tmp/q1 tmp/tl1q${i}
+	diff -x "*.valid" -x "*.fasta" tmp/q1 tmp/tl1q${i}
+
+	sed -n 0~2p tmp/tl1q${i}/s2_chain.fasta | sort > s2sorted.txt
+	diff s2_chains.sorted.txt s2sorted.txt
+
+	sed -n 0~2p tmp/tl1q${i}/s_chain.fasta | sort > ssorted.txt
+	diff s_chains.sorted.txt ssorted.txt
+
+	sed -n 0~2p tmp/tl1q${i}/u_chain.fasta | sort > usorted.txt
+	diff u_chains.sorted.txt usorted.txt
+
+	sed -n 0~2p tmp/tl1q${i}/t_chain.fasta | sort > tsorted.txt
+	diff t_chains.sorted.txt tsorted.txt
+
 
 	echo "compare tl2q${i}"
-	diff tmp/tl2q1 tmp/tl2q${i}
+	diff -x "*_chain.fasta" tmp/tl2q1 tmp/tl2q${i}
+
+	sed -n 0~2p tmp/tl2q${i}/s2_chain.fasta | sort > s2sorted.txt
+	diff tl2_s2_chains.sorted.txt s2sorted.txt
+
+	sed -n 0~2p tmp/tl2q${i}/s_chain.fasta | sort > ssorted.txt
+	diff tl2_s_chains.sorted.txt ssorted.txt
 
 
 done
