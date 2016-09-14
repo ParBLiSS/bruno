@@ -200,9 +200,9 @@ namespace bliss {
 
 
         template <typename KMER>
-        struct to_compacted_chain_node {
+        struct to_listranked_chain_node {
             // convert a chain node to a compacted node (for print out).
-            inline ::bliss::debruijn::chain::compacted_chain_node<KMER> operator()(::std::pair<KMER, ::bliss::debruijn::simple_biedge<KMER> > const & x) const {
+            inline ::bliss::debruijn::chain::listranked_chain_node<KMER> operator()(::std::pair<KMER, ::bliss::debruijn::simple_biedge<KMER> > const & x) const {
 
             	// APPROACH:
             	// 1. choose an endpoint.  compare the 2 end points and choose the smaller.
@@ -247,22 +247,22 @@ namespace bliss {
 
               // we choose the representative at 5' end, and the k-mer on the same strand.
               // we can determine the strand relative to canonical of K later.
-              return ::bliss::debruijn::chain::compacted_chain_node<KMER>(K, sense ? L : R, dist);
+              return ::bliss::debruijn::chain::listranked_chain_node<KMER>(K, sense ? L : R, dist);
             }
         };
 
         template <template <typename> class HASHMAP_PARAM, typename KMER>
-        struct chain_node_to_rank {
+        struct chain_node_to_proc {
             typename HASHMAP_PARAM<KMER>::DistributionTransformedFunction hash;
             const int p;
 
             // 2x comm size to allow more even distribution?
-            chain_node_to_rank(int comm_size) :
+            chain_node_to_proc(int comm_size) :
               hash(typename HASHMAP_PARAM<KMER>::template DistFunction<KMER>(ceilLog2(comm_size)),
                               typename HASHMAP_PARAM<KMER>::template DistTransform<KMER>()),
                   p(comm_size) {};
 
-            inline int operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x) const {
+            inline int operator()(::bliss::debruijn::chain::listranked_chain_node<KMER> const & x) const {
               //            printf("KeyToRank operator. commsize %d  key.  hashed to %d, mapped to proc %d \n", p, proc_hash(Base::trans(x)), proc_hash(Base::trans(x)) % p);
               return hash(std::get<1>(x)) % p;
             }
@@ -271,8 +271,8 @@ namespace bliss {
 
         template <typename KMER>
         struct chain_rep_less {
-            inline bool operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x,
-            		::bliss::debruijn::chain::compacted_chain_node<KMER> const & y) {
+            inline bool operator()(::bliss::debruijn::chain::listranked_chain_node<KMER> const & x,
+            		::bliss::debruijn::chain::listranked_chain_node<KMER> const & y) {
               int8_t cmp = std::get<1>(x).compare(std::get<1>(y));
               return (cmp < 0) ? true :
                   ((cmp == 0) ? (abs(std::get<2>(x)) < abs(std::get<2>(y))) : false);
@@ -281,29 +281,32 @@ namespace bliss {
 
         template <typename KMER>
         struct chain_node_less {
-            inline bool operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x,
-            		::bliss::debruijn::chain::compacted_chain_node<KMER> const & y) {
+            inline bool operator()(::bliss::debruijn::chain::listranked_chain_node<KMER> const & x,
+            		::bliss::debruijn::chain::listranked_chain_node<KMER> const & y) {
               return std::get<0>(x).compare(std::get<0>(y)) < 0;
             }
         };
 
 
         template <typename KMER>
-        struct print_chain {
+        struct print_chain_as_fasta {
         	std::ostream & os;
+        	bool const chain_only;
 
-        	print_chain(std::ostream & _os) : os(_os) {};
+        	print_chain_as_fasta(std::ostream & _os, bool const _chain_only = false) : os(_os), chain_only(_chain_only) {};
 
 
-            inline void operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x) {
+            inline void operator()(::bliss::debruijn::chain::listranked_chain_node<KMER> const & x) {
 //              if (std::get<1>(x) == 0) printf("\n[CHAIN] %s", bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)).c_str());
 //              else printf("%c", KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
 // debug              //else printf("\n%d %c", std::get<1>(x), KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
 
                 if (std::get<2>(x) == 0) {
-                	bliss::debruijn::lex_less<KMER> canonical;
-                	os << std::endl << ">" << bliss::utils::KmerUtils::toASCIIString(canonical(std::get<0>(x))) <<
-                    		std::endl << bliss::utils::KmerUtils::toASCIIString(std::get<1>(x));
+                	if (!chain_only) {
+                	  bliss::debruijn::lex_less<KMER> canonical;
+                	  os << std::endl << ">" << bliss::utils::KmerUtils::toASCIIString(canonical(std::get<0>(x))) << std::endl;
+                	}
+                	os << bliss::utils::KmerUtils::toASCIIString(std::get<1>(x));
                 }
                 else {
 //                   //  recall that left and right are on same strand as kmer.
@@ -311,7 +314,7 @@ namespace bliss {
 //                   //     if we have antisense (R/OUT), we want the complement of first char from the kmer as the next
 //                	char ch = (std::get<2>(x) > 0) ?
 //                		(std::get<0>(x).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1)) :
-//						KMER::KmerAlphabet::TO_COMPLEMENT[(std::get<0>(x) >> (KMER::size - 1)).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1)];
+//						        KMER::KmerAlphabet::TO_COMPLEMENT[(std::get<0>(x) >> (KMER::size - 1)).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1)];
 
                 	// we've already put the kmer on the same strand as the chain rep.
                 	char ch = std::get<0>(x).getData()[0] & ((0x1 << KMER::bitsPerChar) - 1);
@@ -327,7 +330,7 @@ namespace bliss {
           debug_print_chain(std::ostream & _os) : os(_os) {};
 
 
-            inline void operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x) {
+            inline void operator()(::bliss::debruijn::chain::listranked_chain_node<KMER> const & x) {
 //              if (std::get<1>(x) == 0) printf("\n[CHAIN] %s", bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)).c_str());
 //              else printf("%c", KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
 // debug              //else printf("\n%d %c", std::get<1>(x), KMER::KmerAlphabet::TO_ASCII[std::get<2>(x)]);
@@ -368,7 +371,7 @@ namespace bliss {
         	print_chain_node(std::ostream & _os) : os(_os) {};
 
 
-            inline void operator()(::bliss::debruijn::chain::compacted_chain_node<KMER> const & x) {
+            inline void operator()(::bliss::debruijn::chain::listranked_chain_node<KMER> const & x) {
             	KMER canon = canonical(std::get<0>(x));
 
             	os << bliss::utils::KmerUtils::toASCIIString(canon) << "\t" <<

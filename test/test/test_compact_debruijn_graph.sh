@@ -60,47 +60,67 @@ do
 		diff tmp/q1 tmp/${s}${i}
 		
 		echo "compare l${s}${i}"
-		diff -x "*.fasta" tmp/q1 tmp/l${s}${i}
+		diff -x "*.fasta" -x "*.debug" tmp/q1 tmp/l${s}${i}
 
 		sed -n 0~2p tmp/l${s}${i}/s2_chain.fasta | sort > s2sorted.txt
 		diff s2_chains.sorted.txt s2sorted.txt
+		sort tmp/l${s}${i}/s2_compressed_chain.debug > s2sortedc.txt
+		diff s2_chains.sorted.txt s2sortedc.txt
 
 		sed -n 0~2p tmp/l${s}${i}/s_chain.fasta | sort > ssorted.txt
 		diff s_chains.sorted.txt ssorted.txt
+		sort tmp/l${s}${i}/s_compressed_chain.debug > ssortedc.txt
+		diff s_chains.sorted.txt ssortedc.txt
 
 		sed -n 0~2p tmp/l${s}${i}/u_chain.fasta | sort > usorted.txt
 		diff u_chains.sorted.txt usorted.txt
+		sort tmp/l${s}${i}/u_compressed_chain.debug > usortedc.txt
+		diff u_chains.sorted.txt usortedc.txt
 
 		sed -n 0~2p tmp/l${s}${i}/t_chain.fasta | sort > tsorted.txt
 		diff t_chains.sorted.txt tsorted.txt
+		sort tmp/l${s}${i}/t_compressed_chain.debug > tsortedc.txt
+		diff t_chains.sorted.txt tsortedc.txt
 
 		
 	done
 
 	echo "compare tl1q${i}"
-	diff -x "*.valid" -x "*.fasta" tmp/q1 tmp/tl1q${i}
+	diff -x "*.valid" -x "*.fasta" -x "*.debug" tmp/q1 tmp/tl1q${i}
 
 	sed -n 0~2p tmp/tl1q${i}/s2_chain.fasta | sort > s2sorted.txt
 	diff s2_chains.sorted.txt s2sorted.txt
+		sort tmp/tl1q${i}/s2_compressed_chain.debug > s2sortedc.txt
+		diff s2_chains.sorted.txt s2sortedc.txt
 
 	sed -n 0~2p tmp/tl1q${i}/s_chain.fasta | sort > ssorted.txt
 	diff s_chains.sorted.txt ssorted.txt
+		sort tmp/tl1q${i}/s_compressed_chain.debug > ssortedc.txt
+		diff s_chains.sorted.txt ssortedc.txt
 
 	sed -n 0~2p tmp/tl1q${i}/u_chain.fasta | sort > usorted.txt
 	diff u_chains.sorted.txt usorted.txt
+		sort tmp/tl1q${i}/u_compressed_chain.debug > usortedc.txt
+		diff u_chains.sorted.txt usortedc.txt
 
 	sed -n 0~2p tmp/tl1q${i}/t_chain.fasta | sort > tsorted.txt
 	diff t_chains.sorted.txt tsorted.txt
+		sort tmp/tl1q${i}/t_compressed_chain.debug > tsortedc.txt
+		diff t_chains.sorted.txt tsortedc.txt
 
 
 	echo "compare tl2q${i}"
-	diff -x "*_chain.fasta" tmp/tl2q1 tmp/tl2q${i}
+	diff -x "*_chain.fasta" -x "*.debug" tmp/tl2q1 tmp/tl2q${i}
 
 	sed -n 0~2p tmp/tl2q${i}/s2_chain.fasta | sort > s2sorted.txt
 	diff tl2_s2_chains.sorted.txt s2sorted.txt
+		sort tmp/tl2q${i}/s2_compressed_chain.debug > s2sortedc.txt
+		diff tl2_s2_chains.sorted.txt s2sortedc.txt
 
 	sed -n 0~2p tmp/tl2q${i}/s_chain.fasta | sort > ssorted.txt
 	diff tl2_s_chains.sorted.txt ssorted.txt
+		sort tmp/tl2q${i}/s_compressed_chain.debug > ssortedc.txt
+		diff tl2_s_chains.sorted.txt ssortedc.txt
 
 
 done

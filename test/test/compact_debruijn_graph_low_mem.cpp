@@ -119,11 +119,11 @@ using FileReaderType = ::bliss::io::parallel::partitioned_file<::bliss::io::posi
 
 using DBGNodeParser = bliss::debruijn::debruijn_graph_parser<KmerType>;
 
-using DBGMapType = ::bliss::debruijn::graph::simple_hash_compact_debruijn_graph_map<KmerType>;
+using DBGMapType = ::bliss::debruijn::graph::simple_hash_debruijn_graph_map<KmerType>;
 using DBGType = ::bliss::index::kmer::Index<DBGMapType, DBGNodeParser>;
 
 using CountType = uint16_t;
-using CountDBGMapType = ::bliss::debruijn::graph::count_hash_compact_debruijn_graph_map<KmerType, CountType>;
+using CountDBGMapType = ::bliss::debruijn::graph::count_hash_debruijn_graph_map<KmerType, CountType>;
 using CountDBGType = ::bliss::index::kmer::Index<CountDBGMapType, DBGNodeParser>;
 
 using ChainNodeType = ::bliss::debruijn::simple_biedge<KmerType>;
@@ -149,7 +149,7 @@ using FreqMapType = ::dsc::reduction_densehash_map<KmerType, FreqSummaryType,
 		::bliss::kmer::hash::sparsehash::special_keys<KmerType, true>,
 		::bliss::debruijn::operation::chain::freq_summary<CountType> >;
 
-using CompactedChainVecType = std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> >;
+using ListRankedChainNodeVecType = std::vector<::bliss::debruijn::chain::listranked_chain_node<KmerType> >;
 
 using ChainVecType = ::std::vector<std::pair<KmerType, ChainNodeType> >;
 
@@ -456,6 +456,9 @@ std::vector<bool> select_k2mers_by_edge_frequency(std::vector<K2merType> const &
   return results;
 }
 
+/**
+ * not clear what is the difference between this and above.
+ */
 template <typename K2merType, typename Counter>
 std::vector<bool> select_k2mers_by_edge_frequency_2(std::vector<K2merType> const & k2mers, Counter const & k1mer_counter, mxx::comm const & comm) {
   static_assert(Counter::key_type::size > 0, "counter kmer type should not be zero-mers.  possible?");
@@ -1672,19 +1675,19 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 
 }
 
-CompactedChainVecType to_compacted_chain(ChainMapType const & chainmap,
+ListRankedChainNodeVecType to_compacted_chain(ChainMapType const & chainmap,
 		mxx::comm const & comm) {
 
 	BL_BENCH_INIT(chain_convert);
 
 	BL_BENCH_START(chain_convert);
-	CompactedChainVecType compacted_chain;
+	ListRankedChainNodeVecType compacted_chain;
 	compacted_chain.reserve(chainmap.size());
-	::fsc::back_emplace_iterator<CompactedChainVecType > back_emplacer(compacted_chain);
+	::fsc::back_emplace_iterator<ListRankedChainNodeVecType > back_emplacer(compacted_chain);
 
 	//== first transform nodes so that we are pointing to canonical terminus k-mers.
 	std::transform(chainmap.get_local_container().cbegin(), chainmap.get_local_container().cend(), back_emplacer,
-			::bliss::debruijn::operation::chain::to_compacted_chain_node<KmerType>());
+			::bliss::debruijn::operation::chain::to_listranked_chain_node<KmerType>());
 	BL_BENCH_COLLECTIVE_END(chain_convert, "transform chain", chainmap.local_size(), comm);
 
 	BL_BENCH_REPORT_MPI_NAMED(chain_convert, "convert_chain", comm);
@@ -1693,7 +1696,7 @@ CompactedChainVecType to_compacted_chain(ChainMapType const & chainmap,
 }
 
 void print_chain_string(std::string const & filename,
-		CompactedChainVecType & compacted_chain,
+		ListRankedChainNodeVecType & compacted_chain,
 		mxx::comm const & comm) {
 	// ========== construct new graph with compacted chains and junction nodes.
 	BL_BENCH_INIT(print_chain_string);
@@ -1718,7 +1721,7 @@ void print_chain_string(std::string const & filename,
 				std::cout << "rank " << comm.rank() << " printing " << std::endl << std::flush;
 
 			std::stringstream ss;
-			std::for_each(compacted_chain.begin(), compacted_chain.end(), ::bliss::debruijn::operation::chain::print_chain<KmerType>(ss));
+			std::for_each(compacted_chain.begin(), compacted_chain.end(), ::bliss::debruijn::operation::chain::print_chain_as_fasta<KmerType>(ss));
 			// above will produce an extra newline character at the beginning of the first.  below special cases it to not print that character
 			if (subcomm.rank() == 0) {
 				write_mpiio(filename, ss.str().c_str() + 1, ss.str().length() - 1, subcomm);
@@ -1735,68 +1738,103 @@ void print_chain_string(std::string const & filename,
 
 }
 
-void print_chain_string_2(std::string const & filename,
-    CompactedChainVecType & compacted_chain,
+void compress_chains(ListRankedChainNodeVecType & compacted_chains, std::vector<::std::string> & compressed_chains,
     mxx::comm const & comm) {
   // ========== construct new graph with compacted chains and junction nodes.
-  BL_BENCH_INIT(print_chain_string);
+  BL_BENCH_INIT(compress_chain);
 
-  if (comm.rank() == 0) printf("PRINT CHAIN String\n");
+  if (comm.rank() == 0) printf("Compress Chain\n");
 
-  int has_data = (compacted_chain.size() == 0) ? 0 : 1;
+  int has_data = (compacted_chains.size() == 0) ? 0 : 1;
   int all_has_data = mxx::allreduce(has_data, comm);
   if (all_has_data > 0) {
     // global sort
-    BL_BENCH_START(print_chain_string);
+    BL_BENCH_START(compress_chain);
 
-    // first distribute the data
+    // distribute the data
     bool sorted = false;
     std::vector<size_t> recv_counts =
-        ::dsc::distribute(compacted_chain,
-                          ::bliss::debruijn::operation::chain::chain_node_to_rank<::bliss::debruijn::CanonicalDeBruijnHashMapParams, KmerType>(comm.size()),
+        ::dsc::distribute(compacted_chains,
+                          ::bliss::debruijn::operation::chain::chain_node_to_proc<::bliss::debruijn::CanonicalDeBruijnHashMapParams, KmerType>(comm.size()),
                            sorted, comm);
-    BL_BENCH_COLLECTIVE_END(print_chain_string, "distribute nodes", compacted_chain.size(), comm);  // this is for output ordering.
+    BL_BENCH_COLLECTIVE_END(compress_chain, "distribute nodes", compacted_chains.size(), comm);  // this is for output ordering.
+  } else
+    return;
 
+  // next sort the data by terminus kmer and position
+  BL_BENCH_START(compress_chain);
+  ::std::sort(compacted_chains.begin(), compacted_chains.end(), ::bliss::debruijn::operation::chain::chain_rep_less<KmerType>());
+  BL_BENCH_COLLECTIVE_END(compress_chain, "sort lmer nodes", compacted_chains.size(), comm);   // this is for constructing the chains
 
-    BL_BENCH_START(print_chain_string);
-    // next sort the data by terminus kmer and position
-    ::std::sort(compacted_chain.begin(), compacted_chain.end(), ::bliss::debruijn::operation::chain::chain_rep_less<KmerType>());
-    BL_BENCH_COLLECTIVE_END(print_chain_string, "sort lmer nodes", compacted_chain.size(), comm);   // this is for constructing the chains
-
-
-    // print out.
-    BL_BENCH_START(print_chain_string);
-    std::cout << "rank " << comm.rank() << " printing " << std::endl << std::flush;
-  }
-
+  // compressing.
   std::stringstream ss;
-  std::for_each(compacted_chain.begin(), compacted_chain.end(), ::bliss::debruijn::operation::chain::print_chain<KmerType>(ss));
+  //=== approach is to scan for the end of a chain
+  auto curr = compacted_chains.begin();
+  auto next = curr;
+  BL_BENCH_START(compress_chain);
+  compressed_chains.clear();
+  while (curr != compacted_chains.end()) {
+    // scan forward for start of next chain, using adjacent find.
+    next = ::std::adjacent_find(curr, compacted_chains.end(), [](
+      ::bliss::debruijn::chain::listranked_chain_node<KmerType> const & x,
+       ::bliss::debruijn::chain::listranked_chain_node<KmerType> const & y
+    ){
+      // adjacent_find returns first occurrence of 2 consecutive elements that the predicate evaluates to true.
+      return std::get<1>(x) != std::get<1>(y);
+    });
 
-  has_data = (ss.str().length() > 0) ? 1 : 0;
-  all_has_data = mxx::allreduce(has_data, comm);
-  if (all_has_data > 0) {
-    mxx::comm subcomm = (all_has_data == comm.size()) ? comm.copy() : comm.split(has_data);
-    // above will produce an extra newline character at the beginning of the first.  below special cases it to not print that character
-    if (has_data == 1) {
-      if (subcomm.rank() == 0) {
+    if (next != compacted_chains.end()) ++next;  // get the second of the pair, == start of next.
 
-        write_mpiio(filename, ss.str().c_str() + 1, ss.str().length() - 1, subcomm);
-      } else {
-        write_mpiio(filename, ss.str().c_str(), ss.str().length(), subcomm);
-      }
-    }
-    BL_BENCH_COLLECTIVE_END(print_chain_string, "print chain string (3a)", compacted_chain.size(), comm);
+    // now do something with the <curr, next> range.
+    ss.clear();
+    ss.str(std::string());
+    std::for_each(curr, next, ::bliss::debruijn::operation::chain::print_chain_as_fasta<KmerType>(ss, true));  // chain_only
+    compressed_chains.push_back(ss.str());
+
+    // get ready for next segment.
+    curr = next;
+
   }
+  BL_BENCH_COLLECTIVE_END(compress_chain, "toASCII", compressed_chains.size(), comm);
 
-
-  BL_BENCH_REPORT_MPI_NAMED(print_chain_string, "convert_chain", comm);
+  BL_BENCH_REPORT_MPI_NAMED(compress_chain, "compress_chain", comm);
 
 }
 
+void print_compressed_chains(std::string const & filename,
+                             ::std::vector<::std::string> const & compressed_chain,
+                              mxx::comm const & comm) {
 
+
+  // aggregate into a single stringstream object, then print.
+
+  BL_BENCH_INIT(print_compressed_chain);
+
+  if (comm.rank() == 0) printf("PRINT COMPRESSED CHAIN String\n");
+
+  int has_data = (compressed_chain.size() == 0) ? 0 : 1;
+  int all_has_data = mxx::allreduce(has_data, comm);
+  if (all_has_data > 0) {
+    // global sort
+    BL_BENCH_START(print_compressed_chain);
+    mxx::comm subcomm = (all_has_data == comm.size()) ? comm.copy() : comm.split(has_data);
+    if (has_data == 1) {
+      std::stringstream ss;
+      std::for_each(compressed_chain.begin(), compressed_chain.end(), [&ss](::std::string const & x){
+        ss << x << std::endl;
+      });
+
+      write_mpiio(filename, ss.str().c_str(), ss.str().length(), subcomm);
+    }
+    BL_BENCH_COLLECTIVE_END(print_compressed_chain, "print", compressed_chain.size(), comm);   // this is for constructing the chains
+  }
+
+  BL_BENCH_REPORT_MPI_NAMED(print_compressed_chain, "print compressed", comm);
+
+}
 
 void print_chain_nodes(std::string const & filename,
-		CompactedChainVecType & compacted_chain,
+		ListRankedChainNodeVecType & compacted_chain,
 		mxx::comm const & comm) {
 
 	BL_BENCH_INIT(print_chain_nodes);
@@ -1877,7 +1915,7 @@ void count_kmers(::std::vector<::bliss::io::file_data> const & file_data,
 }
 
 /// compute frequency of chains.  compacted chain should have same distribution as would be for count index.
-void compute_freq_map(CompactedChainVecType const & compacted_chain,
+void compute_freq_map(ListRankedChainNodeVecType const & compacted_chain,
 		CountIndexType const & count_idx,
 		FreqMapType & chain_freq_map,
 		mxx::comm const & comm) {
@@ -2239,6 +2277,10 @@ int main(int argc, char** argv) {
 	std::string compacted_chain_str_filename(out_prefix);
 	compacted_chain_str_filename.append("_chain.fasta");
 
+	// compressed chain
+	std::string compressed_chain_filename(out_prefix);
+	compressed_chain_filename.append("_compressed_chain.debug");
+
 	// filename for compacted chain interior kmers.  in format <K, Chain Id, pos, +/->
 	// K is canonical.  + if K is on same strand as chain, - if not.
 	// this is a dump of the chain map nodes.
@@ -2384,7 +2426,7 @@ int main(int argc, char** argv) {
 	{
 		// prepare
 		BL_BENCH_START(app);
-		CompactedChainVecType compacted_chain = to_compacted_chain(chainmap, comm);
+		ListRankedChainNodeVecType compacted_chain = to_compacted_chain(chainmap, comm);
 		BL_BENCH_COLLECTIVE_END(app, "compacted_chain", compacted_chain.size(), comm);
 
 
@@ -2412,13 +2454,24 @@ int main(int argc, char** argv) {
 
 		// now print chain string - order is destroyed via psort.
 		BL_BENCH_START(app);
-		print_chain_string_2(compacted_chain_str_filename, compacted_chain, comm);
+		print_chain_string(compacted_chain_str_filename, compacted_chain, comm);
 		BL_BENCH_COLLECTIVE_END(app, "chain_str", compacted_chain.size(), comm);
 
 		BL_BENCH_START(app);
 		print_chain_nodes(compacted_chain_kmers_filename, compacted_chain, comm);
 		BL_BENCH_COLLECTIVE_END(app, "chain_node", compacted_chain.size(), comm);
 
+		{
+      BL_BENCH_START(app);
+      ::std::vector<::std::string> compressed_chain;
+      compress_chains(compacted_chain, compressed_chain, comm);
+      BL_BENCH_COLLECTIVE_END(app, "compress_chains", compressed_chain.size(), comm);
+
+      BL_BENCH_START(app);
+      print_compressed_chains(compressed_chain_filename, compressed_chain, comm);
+      BL_BENCH_COLLECTIVE_END(app, "print_compress_chains", compressed_chain.size(), comm);
+
+		}
 	} // ensure release compacted chain
 
 

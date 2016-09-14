@@ -50,7 +50,7 @@ template<typename Kmer, typename Edge,
 template <typename> class MapParams,
 class Alloc = ::std::allocator< ::std::pair<const Kmer, Edge> >
 >
-class compact_debruijn_graph_map :
+class debruijn_graph_map :
 public ::dsc::densehash_map<Kmer, Edge, MapParams,
 ::bliss::kmer::hash::sparsehash::special_keys<Kmer, true>,
  Alloc> {
@@ -133,9 +133,9 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 	}
 
-	compact_debruijn_graph_map(const mxx::comm& _comm) : Base(_comm) {/*do nothing*/}
+	debruijn_graph_map(const mxx::comm& _comm) : Base(_comm) {/*do nothing*/}
 
-	virtual ~compact_debruijn_graph_map() {/*do nothing*/};
+	virtual ~debruijn_graph_map() {/*do nothing*/};
 
 	/*transform function*/
 
@@ -185,12 +185,12 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 };
 
 template<typename Kmer >
-using simple_hash_compact_debruijn_graph_map = ::bliss::debruijn::graph::compact_debruijn_graph_map<Kmer,
+using simple_hash_debruijn_graph_map = ::bliss::debruijn::graph::debruijn_graph_map<Kmer,
 		::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, bool>,
 		 ::bliss::debruijn::CanonicalDeBruijnHashMapParams>;
 
 template<typename Kmer, typename Count = uint32_t >
-using count_hash_compact_debruijn_graph_map = ::bliss::debruijn::graph::compact_debruijn_graph_map<Kmer,
+using count_hash_debruijn_graph_map = ::bliss::debruijn::graph::debruijn_graph_map<Kmer,
 		::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, Count>,
 		 ::bliss::debruijn::CanonicalDeBruijnHashMapParams>;
 

@@ -117,11 +117,11 @@ using FileReaderType = ::bliss::io::parallel::partitioned_file<::bliss::io::posi
 
 using DBGNodeParser = bliss::debruijn::debruijn_graph_parser<KmerType>;
 
-using DBGMapType = ::bliss::debruijn::graph::simple_hash_compact_debruijn_graph_map<KmerType>;
+using DBGMapType = ::bliss::debruijn::graph::simple_hash_debruijn_graph_map<KmerType>;
 using DBGType = ::bliss::index::kmer::Index<DBGMapType, DBGNodeParser>;
 
 using CountType = uint32_t;
-using CountDBGMapType = ::bliss::debruijn::graph::count_hash_compact_debruijn_graph_map<KmerType, CountType>;
+using CountDBGMapType = ::bliss::debruijn::graph::count_hash_debruijn_graph_map<KmerType, CountType>;
 using CountDBGType = ::bliss::index::kmer::Index<CountDBGMapType, DBGNodeParser>;
 
 using ChainNodeType = ::bliss::debruijn::simple_biedge<KmerType>;
@@ -1180,13 +1180,13 @@ int main(int argc, char** argv) {
         if (comm.rank() == 0) printf("PRINT CHAIN String\n");
 
           BL_BENCH_START(test);
-          std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > result;
+          std::vector<::bliss::debruijn::chain::listranked_chain_node<KmerType> > result;
           result.reserve(chainmap.size());
-          ::fsc::back_emplace_iterator<std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > > back_emplacer(result);
+          ::fsc::back_emplace_iterator<std::vector<::bliss::debruijn::chain::listranked_chain_node<KmerType> > > back_emplacer(result);
 
           //== first transform nodes so that we are pointing to canonical terminus k-mers.
           std::transform(chainmap.get_local_container().begin(), chainmap.get_local_container().end(), back_emplacer,
-        		  ::bliss::debruijn::operation::chain::to_compacted_chain_node<KmerType>());
+        		  ::bliss::debruijn::operation::chain::to_listranked_chain_node<KmerType>());
           BL_BENCH_COLLECTIVE_END(test, "transform chain", chainmap.local_size(), comm);
 
 
@@ -1208,7 +1208,7 @@ int main(int argc, char** argv) {
 		  {
 			  std::stringstream ss;
 
-			  std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain<KmerType>(ss));
+			  std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain_as_fasta<KmerType>(ss));
 			  // above will produce an extra newline character at the beginning of the first.  below special cases it to not print that character
 			  if (comm.rank() == 0) {
           write_mpiio(compacted_chain_str_filename, ss.str().c_str() + 1, ss.str().length() - 1, comm);
@@ -1269,7 +1269,7 @@ int main(int argc, char** argv) {
     	  std::vector< freq_type > freqs;
 
     	  BL_BENCH_START(test);
-    	  ::bliss::debruijn::operation::chain::to_compacted_chain_node<KmerType> get_chain_rep;
+    	  ::bliss::debruijn::operation::chain::to_listranked_chain_node<KmerType> get_chain_rep;
 
     	  // extract frequencies.
     	  for (auto x : chainmap.get_local_container()) {

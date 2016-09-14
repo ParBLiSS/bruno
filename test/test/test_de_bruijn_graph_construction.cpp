@@ -92,7 +92,7 @@ using EdgeEncoding = Alphabet;
 
 using DBGNodeParser = bliss::debruijn::debruijn_graph_parser<KmerType>;
 
-using DBGMapType = ::bliss::debruijn::graph::simple_hash_compact_debruijn_graph_map<KmerType>;
+using DBGMapType = ::bliss::debruijn::graph::simple_hash_debruijn_graph_map<KmerType>;
 using DBGType = ::bliss::index::kmer::Index<DBGMapType, DBGNodeParser>;
 
 using ChainNodeType = ::bliss::debruijn::simple_biedge<KmerType>;
@@ -824,13 +824,13 @@ int main(int argc, char** argv) {
       // ========== construct new graph with compacted chains and junction nodes.
 
       BL_BENCH_START(test);
-      std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > result;
+      std::vector<::bliss::debruijn::chain::listranked_chain_node<KmerType> > result;
       result.reserve(chainmap.size());
-      ::fsc::back_emplace_iterator<std::vector<::bliss::debruijn::chain::compacted_chain_node<KmerType> > > back_emplacer(result);
+      ::fsc::back_emplace_iterator<std::vector<::bliss::debruijn::chain::listranked_chain_node<KmerType> > > back_emplacer(result);
 
       // first transform nodes so that we are pointing to canonical terminus k-mers.
       std::transform(chainmap.get_local_container().begin(), chainmap.get_local_container().end(), back_emplacer,
-    		  ::bliss::debruijn::operation::chain::to_compacted_chain_node<KmerType>());
+    		  ::bliss::debruijn::operation::chain::to_listranked_chain_node<KmerType>());
       BL_BENCH_COLLECTIVE_END(test, "transform chain", chainmap.size(), comm);
 
 //      for (auto r : result) {
@@ -846,7 +846,7 @@ int main(int argc, char** argv) {
 
       // print out.
       BL_BENCH_START(test);
-      std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain<KmerType>(std::cout));
+      std::for_each(result.begin(), result.end(), ::bliss::debruijn::operation::chain::print_chain_as_fasta<KmerType>(std::cout));
       BL_BENCH_COLLECTIVE_END(test, "print chain", result.size(), comm);
 
     }

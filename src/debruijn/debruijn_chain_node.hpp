@@ -58,9 +58,9 @@ namespace bliss
        *      note that a vector of these are sufficient to represent a complete compacted chain.
        */
       template <typename KMER>
-      using compacted_chain_node = ::std::tuple<KMER, KMER, int>;
+      using listranked_chain_node = ::std::tuple<KMER, KMER, int>;
 
-      //static_assert(sizeof(compacted_chain_node<::bliss::common::Kmer<31, ::bliss::common::DNA> >) == sizeof(::bliss::common::Kmer<31, ::bliss::common::DNA>) * 2 + sizeof(int), "size of compacted chain node is not what's expected");
+      //static_assert(sizeof(listranked_chain_node<::bliss::common::Kmer<31, ::bliss::common::DNA> >) == sizeof(::bliss::common::Kmer<31, ::bliss::common::DNA>) * 2 + sizeof(int), "size of compacted chain node is not what's expected");
     }/*namespace chain*/
 
 
