@@ -1559,6 +1559,8 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 
 	BL_BENCH_START(valid_print);
 	std::vector<KmerType> kmers;
+  ::bliss::debruijn::lex_less<KmerType> canonical;
+
 
 	// also get the read's starting positions in the output kmer vector
 	std::vector<size_t>  local_offsets;
@@ -1581,6 +1583,7 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 	BL_BENCH_START(valid_print);
 	// get the kmers
 	idx.template parse_file_data<FileParser, ::bliss::index::kmer::KmerParser<KmerType> >(fdata, kmers, comm);
+	std::transform(kmers.begin(), kmers.end(), kmers.begin(), canonical);
 	BL_BENCH_COLLECTIVE_END(valid_print, "parse kmers", kmers.size(), comm);
 
 
@@ -1618,6 +1621,7 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 	// get the kmers again - earlier kmer vector is scrambled by idx.count.
 	kmers.clear();
 	idx.template parse_file_data<FileParser, ::bliss::index::kmer::KmerParser<KmerType> >(fdata, kmers, comm);
+	std::transform(kmers.begin(), kmers.end(), kmers.begin(), canonical);
 	BL_BENCH_COLLECTIVE_END(valid_print, "reparse", kmers.size(), comm);
 
 

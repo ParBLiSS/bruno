@@ -68,20 +68,25 @@ namespace bliss {
               KM k = t.first;
               KM krevcomp = k.reverse_complement();
 
-
               std::vector< std::pair<KM, CountType> > neighbors;
 
               // out kmer is same as revcmp of kmer.
               t.second.get_out_neighbors(k, neighbors);
               for (auto x : neighbors) {
-            	  if (x.first == krevcomp) return true;
+            	  if (x.first == krevcomp) {
+            	    std::cout << "k+1 palindrome out " << x.first << krevcomp << std::endl;
+            	    return true;
+            	  }
               }
 
               // in
               neighbors.clear();
               t.second.get_in_neighbors(k, neighbors);
               for (auto x : neighbors) {
-            	  if (x.first == krevcomp) return true;
+            	  if (x.first == krevcomp) {
+                  std::cout << "k+1 palindrome in " << x.first << krevcomp << std::endl;
+            	    return true;
+            	  }
               }
 
               return false;
@@ -106,14 +111,20 @@ namespace bliss {
               // out kmer is same as revcmp of kmer.
               t.second.get_out_neighbors(k, neighbors);
               for (auto x : neighbors) {
-            	  if (x == krevcomp) return true;
+            	  if (x == krevcomp) {
+                  std::cout << "k+1 bool palindrome out " << x << krevcomp << std::endl;
+                  return true;
+            	  }
               }
 
               // in
               neighbors.clear();
               t.second.get_in_neighbors(k, neighbors);
               for (auto x : neighbors) {
-            	  if (x == krevcomp) return true;
+            	  if (x == krevcomp) {
+                  std::cout << "k+1 bool palindrome in " << x << krevcomp << std::endl;
+                  return true;
+            	  }
               }
 
               return false;
