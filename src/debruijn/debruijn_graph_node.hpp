@@ -246,7 +246,7 @@ namespace bliss
               count = counts[i];
               if (count > 0) {
                 neighbors.emplace_back(kmer, count);
-                neighbors.back().first.nextFromChar(i);
+                neighbors.back().first.nextFromChar(INDEX_TO_CHAR[i]);
               }
             }
           }
@@ -263,7 +263,7 @@ namespace bliss
               count = counts[i + maxEdgeCount];
               if (count > 0) {
                 neighbors.emplace_back(kmer, count);
-                neighbors.back().first.nextReverseFromChar(i);
+                neighbors.back().first.nextReverseFromChar(INDEX_TO_CHAR[i]);
               }
             }
           }
@@ -434,7 +434,7 @@ namespace bliss
               count = counts[i];
               if (count > 0) {
                 neighbors.emplace_back(kmer, count);
-                neighbors.back().first.nextFromChar(i);
+                neighbors.back().first.nextFromChar(INDEX_TO_CHAR[i]);
               }
             }
           }
@@ -451,7 +451,7 @@ namespace bliss
               count = counts[i + maxEdgeCount];
               if (count > 0) {
                 neighbors.emplace_back(kmer, count);
-                neighbors.back().first.nextReverseFromChar(i);
+                neighbors.back().first.nextReverseFromChar(INDEX_TO_CHAR[i]);
               }
             }
           }
@@ -531,7 +531,7 @@ namespace bliss
                  2,   // 0010 C     // 0x00000010
                  4,   // 0100 G     // 0x00000100
                  8,   // 1000 T     // 0x00001000
-				 15   // 1111 N
+                 15   // 1111 N
           }};
 
         public:
@@ -631,7 +631,7 @@ namespace bliss
               count = counts[i];
               if (count > 0) {
                 neighbors.emplace_back(kmer, count);
-                neighbors.back().first.nextFromChar(i);
+                neighbors.back().first.nextFromChar(INDEX_TO_CHAR[i]);
               }
             }
           }
@@ -648,7 +648,7 @@ namespace bliss
               count = counts[i + maxEdgeCount];
               if (count > 0) {
                 neighbors.emplace_back(kmer, count);
-                neighbors.back().first.nextReverseFromChar(i);
+                neighbors.back().first.nextReverseFromChar(INDEX_TO_CHAR[i]);
               }
             }
           }
@@ -834,7 +834,7 @@ namespace bliss
                  8,   // 1100       // 0x00000000          8,
                  8,   // 1101       // 0x00000000          8,
                  8,   // 1110       // 0x00000000          8,
-                 4    // 1111 N     // 0x00000000          7
+                 4    // 1111 N     // 0x00010000          7
           }};
 
           static constexpr std::array<uint8_t, 8> CHAR_TO_INDEX =
@@ -855,7 +855,7 @@ namespace bliss
                  3,   // 011 C     // 0x00000010
                  6,   // 110 G     // 0x00000100
                  4,   // 100 T     // 0x00001000
-				 7,   // 111 N
+                 7,   // 111 N
           }};
 
 
