@@ -1097,7 +1097,7 @@ void make_chain_map(Index const & idx, ChainMapType & chainmap, mxx::comm const 
 }
 
 
-void list_rank(ChainMapType & chainmap, mxx::comm const & comm) {
+::std::vector<KmerType> list_rank(ChainMapType & chainmap, mxx::comm const & comm) {
 
 	size_t iterations = 0;
 	size_t cycle_nodes = 0;
@@ -1210,13 +1210,13 @@ void list_rank(ChainMapType & chainmap, mxx::comm const & comm) {
 
 				//        	printf("rank %d max iter %lu updated %lu, unfinished %lu cycle nodes %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_nodes);
 				all_compacted = true;
-				continue;
+			} else {
+
+        // get global unfinished count
+
+        all_compacted = (count == 0) || (cycle_nodes == unfinished.size());
+        if (!all_compacted) printf("rank %d iter %lu updated %lu, unfinished %lu cycle nodes %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_nodes);
 			}
-
-			// get global unfinished count
-
-			all_compacted = (count == 0) || (cycle_nodes == unfinished.size());
-			if (!all_compacted) printf("rank %d iter %lu updated %lu, unfinished %lu cycle nodes %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_nodes);
 			all_compacted = ::mxx::all_of(all_compacted, comm);
 
 		}
@@ -1322,14 +1322,25 @@ void list_rank(ChainMapType & chainmap, mxx::comm const & comm) {
 	}
 
 
+	std::vector<KmerType> cycles;
+
 	{
 		if (comm.rank() == 0) printf("REMOVE CYCLES\n");
 
 		BL_BENCH_INIT(cycle);
 
+    BL_BENCH_START(cycle);
+    auto res = chainmap.find(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
+    for (auto x : res) {
+      cycles.emplace_back(x.first);
+    }
+    BL_BENCH_COLLECTIVE_END(cycle, "save cycle kmers", cycles.size(), comm);
+
+
 		// remove cycle nodes.  has to do after query, to ensure that exactly middle is being treated not as a cycle node.
 		BL_BENCH_START(cycle);
 		size_t cycle_node_count = chainmap.erase(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
+		assert(cycle_node_count == cycles.size());
 		BL_BENCH_COLLECTIVE_END(cycle, "erase cycle", cycle_node_count, comm);
 
 		//printf("REMOVED %ld cycle nodes\n", cycle_node_count);
@@ -1349,6 +1360,8 @@ void list_rank(ChainMapType & chainmap, mxx::comm const & comm) {
 		assert(all_compacted);
 	}
 
+
+	return cycles;
 }
 
 template <typename Index>
@@ -2321,11 +2334,11 @@ int main(int argc, char** argv) {
 	BL_BENCH_INIT(app);
 
 	ChainMapType chainmap(comm);
+  DBGType idx(comm);
 
 	// =================  make compacted simple DBG, so that we can get chain and branch kmers.
 	{
 		BL_BENCH_START(app);
-		DBGType idx(comm);
 //		if ((lower > 1) || (upper < std::numeric_limits<CountType>::max())) {
 		if (thresholding) {
 #if (pPARSER == FASTQ)  // FASTA does not support thresholded index build because fasta reader is not yet handling overlaps correctly when dealing with k+2-mers.
@@ -2347,28 +2360,7 @@ int main(int argc, char** argv) {
 		printf("rank %d finished checking index\n", comm.rank());
 
 		// TODO: filter out, or do something, about "N".  May have to add back support for ASCII edge encoding so that we can use DNA5 alphabet
-
-		// == PRINT == valid k-mers files
-		if (thresholding) {
-
-#if (pPARSER == FASTA)
-		if (comm.rank() == 0) printf("WARNING: outputting first/last valid kmer position for each read is supported for FASTQ format only.\n");
-#elif (pPARSER == FASTQ)
-
-		BL_BENCH_START(app);
-		for (size_t i = 0; i < filenames.size(); ++i) {
-			std::string fn(out_prefix);
-
-			fn.append(".");
-			fn.append(std::to_string(i));
-			fn.append(".valid");
-
-			print_valid_kmer_pos_in_reads(fn, file_data[i], idx, comm);
-		}
-		BL_BENCH_COLLECTIVE_END(app, "print_valid_kmer_pos", filenames.size(), comm);
-#endif
-		}
-
+		//   this is done via read filtering/splitting.
 
 		// == PRINT == prep branch for printing
 		{
@@ -2405,9 +2397,40 @@ int main(int argc, char** argv) {
 
 	// ===== parallel list ranking for chain compaction
 	BL_BENCH_START(app);
-	list_rank(chainmap, comm);
+	auto cycle_nodes = list_rank(chainmap, comm);
 	BL_BENCH_COLLECTIVE_END(app, "list_rank", chainmap.local_size(), comm);
 	// == DONE == parallel list ranking for chain compaction
+
+	// =========== remove cycles and isolated
+  BL_BENCH_START(app);
+  idx.erase(cycle_nodes);
+  idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+  BL_BENCH_COLLECTIVE_END(app, "remove cycles/isolated/etc", idx.local_size(), comm);
+
+
+
+
+  // == PRINT == valid k-mers files
+  if (thresholding) {
+
+#if (pPARSER == FASTA)
+    if (comm.rank() == 0) printf("WARNING: outputting first/last valid kmer position for each read is supported for FASTQ format only.\n");
+#elif (pPARSER == FASTQ)
+
+    BL_BENCH_START(app);
+    for (size_t i = 0; i < filenames.size(); ++i) {
+      std::string fn(out_prefix);
+
+      fn.append(".");
+      fn.append(std::to_string(i));
+      fn.append(".valid");
+
+      print_valid_kmer_pos_in_reads(fn, file_data[i], idx, comm);
+    }
+    BL_BENCH_COLLECTIVE_END(app, "print_valid_kmer_pos", filenames.size(), comm);
+#endif
+  }
+
 
 
 	// == print ===  prepare for printing compacted chain and frequencies

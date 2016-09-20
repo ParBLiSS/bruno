@@ -138,16 +138,16 @@ namespace bliss {
         };
 
 // used only for debugging, and need to be updated with palindrome checks?
-//        struct IsIsolated {
-//            /// does not filter by group of results.
-//            template <typename Iter>
-//            inline bool operator()(Iter first, Iter last) const {  return true; }
-//
-//            template <typename Kmer, typename Edge>
-//            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-//              return (t.second.get_in_edge_count() == 0) && (t.second.get_out_edge_count() == 0);
-//            }
-//        };
+        struct IsIsolated {
+            /// does not filter by group of results.
+            template <typename Iter>
+            inline bool operator()(Iter first, Iter last) const {  return true; }
+
+            template <typename Kmer, typename Edge>
+            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+              return (t.second.get_in_edge_count() == 0) && (t.second.get_out_edge_count() == 0);
+            }
+        };
 //
 //        struct IsTerminus {
 //            /// does not filter by group of results.

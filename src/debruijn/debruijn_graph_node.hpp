@@ -88,7 +88,7 @@ namespace bliss
       class compact_multi_biedge<::bliss::common::DNA, COUNT, DUMMY> {
 
 #if defined(USE_MPI)
-    	  friend class ::mxx::datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<::bliss::common::DNA, COUNT, DUMMY> >;
+    	  friend struct ::mxx::datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<::bliss::common::DNA, COUNT, DUMMY> >;
 #endif
 
           static_assert(!::std::is_signed<COUNT>::value &&
@@ -276,7 +276,7 @@ namespace bliss
                         ::std::is_integral<COUNT>::value, "only supports unsigned integer types for count");
 
 #if defined(USE_MPI)
-          friend class ::mxx::datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<::bliss::common::DNA6, COUNT, DUMMY> >;
+          friend struct ::mxx::datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<::bliss::common::DNA6, COUNT, DUMMY> >;
 #endif
 
         public:
@@ -465,7 +465,7 @@ namespace bliss
                         ::std::is_integral<COUNT>::value, "only supports unsigned integer types for count");
 
 #if defined(USE_MPI)
-    	  friend class ::mxx::datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<::bliss::common::DNA16, COUNT, DUMMY> >;
+    	  friend struct ::mxx::datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<::bliss::common::DNA16, COUNT, DUMMY> >;
 #endif
 
         public:
@@ -663,7 +663,7 @@ namespace bliss
       class compact_multi_biedge<::bliss::common::DNA, bool, DUMMY> {
 
 #if defined(USE_MPI)
-    	  friend class ::mxx::datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<::bliss::common::DNA, bool, DUMMY> >;
+    	  friend struct ::mxx::datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<::bliss::common::DNA, bool, DUMMY> >;
 #endif
 
         protected:
@@ -808,7 +808,7 @@ namespace bliss
       class compact_multi_biedge<::bliss::common::DNA6, bool, DUMMY> {
 
 #if defined(USE_MPI)
-    	  friend class ::mxx::datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<::bliss::common::DNA6, bool, DUMMY> >;
+    	  friend struct ::mxx::datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<::bliss::common::DNA6, bool, DUMMY> >;
 #endif
 
       protected:
@@ -983,7 +983,7 @@ namespace bliss
       class compact_multi_biedge<::bliss::common::DNA16, bool, DUMMY> {
 
 #if defined(USE_MPI)
-    	  friend class ::mxx::datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<::bliss::common::DNA16, bool, DUMMY> >;
+    	  friend struct ::mxx::datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<::bliss::common::DNA16, bool, DUMMY> >;
 #endif
 
 	  protected:
