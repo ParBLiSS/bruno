@@ -552,7 +552,9 @@ std::vector<bool> select_k2mers_by_edge_frequency_2(std::vector<K2merType> const
 //      std::cout << "rank " << comm.rank() << " iter " << i << " RL query " << query_size << " result " << res_size << " local counts " << local_counts.size() << std::endl;
     }
 
-
+//    for (auto it = local_counts.begin(); it != local_counts.end(); ++it) {
+//      std::cout << " remote k1mer counts " << it->first << ":" << it->second << std::endl;
+//    }
 
     // NOW go through k2mers again,
     for (size_t j = jmin; j < jmax; ++j) {
@@ -800,6 +802,12 @@ template <typename Index>
 	}
 	BL_BENCH_COLLECTIVE_END(build, "count k1mer", counter.local_size(), comm);
 
+//	// DEBUG
+//	auto lc = counter.get_local_container();
+//	for (auto it = lc.begin(); it != lc.end(); ++it) {
+//	  std::cout << " raw k1mer counter " << it->first << ":" << it->second << std::endl;
+//	}
+//
 	// ======= filter k+1-mers
 	BL_BENCH_START(build);
 	// now filter out the low frequency (and high frequency) ones.
@@ -809,6 +817,11 @@ template <typename Index>
 	counter.reserve(0);  // compact the counter.
 	BL_BENCH_COLLECTIVE_END(build, "filter k1mer", counter.local_size(), comm);
 
+//  lc = counter.get_local_container();
+//  for (auto it = lc.begin(); it != lc.end(); ++it) {
+//    std::cout << " filtered k1mer counter " << it->first << ":" << it->second << std::endl;
+//  }
+//
 
 	// ======= filter k+2-mers.  incremental by file
 	::std::vector<::std::vector<bool> > results;
@@ -818,8 +831,6 @@ template <typename Index>
 		::std::vector<std::pair<KmerType, ::bliss::debruijn::compact_simple_biedge> > nodes;
 		::fsc::back_emplace_iterator<::std::vector<std::pair<KmerType, ::bliss::debruijn::compact_simple_biedge> > > emplacer(nodes);
 		::bliss::debruijn::k2mer_to_edge<KmerType> trans;
-
-		std::vector<bool> selected;
 
 		for (auto x : file_data) {
 		  temp.clear();
@@ -835,6 +846,13 @@ template <typename Index>
 
 			// filter temp by k1mer
 			auto selected = select_k2mers_by_edge_frequency_2(temp, counter, comm);
+//
+//			std::cout << "selected " << std::endl;
+//			for (auto b : selected) {
+//			  std::cout << (b ? "1 " : "0 ");
+//			}
+//			std::cout << std::endl;
+//
 			filter_k2mers(selected, temp, comm);
 
 			// save the selected edges
@@ -852,15 +870,8 @@ template <typename Index>
 	}
 	BL_BENCH_COLLECTIVE_END(build, "filtered_insert", idx.local_size(), comm);
 
-
-	// because of the filtering, we may have edges pointing to non-existent nodes.  we create these nodes here
-	// (and the reverse edges)
-	// out edges.
-
 	size_t total = idx.size();
 	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT: total size after insert/rehash is %lu\n", total);
-
-
 
 	BL_BENCH_REPORT_MPI_NAMED(build, "filtered_construct", comm);
 
@@ -1607,11 +1618,15 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 	// for all k_mers, check existence.  use the node's kmers.  put into a local count map
 	{
 		counter.clear();
-		auto results = idx.count(kmers);
+		auto results = idx.count(kmers); // idx.find(kmers);
 //		std::cout << "rank " << comm.rank() << " result size " << results.size() << " reserved " << results.capacity() << std::endl;
 		counter.resize(results.size());
 //    std::cout << "rank " << comm.rank() << " before insert counter size " << counter.size() << " bucket count " << counter.bucket_count() <<  std::endl;
-		counter.insert(results);
+		for (auto it = results.begin(); it != results.end(); ++it) {
+		  if ((*it).second != 0) counter.insert(*it);
+		  //counter.insert(std::make_pair((*it).first, 1));
+		}
+
 //		std::cout << "rank " << comm.rank() << " after insert counter size " << counter.size() << " bucket count " << counter.bucket_count() << 	std::endl;
 	}
 	BL_BENCH_COLLECTIVE_END(valid_print, "local count", counter.size(), comm);
@@ -1672,6 +1687,13 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 			}
 		}
 
+//		// DEBUG
+//		for (int64_t j = rstart; j < rend; ++j) {
+//		  it = counter.find(kmers[j]);
+//		  std::cout << (it != counter.end() ? "1 " : "0 ");
+//		}
+//		std::cout << std::endl;
+//
 		// get ready for next read.
 		rstart = rend;
 
@@ -2412,7 +2434,10 @@ int main(int argc, char** argv) {
   BL_BENCH_COLLECTIVE_END(app, "remove cycles/isolated/etc", idx.local_size(), comm);
 
 
-
+//  auto lidx = idx.get_map().get_local_container();
+//  for (auto it = lidx.begin(); it != lidx.end(); ++it) {
+//    std::cout << "valid kmer in index: " << (*it).first << std::endl;
+//  }
 
   // == PRINT == valid k-mers files
   if (thresholding) {
