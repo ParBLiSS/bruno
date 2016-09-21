@@ -182,6 +182,15 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
+  std::string extension = ::bliss::utils::file::get_file_extension(filename);
+  std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+  if (extension.compare("fastq") == 0) {
+    // default to including quality score iterators.
+    ::bliss::io::KmerFileHelper::template read_file_posix<::bliss::index::kmer::KmerParser<KmerType>, ::bliss::io::FASTQParser, ::bliss::io::SequencesIterator >(filename, query, comm);
+  } else {
+    throw std::invalid_argument("input filename extension is not supported.");
+  }
+
 
 
 
@@ -666,7 +675,9 @@ int main(int argc, char** argv) {
         ::bliss::debruijn::operation::chain::chain_update<KmerType> chain_updater;
         size_t count = chainmap.update(updates, false, chain_updater );
 
-        //            last_updated = count;
+	BL_BENCH_START(test);
+	idx.template build_posix<SeqParser, ::bliss::io::SequencesIterator>(filename, comm);
+	BL_BENCH_END(test, "build", idx.local_size());
 
         // search unfinished.
         unfinished = chainmap.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
