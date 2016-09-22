@@ -49,14 +49,17 @@
 #include "io/mxx_support.hpp"
 
 #include "io/sequence_iterator.hpp"
-#include "io/sequence_id_iterator.hpp"
+#include "io/filtered_sequence_iterator.hpp"
+//#include "io/sequence_id_iterator.hpp"
+#include "io/kmer_file_helper.hpp"
+#include "io/kmer_parser.hpp"
 
 #include "iterators/transform_iterator.hpp"
 
-#include "common/kmer_iterators.hpp"
-#include "iterators/zip_iterator.hpp"
-#include "iterators/unzip_iterator.hpp"
-#include "index/quality_score_iterator.hpp"
+//#include "common/kmer_iterators.hpp"
+//#include "iterators/zip_iterator.hpp"
+//#include "iterators/unzip_iterator.hpp"
+//#include "index/quality_score_iterator.hpp"
 
 #include "index/kmer_index.hpp"
 #include "index/kmer_hash.hpp"
@@ -114,6 +117,15 @@ using KmerType = bliss::common::Kmer<31, Alphabet, WordType>;
 
 using KmerType = bliss::common::Kmer<31, Alphabet, WordType>;
 using EdgeEncoding = Alphabet;
+
+// sequence iterator for use in constructing the dbg.  here we throw away reads containing N.  technically, the splitting sequence iterator works here too,
+// but the frequency calculated would include kmers in reads containing N
+template <typename Iterator, template <typename> class SeqParser>
+using SplitSeqIterType = bliss::io::NFilterSequencesIterator<Iterator, SeqParser>;
+
+// sequence iterator for use in identifying the first and last valid kmers in a read.  we want 1 sequence per read, so just use non-filtering and non-splitting kmer reader.
+template <typename Iterator, template <typename> class SeqParser>
+using SeqIterType = bliss::io::SequencesIterator<Iterator, SeqParser>;
 
 using FileReaderType = ::bliss::io::parallel::partitioned_file<::bliss::io::posix_file, FileParser >;
 
@@ -289,7 +301,7 @@ void build_index(::std::vector<::bliss::io::file_data> const & file_data, Index 
 	for (auto x : file_data) {
 		temp.clear();
 		comm.barrier();  // need to sync this, since the parser needs to collectively parse the records.
-		idx.template parse_file_data<FileParser, DBGNodeParser>(x, temp, comm);
+		::bliss::io::KmerFileHelper::template parse_file_data<DBGNodeParser, FileParser, SplitSeqIterType>(x, temp, comm);
 		comm.barrier();  // need to sync again.
 		idx.insert(temp);
 	}
@@ -678,60 +690,47 @@ void filter_k2mers(std::vector<bool> const & edge_filter, std::vector<K2merType>
 }
 
 /**
- * @brief pases input file_data, and filter out k2mers with low frequency k1mer edges given a previously computed bool vector.
+ * @brief pases input file_data, and parse k2mers
  */
-template <typename Index>
 ::std::vector<typename DBGNodeParser::value_type> parse_nodes(::bliss::io::file_data const & file_data,
-                                                                          Index const & idx,
                                                                           mxx::comm const & comm) {
   using K2merType = typename DBGNodeParser::K2merType;
 
   ::std::vector<K2merType> temp;
 
   // the parser needs to collectively parse the records.
-//  // ==== middle
-//  idx.template parse_file_data<FileParser, ::bliss::index::kmer::KmerParser<K2merType>>(file_data, temp, comm);
-//  // ==== first
-//  idx.template parse_file_data<FileParser, ::bliss::debruijn::FirstKmerParser<K2merType> >(file_data, temp, comm);
-//  // ==== last
-//  idx.template parse_file_data<FileParser, ::bliss::debruijn::LastKmerParser<K2merType>>(file_data, temp, comm);
-  idx.template parse_file_data<FileParser, ::bliss::debruijn::PaddedKmerParser<K2merType>>(file_data, temp, comm);
+  // for kmer at the beginning and end of sequence, generated a padded version.
+  ::bliss::io::KmerFileHelper::template parse_file_data<::bliss::debruijn::PaddedKmerParser<K2merType>, FileParser, SplitSeqIterType>(file_data, temp, comm);
 
   // transform and insert.
   decltype(::std::declval<DBGNodeParser>().transformer) trans;
   ::std::vector<typename DBGNodeParser::value_type > nodes(temp.size());
   ::std::transform(temp.begin(), temp.end(), nodes.begin(), trans);
-  //printf("temp 1 size: %ld  nodes %ld\n", temp.size(), nodes.size());
 
   return nodes;
 }
 
 
 /**
- * @brief pases input file_data, and filter out k2mers with low frequency k1mer edges given a previously computed bool vector.
+ * @brief pases input file_data to make k2mers, and filter out k2mers with low frequency k1mer edges.
+ * @param file_data
+ * @param selected   bit vector indicating whether an edge has the matching frequency.
  */
-template <typename Index>
 ::std::vector<typename DBGNodeParser::value_type> parse_and_filter_nodes(::bliss::io::file_data const & file_data,
                                                                          ::std::vector<bool> const & selected,
-                                                                          Index const & idx,
                                                                           mxx::comm const & comm) {
 	using K2merType = typename DBGNodeParser::K2merType;
 
   ::std::vector<K2merType> temp;
 
   // the parser needs to collectively parse the records.
-//  // ==== middle
-//  idx.template parse_file_data<FileParser, ::bliss::index::kmer::KmerParser<K2merType>>(file_data, temp, comm);
-//  // ==== first
-//  idx.template parse_file_data<FileParser, ::bliss::debruijn::FirstKmerParser<K2merType> >(file_data, temp, comm);
-//  // ==== last
-//  idx.template parse_file_data<FileParser, ::bliss::debruijn::LastKmerParser<K2merType>>(file_data, temp, comm);
-  idx.template parse_file_data<FileParser, ::bliss::debruijn::PaddedKmerParser<K2merType>>(file_data, temp, comm);
+  // for kmer at the beginning and end of sequence, generated a padded version.
+  ::bliss::io::KmerFileHelper::template parse_file_data<::bliss::debruijn::PaddedKmerParser<K2merType>, FileParser, SplitSeqIterType>(file_data, temp, comm);
 
   // filter temp by k1mer freq
   filter_k2mers(selected, temp, comm);
 
-  // transform and insert.
+  // transform and return.
   decltype(::std::declval<DBGNodeParser>().transformer) trans;
   ::std::vector<typename DBGNodeParser::value_type > nodes(temp.size());
   ::std::transform(temp.begin(), temp.end(), nodes.begin(), trans);
@@ -795,7 +794,7 @@ template <typename Index>
 		for (auto x : file_data) {
 			temp.clear();
 			// the parser needs to collectively parse the records.
-			idx.template parse_file_data<FileParser, K1merParser>(x, temp, comm);
+			::bliss::io::KmerFileHelper::template parse_file_data<K1merParser, FileParser, SplitSeqIterType>(x, temp, comm);
 			counter.insert(temp);  // this distributes the counts according to k-mer hash.
 			// TODO: build from k+2 mer, so that overlap region does not become an issue for fasta files.
 		}
@@ -836,13 +835,7 @@ template <typename Index>
 		  temp.clear();
 
       // the parser needs to collectively parse the records.
-//      // ==== middle
-//			idx.template parse_file_data<FileParser, ::bliss::index::kmer::KmerParser<K2merType>>(x, temp, comm);
-//			// ==== first
-//      idx.template parse_file_data<FileParser, ::bliss::debruijn::FirstKmerParser<K2merType> >(x, temp, comm);
-//      // ==== last
-//      idx.template parse_file_data<FileParser, ::bliss::debruijn::LastKmerParser<K2merType>>(x, temp, comm);
-		  idx.template parse_file_data<FileParser, ::bliss::debruijn::PaddedKmerParser<K2merType>>(x, temp, comm);
+      ::bliss::io::KmerFileHelper::template parse_file_data<::bliss::debruijn::PaddedKmerParser<K2merType>, FileParser, SplitSeqIterType>(x, temp, comm);
 
 			// filter temp by k1mer
 			auto selected = select_k2mers_by_edge_frequency_2(temp, counter, comm);
@@ -1448,14 +1441,12 @@ void count_edges(std::vector<KmerType> const & selected,
 	::std::vector<typename DBGNodeParser::value_type> temp;
 	size_t count = 0;
 	for (size_t i = 0; i < file_data.size(); ++i) {
-//		temp.clear();
-//		idx2.parse_file_data<FileParser, DBGNodeParser>(x, temp, comm);
 #if (pPARSER == FASTQ)
     if (thresholding)
-      parse_and_filter_nodes(file_data[i], selected_edges[i], idx2, comm).swap(temp);
+      parse_and_filter_nodes(file_data[i], selected_edges[i], comm).swap(temp);
     else
 #endif
-      parse_nodes(file_data[i], idx2, comm).swap(temp);
+      parse_nodes(file_data[i], comm).swap(temp);
 
 		count += idx2.get_map().update(temp, false, updater);
 	}
@@ -1573,8 +1564,9 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
   ::bliss::debruijn::lex_less<KmerType> canonical;
 
 
-	// also get the read's starting positions in the output kmer vector
-	std::vector<size_t>  local_offsets;
+	// also get the read's starting positions in the output kmer vector.  first is the length of the sequence, second is whether it contains N or not.
+  // true indicate that this is a valid read (without N).
+	std::vector<std::pair<size_t, bool> >  local_offsets;
 
 	using LocalCountMapType = ::dsc::counting_densehash_map<KmerType, size_t,
 			FreqMapParams,
@@ -1591,19 +1583,21 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 	ss.str(std::string());
 	BL_BENCH_COLLECTIVE_END(valid_print, "init", fdata.getRange().size(), comm);
 
+	// note that we are not using a split sequence iterator here, or a filtering sequence iterator, sicne we NEED to identify the actual first entry.
+
 	BL_BENCH_START(valid_print);
 	// get the kmers
-	idx.template parse_file_data<FileParser, ::bliss::index::kmer::KmerParser<KmerType> >(fdata, kmers, comm);
+  ::bliss::io::KmerFileHelper::template parse_file_data<::bliss::index::kmer::KmerParser<KmerType>, FileParser, SeqIterType>(fdata, kmers, comm);
 	std::transform(kmers.begin(), kmers.end(), kmers.begin(), canonical);
 	BL_BENCH_COLLECTIVE_END(valid_print, "parse kmers", kmers.size(), comm);
 
 
 	BL_BENCH_START(valid_print);
 	// get the read lengths
-	idx.template parse_file_data<FileParser, ::bliss::debruijn::ReadLengthParser<KmerType> >(fdata, local_offsets, comm);
+  ::bliss::io::KmerFileHelper::template parse_file_data<::bliss::debruijn::ReadLengthParser<KmerType>, FileParser, SeqIterType>(fdata, local_offsets, comm);
 	// prefix scan to get the offsets
 	for (size_t i = 1; i < local_offsets.size(); ++i) {
-		local_offsets[i] += local_offsets[i-1];
+		local_offsets[i].first += local_offsets[i-1].first;
 	}
 	// global prefix scan.  only for procs that have data.
 //	::mxx::comm subcomm = comm.split(local_offsets.size() > 0);
@@ -1633,9 +1627,9 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 
 
 	BL_BENCH_START(valid_print);
-	// get the kmers again - earlier kmer vector is scrambled by idx.count.
+	// get the kmers again - earlier kmer vector is scrambled by idx.count.  doing this instead of saving another copy because of space constraints.
 	kmers.clear();
-	idx.template parse_file_data<FileParser, ::bliss::index::kmer::KmerParser<KmerType> >(fdata, kmers, comm);
+  ::bliss::io::KmerFileHelper::template parse_file_data<::bliss::index::kmer::KmerParser<KmerType>, FileParser, SeqIterType>(fdata, kmers, comm);
 	std::transform(kmers.begin(), kmers.end(), kmers.begin(), canonical);
 	BL_BENCH_COLLECTIVE_END(valid_print, "reparse", kmers.size(), comm);
 
@@ -1645,47 +1639,51 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 	int64_t rstart = 0;
 	int64_t rend, vstart, vend;
 	for (size_t i = 0; i < local_offsets.size(); ++i) {
-		rend = static_cast<int64_t>(local_offsets[i]);
+		rend = static_cast<int64_t>(local_offsets[i].first);
+
 		vstart = -1;
 		vend = -1;
 
+		if (local_offsets[i].second == true) {  // only compute if there is no N.
+
 		//std::cout << "global offset " << global_offset << " local offsets : " << rstart << " - " << rend << std::endl;
 
-		for (int64_t j = rstart; j < rend; ++j) {
+      for (int64_t j = rstart; j < rend; ++j) {
 
 
-			it = counter.find(kmers[j]);
+        it = counter.find(kmers[j]);
 
-			if (it != counter.end()) {
-//				std::cout << "rank " << comm.rank() << " pos " << j << " rstart " << rstart <<
-//						" query " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) <<
-//						" result " << bliss::utils::KmerUtils::toASCIIString((*it).first) <<
-//						" start count " << (*it).second << std::endl;
-				// kmer exists in the debruijn graph
-				if ((*it).second > 0) {
-					//print the first pos.
-					vstart = j - rstart;
-					break;
-				}
-			}
-		}
+        if (it != counter.end()) {
+  //				std::cout << "rank " << comm.rank() << " pos " << j << " rstart " << rstart <<
+  //						" query " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) <<
+  //						" result " << bliss::utils::KmerUtils::toASCIIString((*it).first) <<
+  //						" start count " << (*it).second << std::endl;
+          // kmer exists in the debruijn graph
+          if ((*it).second > 0) {
+            //print the first pos.
+            vstart = j - rstart;
+            break;
+          }
+        }
+      }
 
-		if (vstart > -1) {
-			for (int64_t j = rend - 1; j >= rstart; --j) {
-				it = counter.find(kmers[j]);
+      if (vstart > -1) {
+        for (int64_t j = rend - 1; j >= rstart; --j) {
+          it = counter.find(kmers[j]);
 
-				if (it != counter.end()) {
-//					std::cout << "rank " << comm.rank() << " pos " << j << " rstart " << rstart <<
-//							" query " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) <<
-//							" result " << bliss::utils::KmerUtils::toASCIIString((*it).first) <<
-//							" end count " << (*it).second << std::endl;
-					if ((*it).second > 0) {
-						vend = j - rstart;
-						break;
-					}
-				}
-			}
-		}
+          if (it != counter.end()) {
+  //					std::cout << "rank " << comm.rank() << " pos " << j << " rstart " << rstart <<
+  //							" query " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) <<
+  //							" result " << bliss::utils::KmerUtils::toASCIIString((*it).first) <<
+  //							" end count " << (*it).second << std::endl;
+            if ((*it).second > 0) {
+              vend = j - rstart;
+              break;
+            }
+          }
+        }
+      }
+		}  // only compute start and end if there is no N.
 
 //		// DEBUG
 //		for (int64_t j = rstart; j < rend; ++j) {
@@ -1928,15 +1926,14 @@ void count_kmers(::std::vector<::bliss::io::file_data> const & file_data,
 
 
 	for (size_t i = 0; i < file_data.size(); ++i) {
-		//temp1.clear();
-		//count_idx.template parse_file_data<FileParser, DBGNodeParser>(x, temp1, comm);
 
+	  // use the same mechanism as the one for building the graph, so we can count.
 #if (pPARSER == FASTQ)
 	  if (thresholding)
-      parse_and_filter_nodes(file_data[i], selected_edges[i], count_idx, comm).swap(temp1);
+      parse_and_filter_nodes(file_data[i], selected_edges[i], comm).swap(temp1);
 	  else
 #endif
-	    parse_nodes(file_data[i], count_idx, comm).swap(temp1);
+	    parse_nodes(file_data[i], comm).swap(temp1);
 
 		// copy out the kmer only.  overlap is k+1 plus any newline chars.  because of the newline chars, not practical to truncate x.
 		// this is safer.

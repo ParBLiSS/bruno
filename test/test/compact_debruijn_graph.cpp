@@ -49,6 +49,8 @@
 
 #include "io/sequence_iterator.hpp"
 #include "io/sequence_id_iterator.hpp"
+#include "io/kmer_file_helper.hpp"
+#include "io/filtered_sequence_iterator.hpp"
 
 #include "iterators/transform_iterator.hpp"
 
@@ -429,7 +431,7 @@ int main(int argc, char** argv) {
       for (auto x : file_data) {
         temp.clear();
         comm.barrier();  // need to sync this, since the parser needs to collectively parse the records.
-        idx.parse_file_data<FileParser, DBGNodeParser>(x, temp, comm);
+        ::bliss::io::KmerFileHelper::parse_file_data<DBGNodeParser, FileParser, ::bliss::io::NFilterSequencesIterator>(x, temp, comm);
         if (comm.rank() == 0) printf("PARSED\n");
         comm.barrier();  // need to sync again.
         idx.insert(temp);
@@ -1127,7 +1129,7 @@ int main(int argc, char** argv) {
         ::std::vector<typename DBGNodeParser::value_type> temp;
         for (auto x : file_data) {
           temp.clear();
-          idx2.parse_file_data<FileParser, DBGNodeParser>(x, temp, comm);
+          ::bliss::io::KmerFileHelper::parse_file_data<DBGNodeParser, FileParser, ::bliss::io::NFilterSequencesIterator>(x, temp, comm);
           idx2.insert(temp);
         }
         // idx2.insert(temp);
