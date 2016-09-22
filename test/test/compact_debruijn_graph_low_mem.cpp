@@ -267,8 +267,6 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 
 	BL_BENCH_INIT(open);
 
-	// TODO: average, min, and max frequencies for k-mer is no longer correct after early cleanup of chainmap for FASTA and FASTQ
-
 	BL_BENCH_START(open);
 	size_t total = 0;
 	for (auto fn : filenames) {
@@ -278,7 +276,6 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 
 		file_data.push_back(fobj.read_file());
 		total += file_data.back().getRange().size();
-		//		idx.read_file_posix<FileParser, DBGNodeParser>(fn, temp1, comm);
 	}
 	BL_BENCH_COLLECTIVE_END(open, "read", total, comm);
 
@@ -778,7 +775,7 @@ template <typename Index>
 	using K2merToEdge = ::bliss::debruijn::k2mer_to_edge<KmerType>;
 	using K2merType = typename K2merToEdge::K2merType;
 
-	// k+1-mer count map.  not that it should use the same hash function as Index.
+	// k+1-mer count map.  note that it should use the same hash function as Index.
 	using K1merType	= ::bliss::common::Kmer<KmerType::size + 1, typename KmerType::KmerAlphabet, typename KmerType::KmerWordType>;
 	using K1merParser = ::bliss::index::kmer::KmerParser<K1merType>;
 	using CountMap1Type = ::dsc::counting_densehash_map<K1merType, CountType,

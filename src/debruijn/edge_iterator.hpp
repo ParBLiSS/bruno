@@ -36,6 +36,8 @@ namespace bliss
   namespace debruijn
   {
     /// simple biedge type. packed in and out edge character (adjacent to current k-mer.)  e.g. x-Kmer-y would be have xy as the biedge representation.  simple because it's not compound.
+    /// NOTE: simple biedge encodes 2 characters from the alphabet, not the same as compact biedge.
+
     using compact_simple_biedge = bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t>;
 
     namespace transform {
@@ -50,7 +52,7 @@ namespace bliss
   namespace iterator
   {
 
-
+    // CURRENTLY NOT USED, but may want to resurrect.
 
     // careful with the use of enable_if.  evaluation should occur at function call time,
     //   i.e. class template params will be evaluated with no substitution.
@@ -73,6 +75,10 @@ namespace bliss
      *          edge iterator should be valid for std::distance(_data_end - _data_start - k + 1) iterations.
      *
      *          using DNA16 because it is the most encompassing, also it supports 'N'
+     *
+     *          directly generates left and right edges
+     *
+     *          NOTE: simple biedge encodes 2 characters from the alphabet, not the same as compact biedge.
      */
   	template<typename IT>
   	class biedge_generating_iterator<IT, bliss::common::DNA16> :

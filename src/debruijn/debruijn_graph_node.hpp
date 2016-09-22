@@ -269,6 +269,15 @@ namespace bliss
           }
       };
 
+
+      template <typename COUNT_TYPE, typename DUMMY>
+      constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA, COUNT_TYPE, DUMMY>::FROM_DNA16;
+      template <typename COUNT_TYPE, typename DUMMY>
+      constexpr std::array<uint8_t, 4> compact_multi_biedge<::bliss::common::DNA, COUNT_TYPE, DUMMY>::INDEX_TO_CHAR;
+      template <typename COUNT_TYPE, typename DUMMY>
+      constexpr std::array<uint8_t, 4> compact_multi_biedge<::bliss::common::DNA, COUNT_TYPE, DUMMY>::CHAR_TO_INDEX;
+
+
       template<typename COUNT, typename DUMMY>
       class compact_multi_biedge<::bliss::common::DNA6, COUNT, DUMMY> {
 
@@ -456,6 +465,14 @@ namespace bliss
             }
           }
       };
+
+
+      template <typename COUNT_TYPE, typename DUMMY>
+      constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA6, COUNT_TYPE, DUMMY>::FROM_DNA16;
+      template <typename COUNT_TYPE, typename DUMMY>
+      constexpr std::array<uint8_t, 5> compact_multi_biedge<::bliss::common::DNA6, COUNT_TYPE, DUMMY>::INDEX_TO_CHAR;
+      template <typename COUNT_TYPE, typename DUMMY>
+      constexpr std::array<uint8_t, 8> compact_multi_biedge<::bliss::common::DNA6, COUNT_TYPE, DUMMY>::CHAR_TO_INDEX;
 
       /// special version of DNA16 multi_biedge that counts only the DNA6 subset of characters.
       template<typename COUNT, typename DUMMY>
@@ -654,6 +671,13 @@ namespace bliss
           }
       };
 
+      template <typename COUNT_TYPE, typename DUMMY>
+      constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA16, COUNT_TYPE, DUMMY>::FROM_DNA16;
+      template <typename COUNT_TYPE, typename DUMMY>
+      constexpr std::array<uint8_t, 5> compact_multi_biedge<::bliss::common::DNA16, COUNT_TYPE, DUMMY>::INDEX_TO_CHAR;
+      template <typename COUNT_TYPE, typename DUMMY>
+      constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA16, COUNT_TYPE, DUMMY>::CHAR_TO_INDEX;
+
 
 
       //=============== existence only
@@ -797,6 +821,8 @@ namespace bliss
 
       };
 
+      template <typename DUMMY>
+      constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA, bool, DUMMY>::FROM_DNA16;
 
 
       /**
@@ -977,6 +1003,8 @@ namespace bliss
 
       };
 
+      template <typename DUMMY>
+      constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA6, bool, DUMMY>::FROM_DNA16;
 
       /*node trait class*/
       template <typename DUMMY>
@@ -1129,31 +1157,7 @@ namespace bliss
       };
 
       template <typename DUMMY>
-      constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA, bool, DUMMY>::FROM_DNA16;
-      template <typename DUMMY>
-      constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA6, bool, DUMMY>::FROM_DNA16;
-      template <typename DUMMY>
       constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA16, bool, DUMMY>::FROM_DNA16;
-      template <typename COUNT_TYPE, typename DUMMY>
-      constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA, COUNT_TYPE, DUMMY>::FROM_DNA16;
-      template <typename COUNT_TYPE, typename DUMMY>
-      constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA6, COUNT_TYPE, DUMMY>::FROM_DNA16;
-      template <typename COUNT_TYPE, typename DUMMY>
-      constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA16, COUNT_TYPE, DUMMY>::FROM_DNA16;
-
-      template <typename COUNT_TYPE, typename DUMMY>
-      constexpr std::array<uint8_t, 4> compact_multi_biedge<::bliss::common::DNA, COUNT_TYPE, DUMMY>::INDEX_TO_CHAR;
-      template <typename COUNT_TYPE, typename DUMMY>
-      constexpr std::array<uint8_t, 5> compact_multi_biedge<::bliss::common::DNA6, COUNT_TYPE, DUMMY>::INDEX_TO_CHAR;
-      template <typename COUNT_TYPE, typename DUMMY>
-      constexpr std::array<uint8_t, 5> compact_multi_biedge<::bliss::common::DNA16, COUNT_TYPE, DUMMY>::INDEX_TO_CHAR;
-
-      template <typename COUNT_TYPE, typename DUMMY>
-      constexpr std::array<uint8_t, 4> compact_multi_biedge<::bliss::common::DNA, COUNT_TYPE, DUMMY>::CHAR_TO_INDEX;
-      template <typename COUNT_TYPE, typename DUMMY>
-      constexpr std::array<uint8_t, 8> compact_multi_biedge<::bliss::common::DNA6, COUNT_TYPE, DUMMY>::CHAR_TO_INDEX;
-      template <typename COUNT_TYPE, typename DUMMY>
-      constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA16, COUNT_TYPE, DUMMY>::CHAR_TO_INDEX;
 
 
 
