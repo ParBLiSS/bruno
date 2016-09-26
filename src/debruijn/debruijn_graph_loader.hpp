@@ -102,6 +102,8 @@ namespace bliss
      *
      *          CURRENTLY USED by debruijn graph build_index() only.
      *
+     *          TO BE DEPRECATED
+     *
      * @tparam TupleType  value type of outputIt, or the generated type.  supplied so that we can use template template param with Index.
      */
     template <typename KmerType>
@@ -114,9 +116,9 @@ namespace bliss
         using value_type = std::pair<KmerType, typename k2mer_to_edge<KmerType>::edge_type >;
         using kmer_type = K2merType;
 
-        ::bliss::partition::range valid_range;
+        ::bliss::partition::range<size_t> valid_range;
 
-        debruijn_graph_parser(::bliss::partition::range const & _valid_range) : valid_range(_valid_range) {};
+        debruijn_graph_parser(::bliss::partition::range<size_t> const & _valid_range) : valid_range(_valid_range) {};
 
 
         template <typename SeqType, typename OutputIt>
@@ -354,7 +356,10 @@ namespace bliss
 //    };
 
     /**
-     * @brief  generate kmers that can overlap the sequence ends by 1 character.  used by parse_node and build_threshold
+     * @brief  generate kmers that can overlap the sequence ends by 1 character.
+     * @details    used by parse_node and build_threshold
+     *             TO BE DEPRECATED - the last element may not be correct at boundary.
+     *
      */
     template <typename KmerType>
     struct PaddedKmerParser {
@@ -363,9 +368,9 @@ namespace bliss
       using value_type = KmerType;
       using kmer_type = KmerType;
 
-      ::bliss::partition::range valid_range;
+      ::bliss::partition::range<size_t> valid_range;
 
-      PaddedKmerParser(::bliss::partition::range const & _valid_range) : valid_range(_valid_range) {};
+      PaddedKmerParser(::bliss::partition::range<size_t> const & _valid_range) : valid_range(_valid_range) {};
 
 
       /**
@@ -423,10 +428,10 @@ namespace bliss
         }
 
         // middle
-        for (; start != end; ++start) {
-          *output_iter = *start;
-          ++output_iter;
+        for (auto it = start; it != end; ++it, ++output_iter) {
+          *output_iter = *it;
         }
+
 
         // last
         if (!(read.is_record_truncated_at_end())) {
@@ -463,9 +468,9 @@ namespace bliss
     	using value_type = std::pair<size_t, bool>;
     	using kmer_type = KmerType;
 
-        ::bliss::partition::range valid_range;
+        ::bliss::partition::range<size_t> valid_range;
 
-        ReadLengthParser(::bliss::partition::range const & _valid_range) : valid_range(_valid_range) {};
+        ReadLengthParser(::bliss::partition::range<size_t> const & _valid_range) : valid_range(_valid_range) {};
 
 
       /**
@@ -539,13 +544,14 @@ namespace bliss
 
         using Alphabet = typename KmerType::KmerAlphabet;
 
-        ::bliss::partition::range valid_range;
+        ::bliss::partition::range<size_t> valid_range;
 
-        debruijn_kmer_simple_biedge_parser(::bliss::partition::range const & _valid_range) : valid_range(_valid_range) {};
+        debruijn_kmer_simple_biedge_parser(::bliss::partition::range<size_t> const & _valid_range) : valid_range(_valid_range) {};
 
 
-        template <typename SeqType, typename OutputIt>
-        OutputIt operator()(SeqType & read, OutputIt output_iter) {
+        template <typename SeqType, typename OutputIt, typename Predicate = ::fsc::TruePredicate>
+        OutputIt operator()(SeqType & read, OutputIt output_iter, Predicate const & pred = Predicate()) {
+
           static_assert(std::is_same<value_type, typename ::std::iterator_traits<OutputIt>::value_type>::value,
                         "output type and output container value type are not the same");
 
@@ -563,7 +569,7 @@ namespace bliss
           // combine kmer iterator and position iterator to create an index iterator type.
           using KmerBiedgeIterType = bliss::iterator::ZipIterator<KmerIter, EdgeIterType>;
 
-          static_assert(std::is_same<typename std::iterator_traits<KmerIndexIterType>::value_type,
+          static_assert(std::is_same<typename std::iterator_traits<KmerBiedgeIterType>::value_type,
                         value_type>::value,
                         "Generating iterator and output container value types differ");
 
@@ -585,8 +591,34 @@ namespace bliss
           KmerBiedgeIterType node_start(start, edge_start);
           KmerBiedgeIterType node_end(end, edge_end);
 
-          return ::std::copy(node_start, node_end, output_iter);
 
+          ::bliss::partition::range<size_t> seq_range(read.seq_global_offset(), read.seq_global_offset() + read.seq_size());
+          if (seq_range.contains(valid_range.end)) {
+            // seq_range contains overlap.
+
+            // not checking by end iterator at valid_range.end, since the NonEOLIter is a filter iterator that may skip over that pos.
+            auto valid_dist = valid_range.end - seq_range.start;
+
+            for (auto it = node_start; it != node_end; ++it, ++output_iter) {
+              // check tail of window -> transform iterator, get base -> non EOL iterator, get base -> seq raw char iter.
+              if (std::distance(read.seq_begin,
+                                it.get_first_iterator().getTrailingIterator().getBaseIterator().getBaseIterator()) >= valid_dist) {
+                break;
+              }
+
+              *output_iter = *it;
+            }
+
+            return output_iter;
+
+          } else {
+
+
+            if (::std::is_same<Predicate, ::fsc::TruePredicate>::value)
+              return ::std::copy(node_start, node_end, output_iter);
+            else
+              return ::std::copy(node_start, node_end, output_iter, pred);
+          }
         }
     };
 
