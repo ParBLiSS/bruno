@@ -116,7 +116,7 @@ struct KmerFileHelper {
     //using SeqIterType = ::bliss::io::SequencesIterator<CharIterType, SeqParser >;
 
     //== sequence parser type
-    KmerParser kmer_parser;
+    KmerParser kmer_parser(partition.valid_range_bytes);
     ::bliss::utils::file::NotEOL not_eol;
 
     //== process the chunk of data

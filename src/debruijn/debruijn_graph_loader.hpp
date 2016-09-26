@@ -114,6 +114,11 @@ namespace bliss
         using value_type = std::pair<KmerType, typename k2mer_to_edge<KmerType>::edge_type >;
         using kmer_type = K2merType;
 
+        ::bliss::partition::range valid_range;
+
+        debruijn_graph_parser(::bliss::partition::range const & _valid_range) : valid_range(_valid_range) {};
+
+
         template <typename SeqType, typename OutputIt>
         OutputIt operator()(SeqType & read, OutputIt output_iter) {
           static_assert(std::is_same<value_type, typename ::std::iterator_traits<OutputIt>::value_type>::value,
@@ -358,6 +363,11 @@ namespace bliss
       using value_type = KmerType;
       using kmer_type = KmerType;
 
+      ::bliss::partition::range valid_range;
+
+      PaddedKmerParser(::bliss::partition::range const & _valid_range) : valid_range(_valid_range) {};
+
+
       /**
        * @brief generate kmers from 1 sequence.  result inserted into output_iter, which may be preallocated.
        * @param read          sequence object, which has pointers to the raw byte array.
@@ -453,6 +463,10 @@ namespace bliss
     	using value_type = std::pair<size_t, bool>;
     	using kmer_type = KmerType;
 
+        ::bliss::partition::range valid_range;
+
+        ReadLengthParser(::bliss::partition::range const & _valid_range) : valid_range(_valid_range) {};
+
 
       /**
        * @brief generate kmers from 1 sequence.  result inserted into output_iter, which may be preallocated.
@@ -524,6 +538,11 @@ namespace bliss
         using value_type = std::pair<KmerType, edge_type>;
 
         using Alphabet = typename KmerType::KmerAlphabet;
+
+        ::bliss::partition::range valid_range;
+
+        debruijn_kmer_simple_biedge_parser(::bliss::partition::range const & _valid_range) : valid_range(_valid_range) {};
+
 
         template <typename SeqType, typename OutputIt>
         OutputIt operator()(SeqType & read, OutputIt output_iter) {
