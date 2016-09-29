@@ -94,7 +94,7 @@ namespace bliss {
         }
 
 
-
+#define USE_MPI
 #if defined(USE_MPI)
 
         /// convenience function to generate k+1mer frequency map.
@@ -214,6 +214,10 @@ namespace bliss {
               query.emplace_back(k1);
             }
 
+//            for (auto q : query) {
+//              std::cout << "query k1mer: " << bliss::utils::KmerUtils::toASCIIString(q) << ::std::endl;
+//            }
+
             //===== query right and insert into local map.
             {
               local_counts.clear();
@@ -223,6 +227,8 @@ namespace bliss {
               // insert into local count map.
               local_counts.insert(remote_counts.begin(), remote_counts.end());
             }
+
+//            std::cout << "rank " << comm.rank() << " iter " << i << " query count " << query.size() << " result " << local_counts.size() << std::endl;
 
             //====== NOW go through k2mers again and modify the biedges based on frequency.
             // we check left and right edges here so that all edges are consistent.
@@ -235,7 +241,7 @@ namespace bliss {
               count_iter = local_counts.find(k1);
               if (count_iter == local_counts.end()) {
                 // did not find, so clear the in edge (upper 4 bits of the byte).
-                biedges[j].second.getDataRef()[0] &= 0xF;
+                biedges[j].second.getDataRef()[0] &= 0x0F;
               }
 
               k1 = canonical(::bliss::debruijn::biedge::get_out_edge_k1mer(biedges[j]));

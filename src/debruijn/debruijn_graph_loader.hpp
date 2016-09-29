@@ -193,8 +193,8 @@ namespace bliss
           KmerIter end(base_end, false);
 
 
-          std::cout << "dbg parser raw dist = " << read.seq_size() << std::endl;
-          size_t edge_count = std::distance(start, end);
+//          std::cout << "dbg parser raw dist = " << read.seq_size() << std::endl;
+//          size_t edge_count = std::distance(start, end);
 
           if (start == end) {
         	  return output_iter;
@@ -204,7 +204,7 @@ namespace bliss
           if (! read.is_record_truncated_at_begin()) {
             *output_iter = transformer((*start) >> 1);
             ++output_iter;
-            ++edge_count;
+//            ++edge_count;
           }
 
           K2merType k2mer;  // temp storage  (for the last k2mer to be processed)
@@ -219,11 +219,11 @@ namespace bliss
           if (! read.is_record_truncated_at_end()) {
             *output_iter = transformer(k2mer << 1);
             ++output_iter;
-            ++edge_count;
+//            ++edge_count;
           }
 
 
-          std::cout << "dbg parser kmer iter dist = " << edge_count << std::endl;
+//          std::cout << "dbg parser kmer iter dist = " << edge_count << std::endl;
 
           return output_iter;
 
@@ -429,8 +429,8 @@ namespace bliss
         KmerIterType start(BaseCharIterator(eolstart, bliss::common::ASCII2<Alphabet>()), true);
         KmerIterType end(BaseCharIterator(eolend, bliss::common::ASCII2<Alphabet>()), false);
 
-        std::cout << "paddedk2mer raw dist = " << read.seq_size() << std::endl;
-        size_t edge_count = std::distance(start, end);
+//        std::cout << "paddedk2mer raw dist = " << read.seq_size() << std::endl;
+//        size_t edge_count = std::distance(start, end);
 
     //    printf("First: pos %lu kmer %s\n", read.id.id, bliss::utils::KmerUtils::toASCIIString(*start).c_str());
         //assert(start != end);
@@ -440,7 +440,7 @@ namespace bliss
         if (!(read.is_record_truncated_at_begin())) {
           *output_iter = (*start) >> 1;
           ++output_iter;
-          ++edge_count;
+//          ++edge_count;
         }
 
         // middle
@@ -462,10 +462,10 @@ namespace bliss
 
           *output_iter = (*last) << 1;
           ++output_iter;
-          ++edge_count;
+//          ++edge_count;
         }
 
-        std::cout << "paddedk2mer kmer iter dist = " << edge_count << std::endl;
+//        std::cout << "paddedk2mer kmer iter dist = " << edge_count << std::endl;
 
 
         return output_iter;

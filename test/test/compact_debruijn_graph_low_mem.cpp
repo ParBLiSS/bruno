@@ -843,7 +843,7 @@ template <typename Index>
     CountMap1Type counter2(comm);
     ::bliss::debruijn::biedge::filter::compute_edge_frequency<FileParser, SplitSeqIterType>(file_data, counter2, comm);
     bool same = std::equal(counter.get_local_container().begin(), counter.get_local_container().end(), counter2.get_local_container().begin());
-    std::cout << "k1mer counter size are same? " << (counter.local_size() == counter2.local_size() ? "y" : "n") << std::endl;
+    std::cout << "k1mer counter size are same? " << (counter.local_size() == counter2.local_size() ? "y" : "n") << " counter " << counter.local_size() << " counter2 " << counter2.local_size() << std::endl;
     std::cout << "k1mer counter are same? " << (same ? "y" : "n") << std::endl;
   }
   // TESTING END
@@ -870,8 +870,8 @@ template <typename Index>
 	  ::bliss::debruijn::biedge::filter::compute_edge_frequency<FileParser, SplitSeqIterType>(file_data, counter2, comm, lower_thresh, upper_thresh);
 
 	  bool same = std::equal(counter.get_local_container().begin(), counter.get_local_container().end(), counter2.get_local_container().begin());
-    std::cout << "k1mer filtered counter sizes are same? " << (counter.local_size() == counter2.local_size() ? "y" : "n") << std::endl;
-	  std::cout << "k1mer filtered counter are same? " << (same ? "y" : "n") << std::endl;
+	  std::cout << "k1mer filtered counter size are same? " << (counter.local_size() == counter2.local_size() ? "y" : "n") << " counter " << counter.local_size() << " counter2 " << counter2.local_size() << std::endl;
+    std::cout << "k1mer filtered counter are same? " << (same ? "y" : "n") << std::endl;
 	}
 	// TESTING END
 
@@ -922,16 +922,30 @@ template <typename Index>
 //			size_t node_size = nodes.size();
 
 			// TESTING
+			nodes2.clear();
 			::bliss::io::KmerFileHelper::template parse_file_data<::bliss::debruijn::biedge::io::debruijn_kmer_simple_biedge_parser<KmerType>,
 			   FileParser, SplitSeqIterType>(x, nodes2, comm);
+      {
+        for (size_t i = 0; i < nodes2.size(); ++i) {
+          std::cout << "BEFORE FILTER node " << ::bliss::utils::KmerUtils::toASCIIString(nodes[i].second) <<
+              " node2 " << ::bliss::utils::KmerUtils::toASCIIString(nodes2[i].second) <<
+              " selected: " << selected[2*i] << "," << selected[2*i+1] << std::endl;
+        }
+      }
+
 			::bliss::debruijn::biedge::filter::transform_biedges_by_frequency<KmerType, CountMap1Type>(nodes2, counter2, comm);
 			::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> biedges;
 			::bliss::debruijn::biedge::filter::extract_biedges<KmerType>(nodes2).swap(biedges);
 			{
+        std::cout << "selected edges counts are same? " << (biedges.size() * 2 == selected.size() ? "y" : "n") << std::endl;
         bool same = true;
         for (size_t i = 0; i < biedges.size(); ++i) {
-          same &= (((biedges[i].getData()[0] & 0xF0) != 0) && selected[2 * i]);
-          same &= (((biedges[i].getData()[0] & 0x0F) != 0) && selected[2 * i + 1]);
+          same &= (((biedges[i].getData()[0] & 0xF0) != 0) == selected[2 * i]);
+          same &= (((biedges[i].getData()[0] & 0x0F) != 0) == selected[2 * i + 1]);
+          std::cout << "AFTER FILTER node " << ::bliss::utils::KmerUtils::toASCIIString(nodes[i].second) <<
+              " node2 " << ::bliss::utils::KmerUtils::toASCIIString(nodes2[i].second) <<
+              " biedge " << ::bliss::utils::KmerUtils::toASCIIString(biedges[i]) <<
+              " selected: " << selected[2*i] << "," << selected[2*i+1] << std::endl;
         }
         std::cout << "selected edges are same? " << (same ? "y" : "n") << std::endl;
 			}

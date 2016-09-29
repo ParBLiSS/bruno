@@ -105,7 +105,7 @@ namespace bliss
         using Alpha = typename KmerType::KmerAlphabet;
 
         kmer_simple_edge<KmerType> kk;
-        std::memcpy(kk.getDataRef(), kmer.getData(), KmerType::nWords);
+        std::memcpy(kk.getDataRef(), kmer.getData(), KmerType::nWords * sizeof(typename KmerType::KmerWordType));
 
         kmer_simple_edge<KmerType> kk2;
         kk2.nextFromChar(Alpha::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[(edge.getData()[0] >> (compact_simple_biedge::bitsPerChar))]]);
@@ -130,7 +130,7 @@ namespace bliss
         using Alpha = typename KmerType::KmerAlphabet;
 
         kmer_simple_edge<KmerType> kk;
-        std::memcpy(kk.getDataRef(), kmer.getData(), KmerType::nWords);
+        std::memcpy(kk.getDataRef(), kmer.getData(), KmerType::nWords * sizeof(typename KmerType::KmerWordType));
 
         kk.nextFromChar(Alpha::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[edge.getData()[0] & 0xF]]);
 
@@ -380,7 +380,7 @@ namespace bliss
           template <typename SeqType, typename OutputIt, typename Predicate = ::fsc::TruePredicate>
           OutputIt operator()(SeqType const & read, OutputIt output_iter, Predicate const & pred = Predicate()) {
 
-            std::cout << " first raw dist = " << read.seq_size() << std::endl;
+//            std::cout << " first raw dist = " << read.seq_size() << std::endl;
 
             static_assert(std::is_same<value_type, typename ::std::iterator_traits<OutputIt>::value_type>::value,
                           "output type and output container value type are not the same");
@@ -421,9 +421,9 @@ namespace bliss
             KmerBiedgeIterType node_start(start, edge_start);
             KmerBiedgeIterType node_end(end, edge_end);
 
-            std::cout << " raw dist = " << read.seq_size() << std::endl;
-            std::cout << " kmer iter dist = " << std::distance(start, end) << std::endl;
-            std::cout << " kmerbiedge iter dist = " << std::distance(node_start, node_end) << std::endl;
+//            std::cout << " raw dist = " << read.seq_size() << std::endl;
+//            std::cout << " kmer iter dist = " << std::distance(start, end) << std::endl;
+//            std::cout << " kmerbiedge iter dist = " << std::distance(node_start, node_end) << std::endl;
 
             if (read.is_record_truncated_at_begin()) ++node_start;
             // for truncated at end, we are already doing overlap of size k+1.
