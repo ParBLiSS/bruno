@@ -31,7 +31,6 @@
 
 #include "containers/distributed_densehash_map.hpp"
 
-#include "debruijn/edge_iterator.hpp"
 #include "debruijn/debruijn_graph_node.hpp"	//node trait data structure storing the linkage information to the node
 
 #include "utils/benchmark_utils.hpp"  // for timing.

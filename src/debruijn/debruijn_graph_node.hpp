@@ -39,8 +39,7 @@
 #include "common/alphabets.hpp"
 #include "utils/bit_ops.hpp"
 
-#include "debruijn/edge_iterator.hpp"
-
+#include "debruijn/debruijn_biedge_loader.hpp"
 
 // forward declares
 namespace bliss
@@ -155,7 +154,7 @@ namespace bliss
 
           using Alphabet = EdgeEncoding;
           using CountType = COUNT;
-          using EdgeInputType = bliss::debruijn::compact_simple_biedge;   // hardcoded to DNA16 because of N
+          using EdgeInputType = bliss::debruijn::biedge::compact_simple_biedge;   // hardcoded to DNA16 because of N
 
 
           friend std::ostream& operator<<(std::ostream& ost, const compact_multi_biedge<EdgeEncoding, COUNT, DUMMY> & node)
@@ -354,7 +353,7 @@ namespace bliss
 
           using Alphabet = EdgeEncoding;
           using CountType = COUNT;
-          using EdgeInputType = bliss::debruijn::compact_simple_biedge;   // hardcoded to DNA16 because of N
+          using EdgeInputType = bliss::debruijn::biedge::compact_simple_biedge;   // hardcoded to DNA16 because of N
 
 
           friend std::ostream& operator<<(std::ostream& ost, const compact_multi_biedge<EdgeEncoding, COUNT, DUMMY> & node)
@@ -557,7 +556,7 @@ namespace bliss
 
           using Alphabet = EdgeEncoding;
           using CountType = COUNT;
-          using EdgeInputType = bliss::debruijn::compact_simple_biedge;   // hardcoded to DNA16 because of N
+          using EdgeInputType = bliss::debruijn::biedge::compact_simple_biedge;   // hardcoded to DNA16 because of N
 
 
           friend std::ostream& operator<<(std::ostream& ost, const compact_multi_biedge<EdgeEncoding, COUNT, DUMMY> & node)
@@ -722,7 +721,7 @@ namespace bliss
           using EdgeEncoding = bliss::common::DNA;
           using Alphabet = EdgeEncoding;
           using CountType = uint8_t;
-          using EdgeInputType = bliss::debruijn::compact_simple_biedge;
+          using EdgeInputType = bliss::debruijn::biedge::compact_simple_biedge;
 
           static constexpr size_t maxEdgeCount = EdgeEncoding::SIZE;
 
@@ -893,7 +892,7 @@ namespace bliss
           using EdgeEncoding = ::bliss::common::DNA6;
           using Alphabet = EdgeEncoding;
           using CountType = uint8_t;
-          using EdgeInputType = bliss::debruijn::compact_simple_biedge;
+          using EdgeInputType = bliss::debruijn::biedge::compact_simple_biedge;
 
           static constexpr size_t maxEdgeCount = EdgeEncoding::SIZE;
 
@@ -1046,7 +1045,7 @@ namespace bliss
           using EdgeEncoding = ::bliss::common::DNA16;
           using Alphabet = EdgeEncoding;
           using CountType = uint16_t;
-          using EdgeInputType = bliss::debruijn::compact_simple_biedge;
+          using EdgeInputType = bliss::debruijn::biedge::compact_simple_biedge;
 
           static constexpr size_t maxEdgeCount = EdgeEncoding::SIZE;
 

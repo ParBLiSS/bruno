@@ -65,7 +65,9 @@
 #include "index/kmer_hash.hpp"
 
 #include "debruijn/debruijn_common.hpp"
-#include "debruijn/edge_iterator.hpp"
+#include "debruijn/debruijn_biedge_loader.hpp"
+#include "debruijn/debruijn_biedge_filters.hpp"
+
 
 #include "debruijn/debruijn_graph_node.hpp"
 #include "debruijn/debruijn_graph_map.hpp"
@@ -76,6 +78,7 @@
 #include "debruijn/debruijn_chain_filters.hpp"
 #include "debruijn/debruijn_chain_node.hpp"
 #include "debruijn/debruijn_chain_operations.hpp"
+
 
 #include "debruijn/debruijn_stats.hpp"
 
@@ -295,11 +298,48 @@ void build_index(::std::vector<::bliss::io::file_data> const & file_data, Index 
 
 	BL_BENCH_START(build);
 	::std::vector<typename DBGNodeParser::value_type> temp;
+
+	// TESTING
+	using DBGNodeParser2 = ::bliss::debruijn::biedge::io::debruijn_kmer_simple_biedge_parser<KmerType>;
+	::std::vector<typename DBGNodeParser2::value_type> temp2;
+	// TESTING END;
+
 	for (auto x : file_data) {
 		temp.clear();
-		comm.barrier();  // need to sync this, since the parser needs to collectively parse the records.
-		::bliss::io::KmerFileHelper::template parse_file_data<DBGNodeParser, FileParser, SplitSeqIterType>(x, temp, comm);
-		comm.barrier();  // need to sync again.
+		temp2.clear();
+    std::cout << "rank " << comm.rank() << " partition size 0 = " << std::distance(x.cbegin(), x.cend()) << " in mem " << std::distance(x.in_mem_cbegin(), x.in_mem_cend()) << std::endl;
+
+		// TESTING
+    ::bliss::io::KmerFileHelper::template parse_file_data<DBGNodeParser2, FileParser, SplitSeqIterType>(x, temp2, comm);
+
+    std::cout << "rank " << comm.rank() << " partition size 2 = " << std::distance(x.cbegin(), x.cend()) << " in mem " << std::distance(x.in_mem_cbegin(), x.in_mem_cend())  << std::endl;
+
+    ::bliss::io::KmerFileHelper::template parse_file_data<DBGNodeParser, FileParser, SplitSeqIterType>(x, temp, comm);
+
+    std::cout << "rank " << comm.rank() << " partition size 1 = " << std::distance(x.cbegin(), x.cend()) << " in mem " << std::distance(x.in_mem_cbegin(), x.in_mem_cend())  << std::endl;
+
+
+    // compare the 2.
+    bool same = ::std::equal(temp.begin(), temp.end(), temp2.begin());
+
+//    if (temp.size() != temp2.size() || !same) {
+      size_t i = 0;
+      for (; i < std::min(temp.size(), temp2.size()); ++i) {
+        ::std::cout << "rank " << comm.rank() << "temp " << i << " node " << bliss::utils::KmerUtils::toASCIIString(temp[i].first) << ": " << bliss::utils::KmerUtils::toASCIIString(temp[i].second) << std::endl;
+        ::std::cout << "rank " << comm.rank() << "temp2 " << i << " node " << bliss::utils::KmerUtils::toASCIIString(temp2[i].first) << ": " << bliss::utils::KmerUtils::toASCIIString(temp2[i].second) << std::endl;
+      }
+      for (size_t j = i; j < temp.size(); ++j) {
+        ::std::cout << "rank " << comm.rank() << "temp " << j << " node " << bliss::utils::KmerUtils::toASCIIString(temp[j].first) << ": " << bliss::utils::KmerUtils::toASCIIString(temp[j].second) << std::endl;
+      }
+      for (size_t j = i; j < temp2.size(); ++j) {
+        ::std::cout << "rank " << comm.rank() << "temp2 " << j << " node " << bliss::utils::KmerUtils::toASCIIString(temp2[j].first) << ": " << bliss::utils::KmerUtils::toASCIIString(temp2[j].second) << std::endl;
+      }
+//    }
+
+    std::cout << "rank " << comm.rank() << "kmer-biedge node parser " << i << " count same? " << (temp.size() == temp2.size() ? "y " : "n ") << temp.size() << " " << temp2.size() << std::endl;
+    std::cout << "rank " << comm.rank() << "kmer-biedge node parser " << i << " same? " << (same ? "y" : "n") << std::endl;
+    // TESTING END;
+
 		idx.insert(temp);
 	}
 	BL_BENCH_COLLECTIVE_END(build, "parse and insert", idx.local_size(), comm);
@@ -798,6 +838,17 @@ template <typename Index>
 	}
 	BL_BENCH_COLLECTIVE_END(build, "count k1mer", counter.local_size(), comm);
 
+  // TESTING
+	{
+    CountMap1Type counter2(comm);
+    ::bliss::debruijn::biedge::filter::compute_edge_frequency<FileParser, SplitSeqIterType>(file_data, counter2, comm);
+    bool same = std::equal(counter.get_local_container().begin(), counter.get_local_container().end(), counter2.get_local_container().begin());
+    std::cout << "k1mer counter size are same? " << (counter.local_size() == counter2.local_size() ? "y" : "n") << std::endl;
+    std::cout << "k1mer counter are same? " << (same ? "y" : "n") << std::endl;
+  }
+  // TESTING END
+
+
 //	// DEBUG
 //	auto lc = counter.get_local_container();
 //	for (auto it = lc.begin(); it != lc.end(); ++it) {
@@ -813,6 +864,17 @@ template <typename Index>
 	counter.reserve(0);  // compact the counter.
 	BL_BENCH_COLLECTIVE_END(build, "filter k1mer", counter.local_size(), comm);
 
+	// TESTING
+  CountMap1Type counter2(comm);
+	{
+	  ::bliss::debruijn::biedge::filter::compute_edge_frequency<FileParser, SplitSeqIterType>(file_data, counter2, comm, lower_thresh, upper_thresh);
+
+	  bool same = std::equal(counter.get_local_container().begin(), counter.get_local_container().end(), counter2.get_local_container().begin());
+    std::cout << "k1mer filtered counter sizes are same? " << (counter.local_size() == counter2.local_size() ? "y" : "n") << std::endl;
+	  std::cout << "k1mer filtered counter are same? " << (same ? "y" : "n") << std::endl;
+	}
+	// TESTING END
+
 //  lc = counter.get_local_container();
 //  for (auto it = lc.begin(); it != lc.end(); ++it) {
 //    std::cout << " filtered k1mer counter " << it->first << ":" << it->second << std::endl;
@@ -824,9 +886,13 @@ template <typename Index>
 	BL_BENCH_START(build);
 	{
 		::std::vector<K2merType> temp;
-		::std::vector<std::pair<KmerType, ::bliss::debruijn::compact_simple_biedge> > nodes;
-		::fsc::back_emplace_iterator<::std::vector<std::pair<KmerType, ::bliss::debruijn::compact_simple_biedge> > > emplacer(nodes);
+		::std::vector<std::pair<KmerType, ::bliss::debruijn::biedge::compact_simple_biedge> > nodes;
+		::fsc::back_emplace_iterator<::std::vector<std::pair<KmerType, ::bliss::debruijn::biedge::compact_simple_biedge> > > emplacer(nodes);
 		::bliss::debruijn::k2mer_to_edge<KmerType> trans;
+
+		// TESTING
+    ::std::vector<std::pair<KmerType, ::bliss::debruijn::biedge::compact_simple_biedge> > nodes2;
+		// TESTING DONE
 
 		for (auto x : file_data) {
 		  temp.clear();
@@ -854,8 +920,39 @@ template <typename Index>
 			std::cout << "rank " << comm.rank() << " temp size " << temp.size() << " nodes " << nodes.size() << std::endl;
 			//printf("temp 1 size: %ld  nodes %ld\n", temp.size(), nodes.size());
 //			size_t node_size = nodes.size();
+
+			// TESTING
+			::bliss::io::KmerFileHelper::template parse_file_data<::bliss::debruijn::biedge::io::debruijn_kmer_simple_biedge_parser<KmerType>,
+			   FileParser, SplitSeqIterType>(x, nodes2, comm);
+			::bliss::debruijn::biedge::filter::transform_biedges_by_frequency<KmerType, CountMap1Type>(nodes2, counter2, comm);
+			::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> biedges;
+			::bliss::debruijn::biedge::filter::extract_biedges<KmerType>(nodes2).swap(biedges);
+			{
+        bool same = true;
+        for (size_t i = 0; i < biedges.size(); ++i) {
+          same &= (((biedges[i].getData()[0] & 0xF0) != 0) && selected[2 * i]);
+          same &= (((biedges[i].getData()[0] & 0x0F) != 0) && selected[2 * i + 1]);
+        }
+        std::cout << "selected edges are same? " << (same ? "y" : "n") << std::endl;
+			}
+
+			::bliss::debruijn::biedge::filter::filter_isolated_nodes<KmerType>(nodes2);
+			{
+			  bool same = true;
+			  same = std::equal(nodes.begin(), nodes.end(), nodes2.begin());
+        std::cout << "filtered node sizes are same? " << (nodes.size() == nodes2.size() ? "y" : "n") << std::endl;
+			  std::cout << "filtered nodes are same? " << (same ? "y" : "n") << std::endl;
+			}
+			// TESTING END
+
+
+
 			idx.insert(nodes);
 //			std::cout << "rank " << comm.rank() << " input size " << node_size << " idx size " << idx.local_size() << " buckets " << idx.get_map().get_local_container().bucket_count() << std::endl;
+
+
+
+
 		}
 	}
 	BL_BENCH_COLLECTIVE_END(build, "filtered_insert", idx.local_size(), comm);

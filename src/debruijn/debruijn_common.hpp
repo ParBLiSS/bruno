@@ -28,7 +28,7 @@
 #include "bliss-config.hpp"
 
 #include "utils/logging.h"
-#include "debruijn/edge_iterator.hpp"
+#include "debruijn/debruijn_biedge_loader.hpp"
 #include "debruijn/debruijn_chain_operations.hpp"
 #include "debruijn/debruijn_chain_node.hpp"
 

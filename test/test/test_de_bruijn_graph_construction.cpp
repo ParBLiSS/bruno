@@ -57,7 +57,7 @@
 
 #include "index/kmer_index.hpp"
 #include "index/kmer_hash.hpp"
-#include "debruijn/edge_iterator.hpp"
+#include "debruijn/debruijn_biedge_loader.hpp"
 #include "debruijn/debruijn_graph_loader.hpp"
 #include "debruijn/debruijn_stats.hpp"
 #include "debruijn/debruijn_graph_filters.hpp"

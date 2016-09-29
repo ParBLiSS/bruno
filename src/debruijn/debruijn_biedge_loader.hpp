@@ -36,12 +36,17 @@ namespace bliss
   namespace debruijn
   {
 
-    namespace graph
+
+    namespace biedge
     {
       /// simple biedge type. packed in and out edge character (adjacent to current k-mer.)  e.g. x-Kmer-y would be have xy as the biedge representation.  simple because it's not compound.
       /// NOTE: simple biedge encodes 2 characters from the alphabet, not the same as compact biedge.
       ///   uses DNA alphabet and is the most informative of the alphabet.
       using compact_simple_biedge = bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t>;
+
+      /// Kmer representing one edge between 2 nodes.
+      template <typename KmerType>
+      using kmer_simple_edge = bliss::common::Kmer<KmerType::size + 1, typename KmerType::KmerAlphabet, typename KmerType::KmerWordType>;
 
       // sanity check.
       static_assert(sizeof(compact_simple_biedge) == 1, "size of compact simple biedge is larger than 1 byte.");
@@ -59,7 +64,7 @@ namespace bliss
 
         using Alpha = typename KmerType::KmerAlphabet;
 
-        kk.nextReverseFromChar(Alpha::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[edge >> 1]]);
+        kk.nextReverseFromChar(Alpha::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[(edge.getData()[0] >> (compact_simple_biedge::bitsPerChar)) ] ]);
 
         return kk;
       }
@@ -95,23 +100,21 @@ namespace bliss
        *        alphabet with fewer characters.
        */
       template <typename KmerType>
-      ::bliss::common::Kmer<KmerType::size + 1, typename KmerType::KmerAlphabet, typename KmerType::KmerWordType>
-      get_in_edge_k1mer(KmerType const & kmer, compact_simple_biedge const & edge) {
+      kmer_simple_edge<KmerType> get_in_edge_k1mer(KmerType const & kmer, compact_simple_biedge const & edge) {
 
-        using K1merType = ::bliss::common::Kmer<KmerType::size + 1, typename KmerType::KmerAlphabet, typename KmerType::KmerWordType>;
+        using Alpha = typename KmerType::KmerAlphabet;
 
-        K1merType kk;
+        kmer_simple_edge<KmerType> kk;
         std::memcpy(kk.getDataRef(), kmer.getData(), KmerType::nWords);
 
-        K1merType kk2;
-        kk2.nextFromChar(Alpha::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[edge >> 1]]);
+        kmer_simple_edge<KmerType> kk2;
+        kk2.nextFromChar(Alpha::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[(edge.getData()[0] >> (compact_simple_biedge::bitsPerChar))]]);
         kk2 <<= KmerType::size;   // shift by k
 
         return kk | kk2;
       }
       template <typename KmerType>
-      ::bliss::common::Kmer<KmerType::size + 1, typename KmerType::KmerAlphabet, typename KmerType::KmerWordType>
-      get_in_edge_k1mer(std::pair<KmerType, compact_simple_biedge> const & edge) {
+      kmer_simple_edge<KmerType> get_in_edge_k1mer(std::pair<KmerType, compact_simple_biedge> const & edge) {
         return get_in_edge_k1mer(edge.first, edge.second);
       }
 
@@ -122,24 +125,21 @@ namespace bliss
        *        alphabet with fewer characters.
        */
       template <typename KmerType>
-      ::bliss::common::Kmer<KmerType::size + 1, typename KmerType::KmerAlphabet, typename KmerType::KmerWordType>
-      get_out_edge_k1mer(KmerType const & kmer, compact_simple_biedge const & edge) {
+      kmer_simple_edge<KmerType> get_out_edge_k1mer(KmerType const & kmer, compact_simple_biedge const & edge) {
 
-        using K1merType = ::bliss::common::Kmer<KmerType::size + 1, typename KmerType::KmerAlphabet, typename KmerType::KmerWordType>;
+        using Alpha = typename KmerType::KmerAlphabet;
 
-        K1merType kk;
+        kmer_simple_edge<KmerType> kk;
         std::memcpy(kk.getDataRef(), kmer.getData(), KmerType::nWords);
 
-        kk.nextFromChar(Alpha::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[edge.getData() & 0xF]]);
+        kk.nextFromChar(Alpha::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[edge.getData()[0] & 0xF]]);
 
         return kk;
       }
       template <typename KmerType>
-      ::bliss::common::Kmer<KmerType::size + 1, typename KmerType::KmerAlphabet, typename KmerType::KmerWordType>
-      get_out_edge_k1mer(std::pair<KmerType, compact_simple_biedge> const & edge) {
+      kmer_simple_edge<KmerType> get_out_edge_k1mer(std::pair<KmerType, compact_simple_biedge> const & edge) {
         return get_out_edge_k1mer(edge.first, edge.second);
       }
-    }
 
 
     // for doing reverse complement of the biedge.
@@ -179,15 +179,10 @@ namespace bliss
 
       };
 
-
-      /// standard companion function (used by lex_less) to compact_simple_biedge to get reverse complement of edge.
-      template <typename Kmer = ::bliss::debruijn::compact_simple_biedge>
-      inline ::bliss::debruijn::compact_simple_biedge
-      reverse_complement(::bliss::debruijn::compact_simple_biedge const & x) {
-        return x.reverse_complement();
-      }
-
     }
+
+
+
 
     namespace iterator
     {
@@ -220,11 +215,11 @@ namespace bliss
        *
        *          NOTE: simple biedge encodes 2 characters from the alphabet, not the same as compact biedge.
        *
-       *
+       *          TODO: rework this - if try to get _left without calling ++ first, fails.
        */
       template<typename IT>
       class biedge_generating_iterator<IT, bliss::common::DNA16> :
-        public ::std::iterator<::std::forward_iterator_tag, ::bliss::debruijn::compact_simple_biedge >
+        public ::std::iterator<::std::forward_iterator_tag, ::bliss::debruijn::biedge::compact_simple_biedge >
       {
         protected:
 
@@ -243,13 +238,12 @@ namespace bliss
 
             using Alphabet = bliss::common::DNA16;
             using self_type = biedge_generating_iterator<IT, Alphabet>; /*define edge iterator type*/
-            using edge_type = ::bliss::debruijn::compact_simple_biedge; //type to represent an edge
+            using edge_type = ::bliss::debruijn::biedge::compact_simple_biedge; //type to represent an edge
 
             // accessors
-            IT& getBase()
-            {
-              return _curr;
-            }
+            IT const & getBaseIterator() const { return _curr; }
+            IT const & getLeftIterator() const { return (_left == _data_end ? _data_start : _left); }
+            IT const & getRightIterator() const { return _right; }
 
             //constructor
             biedge_generating_iterator(IT data_start, IT data_end, const uint32_t k)
@@ -282,6 +276,7 @@ namespace bliss
 
               return *this;
             }
+
 
             /// increment to next matching element in base iterator
             self_type& operator++()
@@ -356,178 +351,204 @@ namespace bliss
 
     namespace io {
 
-      /**
-       * @brief  generate kmer and biedge pair (simple biedge.)
-       * @details  performs the same function as debruijn_graph_parser, but does not start with k+2 mer then transform to kmer + simple biedge.
-       *           doing it via k2mer requires shifts at beginning and end of the sequence fragment.  this approach does not require that as a separate step.
-       *
-       *           some questions:  if input is less than k, what happens?  start and end should then be the same and no output should be generated.
-       *                            if there is overlap, does to stop the parsing at the last position of the overlap?
-       *                              need info about the valid range of the block being parsed.
-       */
-      template <typename KmerType>
-      struct debruijn_kmer_simple_biedge_parser {
+        /**
+         * @brief  generate kmer and biedge pair (simple biedge.)
+         * @details  performs the same function as debruijn_graph_parser, but does not start with k+2 mer then transform to kmer + simple biedge.
+         *           doing it via k2mer requires shifts at beginning and end of the sequence fragment.  this approach does not require that as a separate step.
+         *
+         *           some questions:  if input is less than k, what happens?  start and end should then be the same and no output should be generated.
+         *                            if there is overlap, does to stop the parsing at the last position of the overlap?
+         *                              need info about the valid range of the block being parsed.
+         */
+        template <typename KmerType>
+        struct debruijn_kmer_simple_biedge_parser {
 
-        /// type of element generated by this parser.  since kmer itself is parameterized, this is not hard coded.  NOTE THAT THIS IS TYPE FOR THE OUTPUT.
-        using edge_type = ::bliss::debruijn::compact_simple_biedge;
-        using value_type = std::pair<KmerType, edge_type>;
-
-        using Alphabet = typename KmerType::KmerAlphabet;
-
-        ::bliss::partition::range<size_t> valid_range;
-
-        debruijn_kmer_simple_biedge_parser(::bliss::partition::range<size_t> const & _valid_range) : valid_range(_valid_range) {};
+          /// type of element generated by this parser.  since kmer itself is parameterized, this is not hard coded.  NOTE THAT THIS IS TYPE FOR THE OUTPUT.
+          using edge_type = ::bliss::debruijn::biedge::compact_simple_biedge;
+          using value_type = std::pair<KmerType, edge_type>;
+          using kmer_type = KmerType;
+          static constexpr size_t window_size = kmer_type::size + 2;
 
 
-        template <typename SeqType, typename OutputIt, typename Predicate = ::fsc::TruePredicate>
-        OutputIt operator()(SeqType & read, OutputIt output_iter, Predicate const & pred = Predicate()) {
+          using Alphabet = typename KmerType::KmerAlphabet;
 
-          static_assert(std::is_same<value_type, typename ::std::iterator_traits<OutputIt>::value_type>::value,
-                        "output type and output container value type are not the same");
+          ::bliss::partition::range<size_t> valid_range;
 
-          // filter out EOL characters
-          using CharIter = bliss::index::kmer::NonEOLIter<typename SeqType::IteratorType>;
-          // converter from ascii to alphabet values
-          using BaseCharIterator = bliss::iterator::transform_iterator<CharIter, bliss::common::ASCII2<Alphabet> >;
-          // kmer generation iterator
-          using KmerIter = bliss::common::KmerGenerationIterator<BaseCharIterator, KmerType>;
-
-          // handles the ascii to DNA16 mapping internally.
-          using EdgeIterType = bliss::debruijn::iterator::biedge_generating_iterator<CharIter, ::bliss::common::DNA16>;
+          debruijn_kmer_simple_biedge_parser(::bliss::partition::range<size_t> const & _valid_range) : valid_range(_valid_range) {};
 
 
-          // combine kmer iterator and position iterator to create an index iterator type.
-          using KmerBiedgeIterType = bliss::iterator::ZipIterator<KmerIter, EdgeIterType>;
+          template <typename SeqType, typename OutputIt, typename Predicate = ::fsc::TruePredicate>
+          OutputIt operator()(SeqType const & read, OutputIt output_iter, Predicate const & pred = Predicate()) {
 
-          static_assert(std::is_same<typename std::iterator_traits<KmerBiedgeIterType>::value_type,
-                        value_type>::value,
-                        "Generating iterator and output container value types differ");
+            std::cout << " first raw dist = " << read.seq_size() << std::endl;
 
-          // then compute and store into index (this will generate kmers and insert into index)
-          if (read.seq_begin == read.seq_end) return output_iter;
+            static_assert(std::is_same<value_type, typename ::std::iterator_traits<OutputIt>::value_type>::value,
+                          "output type and output container value type are not the same");
 
-          //== set up the kmer generating iterators.
-          bliss::utils::file::NotEOL neol;
-          KmerIter start(BaseCharIterator(CharIter(neol, read.seq_begin, read.seq_end), bliss::common::ASCII2<Alphabet>()), true);
-          KmerIter end(BaseCharIterator(CharIter(neol, read.seq_end), bliss::common::ASCII2<Alphabet>()), false);
+            // filter out EOL characters
+            using CharIter = bliss::index::kmer::NonEOLIter<typename SeqType::IteratorType>;
+            // converter from ascii to alphabet values
+            using BaseCharIterator = bliss::iterator::transform_iterator<CharIter, bliss::common::ASCII2<Alphabet> >;
+            // kmer generation iterator
+            using KmerIter = bliss::common::KmerGenerationIterator<BaseCharIterator, KmerType>;
 
-
-          // set up edge iterator.  returns the left and right chars around the kmer IN THE READ.
-          EdgeIterType edge_start(CharIter(neol, read.seq_begin, read.seq_end), CharIter(neol, read.seq_end), KmerType::size);
-          EdgeIterType edge_end (CharIter(neol, read.seq_end));
+            // handles the ascii to DNA16 mapping internally.
+            using EdgeIterType = bliss::debruijn::biedge::iterator::biedge_generating_iterator<CharIter, ::bliss::common::DNA16>;
 
 
-          // ==== set up the zip iterators
-          KmerBiedgeIterType node_start(start, edge_start);
-          KmerBiedgeIterType node_end(end, edge_end);
+            // combine kmer iterator and position iterator to create an index iterator type.
+            using KmerBiedgeIterType = bliss::iterator::ZipIterator<KmerIter, EdgeIterType>;
+
+            static_assert(std::is_same<typename std::iterator_traits<KmerBiedgeIterType>::value_type,
+                          value_type>::value,
+                          "Generating iterator and output container value types differ");
+
+            // then compute and store into index (this will generate kmers and insert into index)
+            if (read.seq_begin == read.seq_end) return output_iter;
+
+            //== set up the kmer generating iterators.
+            bliss::utils::file::NotEOL neol;
+            KmerIter start(BaseCharIterator(CharIter(neol, read.seq_begin, read.seq_end), bliss::common::ASCII2<Alphabet>()), true);
+            KmerIter end(BaseCharIterator(CharIter(neol, read.seq_end), bliss::common::ASCII2<Alphabet>()), false);
 
 
-          ::bliss::partition::range<size_t> seq_range(read.seq_global_offset(), read.seq_global_offset() + read.seq_size());
-          if (seq_range.contains(valid_range.end)) {
-            // seq_range contains overlap.
+            // set up edge iterator.  returns the left and right chars around the kmer IN THE READ.
+            EdgeIterType edge_start(CharIter(neol, read.seq_begin, read.seq_end), CharIter(neol, read.seq_end), KmerType::size);
+            EdgeIterType edge_end(CharIter(neol, read.seq_end));
 
-            // not checking by end iterator at valid_range.end, since the NonEOLIter is a filter iterator that may skip over that pos.
-            auto valid_dist = valid_range.end - seq_range.start;
 
-            for (auto it = node_start; it != node_end; ++it, ++output_iter) {
-              // check tail of window -> transform iterator, get base -> non EOL iterator, get base -> seq raw char iter.
-              if (std::distance(read.seq_begin,
-                                it.get_first_iterator().getTrailingIterator().getBaseIterator().getBaseIterator()) >= valid_dist) {
-                break;
+            // ==== set up the zip iterators
+            KmerBiedgeIterType node_start(start, edge_start);
+            KmerBiedgeIterType node_end(end, edge_end);
+
+            std::cout << " raw dist = " << read.seq_size() << std::endl;
+            std::cout << " kmer iter dist = " << std::distance(start, end) << std::endl;
+            std::cout << " kmerbiedge iter dist = " << std::distance(node_start, node_end) << std::endl;
+
+            if (read.is_record_truncated_at_begin()) ++node_start;
+            // for truncated at end, we are already doing overlap of size k+1.
+
+            ::bliss::partition::range<size_t> seq_range(read.seq_global_offset(), read.seq_global_offset() + read.seq_size());
+            if (seq_range.contains(valid_range.end)) {
+              // seq_range contains overlap.
+
+              // not checking by end iterator at valid_range.end, since the NonEOLIter is a filter iterator that may skip over that pos.
+              int64_t valid_dist = valid_range.end - seq_range.start;
+
+              for (auto it = node_start; it != node_end; ++it, ++output_iter) {
+                // check tail of window -> transform iterator, get base -> non EOL iterator, get base -> seq raw char iter.
+                if (std::distance(read.seq_begin,
+                                  it.get_second_iterator().getLeftIterator().getBaseIterator()) >= valid_dist) {
+                  // NOTE: last position (valid_range.end) should be the trailing position of the kmer in the kmer-biedge,
+                  //       so that the incoming edge character is the last valid character.  This is to avoid double counting of edge at process boundary.
+                  //       also note that since we use canonical, frequency accounting is affected by canonicalization.
+                  break;
+                }
+
+                *output_iter = *it;
               }
 
-              *output_iter = *it;
+              return output_iter;
+
+            } else {
+
+
+              if (::std::is_same<typename std::remove_reference<typename std::remove_cv<Predicate>::type>::type, ::fsc::TruePredicate>::value)
+                return ::std::copy(node_start, node_end, output_iter);
+              else
+                return ::std::copy_if(node_start, node_end, output_iter, pred);
             }
-
-            return output_iter;
-
-          } else {
-
-
-            if (::std::is_same<Predicate, ::fsc::TruePredicate>::value)
-              return ::std::copy(node_start, node_end, output_iter);
-            else
-              return ::std::copy(node_start, node_end, output_iter, pred);
           }
-        }
-    };
+      };
 
 
-  // deprecated for now until this can be made compatible with the k+2-mer approach.
+    // deprecated for now until this can be made compatible with the k+2-mer approach.
 
-//    /*generate de Brujin graph nodes and edges, which each node associated with base quality scores*/
-//    template <typename KmerType, typename QualType=double,
-//        template<typename> class QualityEncoder = bliss::index::Illumina18QualityScoreCodec>
-//    struct debruijn_graph_quality_parser {
-//
-//        /// type of element generated by this parser.  since kmer itself is parameterized, this is not hard coded.  NOTE THAT THIS IS TYPE FOR THE OUTPUTIT.
-//        using edge_type = ::bliss::debruijn::compact_simple_biedge;
-//        using value_type = std::pair<KmerType, std::pair<edge_type, QualType> >;
-//
-//        using Alphabet = typename KmerType::KmerAlphabet;
-//
-//        template <typename SeqType, typename OutputIt>
-//        OutputIt operator()(SeqType & read, OutputIt output_iter) {
-//
-//          static_assert(std::is_same<value_type, typename ::std::iterator_traits<OutputIt>::value_type>::value,
-//                        "output type and output container value type are not the same");
-//
-//
-//          // filter out EOL characters
-//          using CharIter = bliss::index::kmer::NonEOLIter<typename SeqType::IteratorType>;
-//          // converter from ascii to alphabet values
-//          using BaseCharIterator = bliss::iterator::transform_iterator<CharIter, bliss::common::ASCII2<Alphabet> >;
-//          // kmer generation iterator
-//          using KmerIter = bliss::common::KmerGenerationIterator<BaseCharIterator, KmerType>;
-//
-//          // handles the ascii to DNA16 mapping internally.
-//          using EdgeIterType = bliss::debruijn::iterator::biedge_generating_iterator<CharIter, bliss::common::DNA16>;
-//
-//          // also remove eol from quality score
-//          using QualIterType =
-//              bliss::index::QualityScoreGenerationIterator<bliss::index::kmer::NonEOLIter<typename SeqType::IteratorType>, KmerType::size, QualityEncoder<QualType> >;
-//
-//          // combine kmer iterator and position iterator to create an index iterator type.
-//          using KmerInfoIterType = bliss::iterator::ZipIterator<EdgeIterType, QualIterType>;
-//
-//          using KmerIndexIterType = bliss::iterator::ZipIterator<KmerIter, KmerInfoIterType>;
-//
-//          static_assert(std::is_same<typename std::iterator_traits<KmerIndexIterType>::value_type,
-//                        value_type>::value,
-//                        "generating iterator and output iterator's value types differ");
-//
-//
-//          // then compute and store into index (this will generate kmers and insert into index)
-//          if (read.seq_begin == read.seq_end || read.qual_begin == read.qual_end) return output_iter;
-//
-//          //== set up the kmer generating iterators.
-//          bliss::index::kmer::NotEOL neol;
-//          KmerIter start(BaseCharIterator(CharIter(neol, read.seq_begin, read.seq_end), bliss::common::ASCII2<Alphabet>()), true);
-//          KmerIter end(BaseCharIterator(CharIter(neol, read.seq_end), bliss::common::ASCII2<Alphabet>()), false);
-//
-//
-//          // set up edge iterator.  returns the left and right chars around the kmer IN THE READ.
-//          EdgeIterType edge_start(CharIter(neol, read.seq_begin, read.seq_end), CharIter(neol, read.seq_end), KmerType::size);
-//          EdgeIterType edge_end (CharIter(neol, read.seq_end));
-//
-//
-//          QualIterType qual_start(CharIter(neol, read.qual_begin, read.qual_end));
-//          QualIterType qual_end(CharIter(neol, read.qual_end));
-//
-//          KmerInfoIterType info_start(edge_start, qual_start);
-//          KmerInfoIterType info_end(edge_end, qual_end);
-//
-//
-//
-//          // ==== set up the zip iterators
-//          KmerIndexIterType node_start(start, info_start);
-//          KmerIndexIterType node_end(end, info_end);
-//
-//          return ::std::copy(node_start, node_end, output_iter);
-//
-//        }
-//    };
-    } // io
+  //    /*generate de Brujin graph nodes and edges, which each node associated with base quality scores*/
+  //    template <typename KmerType, typename QualType=double,
+  //        template<typename> class QualityEncoder = bliss::index::Illumina18QualityScoreCodec>
+  //    struct debruijn_graph_quality_parser {
+  //
+  //        /// type of element generated by this parser.  since kmer itself is parameterized, this is not hard coded.  NOTE THAT THIS IS TYPE FOR THE OUTPUTIT.
+  //        using edge_type = ::bliss::debruijn::biedge::compact_simple_biedge;
+  //        using value_type = std::pair<KmerType, std::pair<edge_type, QualType> >;
+  //
+  //        using Alphabet = typename KmerType::KmerAlphabet;
+  //
+  //        template <typename SeqType, typename OutputIt>
+  //        OutputIt operator()(SeqType & read, OutputIt output_iter) {
+  //
+  //          static_assert(std::is_same<value_type, typename ::std::iterator_traits<OutputIt>::value_type>::value,
+  //                        "output type and output container value type are not the same");
+  //
+  //
+  //          // filter out EOL characters
+  //          using CharIter = bliss::index::kmer::NonEOLIter<typename SeqType::IteratorType>;
+  //          // converter from ascii to alphabet values
+  //          using BaseCharIterator = bliss::iterator::transform_iterator<CharIter, bliss::common::ASCII2<Alphabet> >;
+  //          // kmer generation iterator
+  //          using KmerIter = bliss::common::KmerGenerationIterator<BaseCharIterator, KmerType>;
+  //
+  //          // handles the ascii to DNA16 mapping internally.
+  //          using EdgeIterType = bliss::debruijn::biedge::iterator::biedge_generating_iterator<CharIter, bliss::common::DNA16>;
+  //
+  //          // also remove eol from quality score
+  //          using QualIterType =
+  //              bliss::index::QualityScoreGenerationIterator<bliss::index::kmer::NonEOLIter<typename SeqType::IteratorType>, KmerType::size, QualityEncoder<QualType> >;
+  //
+  //          // combine kmer iterator and position iterator to create an index iterator type.
+  //          using KmerInfoIterType = bliss::iterator::ZipIterator<EdgeIterType, QualIterType>;
+  //
+  //          using KmerIndexIterType = bliss::iterator::ZipIterator<KmerIter, KmerInfoIterType>;
+  //
+  //          static_assert(std::is_same<typename std::iterator_traits<KmerIndexIterType>::value_type,
+  //                        value_type>::value,
+  //                        "generating iterator and output iterator's value types differ");
+  //
+  //
+  //          // then compute and store into index (this will generate kmers and insert into index)
+  //          if (read.seq_begin == read.seq_end || read.qual_begin == read.qual_end) return output_iter;
+  //
+  //          //== set up the kmer generating iterators.
+  //          bliss::index::kmer::NotEOL neol;
+  //          KmerIter start(BaseCharIterator(CharIter(neol, read.seq_begin, read.seq_end), bliss::common::ASCII2<Alphabet>()), true);
+  //          KmerIter end(BaseCharIterator(CharIter(neol, read.seq_end), bliss::common::ASCII2<Alphabet>()), false);
+  //
+  //
+  //          // set up edge iterator.  returns the left and right chars around the kmer IN THE READ.
+  //          EdgeIterType edge_start(CharIter(neol, read.seq_begin, read.seq_end), CharIter(neol, read.seq_end), KmerType::size);
+  //          EdgeIterType edge_end (CharIter(neol, read.seq_end));
+  //
+  //
+  //          QualIterType qual_start(CharIter(neol, read.qual_begin, read.qual_end));
+  //          QualIterType qual_end(CharIter(neol, read.qual_end));
+  //
+  //          KmerInfoIterType info_start(edge_start, qual_start);
+  //          KmerInfoIterType info_end(edge_end, qual_end);
+  //
+  //
+  //
+  //          // ==== set up the zip iterators
+  //          KmerIndexIterType node_start(start, info_start);
+  //          KmerIndexIterType node_end(end, info_end);
+  //
+  //          return ::std::copy(node_start, node_end, output_iter);
+  //
+  //        }
+  //    };
+      } // io
+    } // biedge
+
+    namespace transform
+    {
+      /// standard companion function (used by lex_less) to compact_simple_biedge to get reverse complement of edge.
+      template <typename Kmer = ::bliss::debruijn::biedge::compact_simple_biedge>
+      inline ::bliss::debruijn::biedge::compact_simple_biedge
+      reverse_complement(::bliss::debruijn::biedge::compact_simple_biedge const & x) {
+        return x.reverse_complement();
+      }
+    }
+
 
   } // debruijn
 } // bliss
