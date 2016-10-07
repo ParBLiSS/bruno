@@ -95,7 +95,6 @@ namespace bliss
 
       public:
 
-        /// DEFINE iterator category. cannot be random access - mapped to bidirectional.
         using iter_cat = typename std::conditional<
             std::is_same<
                 typename std::iterator_traits<Iterator>::iterator_category,
@@ -242,7 +241,6 @@ namespace bliss
         inline const typename base_traits::value_type * operator->() const {
           return _curr.operator->();
         }
-
 
         /// referece operator.  returned entry passes the predicate test.  guaranteed to be at a valid position
         inline Iterator& operator()() const
