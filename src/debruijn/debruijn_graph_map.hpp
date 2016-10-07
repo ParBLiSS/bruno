@@ -28,13 +28,14 @@
 #include "bliss-config.hpp"
 
 #include <utility> 			  // for std::pair
+#include <iterator>
 
 #include "containers/distributed_densehash_map.hpp"
 
 #include "debruijn/debruijn_graph_node.hpp"	//node trait data structure storing the linkage information to the node
 
 #include "utils/benchmark_utils.hpp"  // for timing.
-
+#include "utils/function_traits.hpp"
 #include "utils/logging.h"
 
 
@@ -46,8 +47,8 @@ namespace graph {
  * de bruijn map.  essentially a reduction map, but with slight differences.
  */
 template<typename Kmer, typename Edge,
-template <typename> class MapParams,
-class Alloc = ::std::allocator< ::std::pair<const Kmer, Edge> >
+	template <typename> class MapParams,
+	class Alloc = ::std::allocator< ::std::pair<const Kmer, Edge> >
 >
 class debruijn_graph_map :
 public ::dsc::densehash_map<Kmer, Edge, MapParams,
@@ -86,7 +87,13 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 	 * @param first
 	 * @param last
 	 */
-	template <class InputIterator>
+	template <class InputIterator,
+		typename ::std::enable_if<
+		  ::std::is_same<
+			typename ::std::iterator_traits<InputIterator>::value_type,
+			::std::pair<key_type, typename Edge::EdgeInputType>
+		  >::value, int>::type = 1
+		  >
 	size_t local_insert(InputIterator first, InputIterator last) {
 		size_t before = this->c.size();
 
@@ -104,13 +111,46 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		return this->c.size() - before;
 	}
 
+	/**
+	 * @brief insert new elements in the distributed unordered_multimap.
+	 * @param first
+	 * @param last
+	 */
+	template <class InputIterator,
+		typename ::std::enable_if<
+		  ::std::is_same<
+			typename ::std::iterator_traits<InputIterator>::value_type,
+			key_type
+		  >::value, int>::type = 1
+		  >
+	size_t local_insert(InputIterator first, InputIterator last) {
+		size_t before = this->c.size();
+
+		// first/last could be a lot, especially for highly repeated reads.
+		//this->local_reserve(before + ::std::distance(first, last));
+
+		for (auto it = first; it != last; ++it) {
+			auto result = this->c.insert(::std::make_pair(*it, Edge()));   // TODO: reduce number of allocations.
+		}
+
+		if (this->c.size() != before) this->local_changed = true;
+
+		return this->c.size() - before;
+	}
+
 
 	/**
 	 * @brief insert new elements in the distributed unordered_multimap.
 	 * @param first
 	 * @param last
 	 */
-	template <class InputIterator, class Predicate>
+	template <class InputIterator, class Predicate,
+		typename ::std::enable_if<
+		  ::std::is_same<
+			typename ::std::iterator_traits<InputIterator>::value_type,
+			::std::pair<key_type, typename Edge::EdgeInputType>
+		  >::value, int>::type = 1
+	>
 	size_t local_insert(InputIterator first, InputIterator last, Predicate const & pred) {
 		size_t before = this->c.size();
 
@@ -132,6 +172,41 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 	}
 
+	/**
+	 * @brief insert new elements in the distributed unordered_multimap.
+	 * @param first
+	 * @param last
+	 */
+	template <class InputIterator, class Predicate,
+		typename ::std::enable_if<
+		  ::std::is_same<
+			typename ::std::iterator_traits<InputIterator>::value_type,
+			key_type
+		  >::value, int>::type = 1
+	>
+	size_t local_insert(InputIterator first, InputIterator last, Predicate const & pred) {
+		size_t before = this->c.size();
+
+		// first/last could be a lot, especially for highly repeated reads.
+		//this->local_reserve(before + ::std::distance(first, last));
+
+		for (auto it = first; it != last; ++it) {
+			if (pred(*it)) {
+
+				auto result = this->c.insert(::std::make_pair(it, Edge()));   // TODO: reduce number of allocations.
+			}
+		}
+
+		if (this->c.size() != before) this->local_changed = true;
+
+		return this->c.size() - before;
+
+	}
+
+
+
+
+
 	debruijn_graph_map(const mxx::comm& _comm) : Base(_comm) {/*do nothing*/}
 
 	virtual ~debruijn_graph_map() {/*do nothing*/};
@@ -140,11 +215,12 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 	/**
 	 * @brief insert new elements in the distributed unordered_multimap.
+	 * @details InputElemType is ::std::pair<Kmer, InputEdgeType>
 	 * @param first
 	 * @param last
 	 */
-	template <typename InputEdgeType, typename Predicate = ::fsc::TruePredicate>
-	size_t insert(std::vector<::std::pair<Kmer, InputEdgeType> >& input, bool sorted_input = false, Predicate const & pred = Predicate()) {
+	template <typename InputElemType, typename Predicate = ::fsc::TruePredicate>
+	size_t insert(std::vector<InputElemType >& input, bool sorted_input = false, Predicate const & pred = Predicate()) {
 		// even if count is 0, still need to participate in mpi calls.  if (input.size() == 0) return;
 		BL_BENCH_INIT(insert);
 
@@ -183,7 +259,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 	}
 };
 
-template<typename Kmer >
+template<typename Kmer>
 using simple_hash_debruijn_graph_map = ::bliss::debruijn::graph::debruijn_graph_map<Kmer,
 		::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, bool>,
 		 ::bliss::debruijn::CanonicalDeBruijnHashMapParams>;
