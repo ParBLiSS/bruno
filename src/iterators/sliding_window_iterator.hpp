@@ -136,27 +136,6 @@ public:
   }
 
   /**
-   * @brief     Returns the current trailing iterator (end of window).
-   *
-   * @return    The current trailing iterator.
-   */
-  BaseIterator& getTrailingIterator()
-  {
-    return _trailing;
-  }
-
-  /**
-   * @brief     Returns the current trailing iterator (end of window).
-   *
-   * @return    The current trailing iterator.
-   */
-  const BaseIterator& getTrailingIterator() const
-  {
-    return _trailing;
-  }
-
-
-  /**
    * @brief Returns a reference to the current window structure.
    *
    * @return The current sliding window structure.
