@@ -147,7 +147,7 @@ protected:
   /**************************************************
    *  Private constructor (no direct construction)  *
    **************************************************/
-  _shared_transforming_iterator() = delete;
+  _shared_transforming_iterator() {};
 
   /******************
    *  Constructors  *
@@ -236,7 +236,7 @@ public:
   {
   }
 
-   _transforming_iterator_dir() = delete;
+   _transforming_iterator_dir() {};
 
 
   virtual ~_transforming_iterator_dir() {}
@@ -376,7 +376,7 @@ public:
   }
 
 
-  _transforming_iterator_ra() = delete;
+  _transforming_iterator_ra() {};
 
   virtual ~_transforming_iterator_ra() {}
 
@@ -607,7 +607,7 @@ public:
    * @param base_iter   The base iterator that is wrapped via this iterator.
    * @param f           The transforming functor.
    */
-  transform_iterator(const Iterator& base_iter, const Transformer & f)
+  explicit transform_iterator(const Iterator& base_iter, const Transformer & f = Transformer())
       : base_class_type(base_iter, f)
   {
   }
@@ -616,24 +616,34 @@ public:
 //   * @brief     Default contructor.  disabled because it does not make sense to create one without a base iterator or transformer.
 //   */
 //  // specific to at least fwd iterators: default contructable
-  transform_iterator() = delete;
+  transform_iterator() {};
 //      : base_class_type()
 //  {
 //  }
 
+
+  transform_iterator(transform_iterator const & other) : base_class_type(other._base, other._f) {};
+
+  transform_iterator& operator=(transform_iterator const & other) {
+	  this->_base = other._base;
+	  this->_f = other._f;
+
+	  return *this;
+  }
+
+  transform_iterator(transform_iterator && other) : base_class_type(std::move(other._base), std::move(other._f)) {};
+
+  transform_iterator& operator=(transform_iterator && other) {
+	  this->_base = std::move(other._base);
+	  this->_f = std::move(other._f);
+
+	  return *this;
+  }
+
+
+
   /// default destructor
   virtual ~transform_iterator() {}
-
-  /// copy assignment operator
-  transform_iterator& operator=(const transform_iterator& other)
-  {
-    if (this != &other)
-    {
-      this->_base = other._base;
-      this->_f = other._f;
-    }
-    return *this;
-  }
 
 
 };

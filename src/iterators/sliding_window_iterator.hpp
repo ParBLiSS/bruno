@@ -135,6 +135,26 @@ public:
     return _trailing;
   }
 
+  /**
+   * @brief     Returns the current trailing iterator (end of window).
+   *
+   * @return    The current trailing iterator.
+   */
+  BaseIterator& getTrailingIterator()
+  {
+    return _trailing;
+  }
+
+  /**
+   * @brief     Returns the current trailing iterator (end of window).
+   *
+   * @return    The current trailing iterator.
+   */
+  const BaseIterator& getTrailingIterator() const
+  {
+    return _trailing;
+  }
+
 
   /**
    * @brief Returns a reference to the current window structure.
@@ -188,7 +208,7 @@ public:
    ******************/
 
   /// Default contructor
-  sliding_window_iterator() = default;
+  sliding_window_iterator() {};
 
   /**
    * @brief Constructor, taking the base iterator and the many2one
