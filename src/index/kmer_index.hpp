@@ -77,6 +77,8 @@
 
 #include "utils/benchmark_utils.hpp"
 #include "utils/file_utils.hpp"
+#include "utils/transform_utils.hpp"
+
 
 #include <fstream> // debug only
 #include <iostream>  // debug only
@@ -103,8 +105,9 @@ protected:
 
 public:
 	using KmerType = typename MapType::key_type;
+	// TODO: make this consistent with map data type conventions?
 	using ValueType   = typename MapType::mapped_type;
-	using TupleType =      std::pair<KmerType, ValueType>;
+	using TupleType =  std::pair<KmerType, ValueType>;
 	using Alphabet = typename KmerType::KmerAlphabet;
 
 	using KmerParserType = KmerParser;
@@ -428,15 +431,15 @@ using StoreHashIdentity = ::bliss::kmer::hash::identity<Key, false>;
 template <typename Key,
 			template <typename> class DistHash  = DistHashMurmur,
 			template <typename> class StoreHash = StoreHashMurmur,
-			template <typename> class DistTrans = ::bliss::kmer::transform::identity
+			template <typename> class DistTrans = ::bliss::transform::identity
 			>
 using SingleStrandHashMapParams = ::dsc::HashMapParams<
 		Key,
-		::bliss::kmer::transform::identity,  // precanonalizer
+		::bliss::transform::identity,  // precanonalizer
 		 DistTrans,  				// could be iden, xor, lex_less
 		  DistHash,
 		  ::std::equal_to,
-		   ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
+		   ::bliss::transform::identity,  // only one that makes sense given InputTransform
 		    StoreHash,
 		    ::std::equal_to
 		  >;
@@ -449,10 +452,10 @@ template <typename Key,
 using CanonicalHashMapParams = ::dsc::HashMapParams<
 		Key,
 		::bliss::kmer::transform::lex_less,  // precanonalizer
-		 ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
+		 ::bliss::transform::identity,  // only one that makes sense given InputTransform
 		  DistHash,
 		  ::std::equal_to,
-		   ::bliss::kmer::transform::identity,
+		   ::bliss::transform::identity,
 		    StoreHash,
 		    ::std::equal_to
 		  >;
@@ -463,7 +466,7 @@ template <typename Key,
 	>
 using BimoleculeHashMapParams = ::dsc::HashMapParams<
 		Key,
-		::bliss::kmer::transform::identity,  // precanonalizer - only one that makes sense for bimole
+		::bliss::transform::identity,  // precanonalizer - only one that makes sense for bimole
 		 ::bliss::kmer::transform::lex_less,  // only one that makes sense for bimole
 		  DistHash,
 		  ::std::equal_to,
@@ -475,14 +478,14 @@ using BimoleculeHashMapParams = ::dsc::HashMapParams<
 //template <typename Key,
 //			template <typename> class DistHash = DistHashMurmur,
 //			template <typename> class StoreLess = ::std::less,
-//			template <typename> class DistTrans = ::bliss::kmer::transform::identity >
+//			template <typename> class DistTrans = ::bliss::transform::identity >
 //using SingleStrandOrderedMapParams = ::dsc::OrderedMapParams<
 //		Key,
-//		::bliss::kmer::transform::identity,  // precanonalizer
+//		::bliss::transform::identity,  // precanonalizer
 //		 DistTrans,  				// could be iden, xor, lex_less
 //		  DistHash,
 //		  ::std::equal_to,
-//		   ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
+//		   ::bliss::transform::identity,  // only one that makes sense given InputTransform
 //		    StoreLess,
 //		    ::std::equal_to
 //		  >;
@@ -495,10 +498,10 @@ using BimoleculeHashMapParams = ::dsc::HashMapParams<
 //using CanonicalOrderedMapParams = ::dsc::OrderedMapParams<
 //		Key,
 //		::bliss::kmer::transform::lex_less,  // precanonalizer
-//		 ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
+//		 ::bliss::transform::identity,  // only one that makes sense given InputTransform
 //		  DistHash,
 //		  ::std::equal_to,
-//		   ::bliss::kmer::transform::identity,
+//		   ::bliss::transform::identity,
 //		    StoreLess,
 //		    ::std::equal_to
 //		  >;
@@ -509,7 +512,7 @@ using BimoleculeHashMapParams = ::dsc::HashMapParams<
 //			>
 //using BimoleculeOrderedMapParams = ::dsc::OrderedMapParams<
 //		Key,
-//		::bliss::kmer::transform::identity,  // precanonalizer - only one that makes sense for bimole
+//		::bliss::transform::identity,  // precanonalizer - only one that makes sense for bimole
 //		 ::bliss::kmer::transform::lex_less,  // only one that makes sense for bimole
 //		  DistHash,
 //		  ::std::equal_to,
@@ -524,8 +527,8 @@ template <typename Key,
 >
 using SingleStrandSortedMapParams = ::dsc::SortedMapParams<
 		Key,
-		::bliss::kmer::transform::identity,  // precanonalizer
-		   ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
+		::bliss::transform::identity,  // precanonalizer
+		   ::bliss::transform::identity,  // only one that makes sense given InputTransform
 		    Less,
 		    ::std::equal_to
 		  >;
@@ -537,7 +540,7 @@ template <typename Key,
 using CanonicalSortedMapParams = ::dsc::SortedMapParams<
 		Key,
 		::bliss::kmer::transform::lex_less,  // precanonalizer
-		 ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
+		 ::bliss::transform::identity,  // only one that makes sense given InputTransform
 		    Less,
 		    ::std::equal_to
 		  >;
@@ -547,7 +550,7 @@ template <typename Key,
 >
 using BimoleculeSortedMapParams = ::dsc::SortedMapParams<
 		Key,
-		::bliss::kmer::transform::identity,  // precanonalizer - only one that makes sense for bimole
+		::bliss::transform::identity,  // precanonalizer - only one that makes sense for bimole
 		 ::bliss::kmer::transform::lex_less,  // only one that makes sense for bimole
 		    Less,
 		    ::std::equal_to
