@@ -43,6 +43,7 @@
 #include "common/kmer.hpp"
 #include "common/base_types.hpp"
 #include "utils/kmer_utils.hpp"
+#include "utils/filter_utils.hpp"
 
 #include "io/mxx_support.hpp"
 
@@ -279,7 +280,7 @@ int main(int argc, char** argv) {
     //	    }
     //
     //	      comm.barrier();
-    //	      idx.get_map().erase(::fsc::TruePredicate());
+    //	      idx.get_map().erase(::bliss::filter::TruePredicate());
     //	      comm.barrier();
     //		  BL_BENCH_START(test);
     //		  idx.insert(temp);

@@ -44,6 +44,7 @@
 #include "common/kmer.hpp"
 #include "common/base_types.hpp"
 #include "utils/kmer_utils.hpp"
+#include "utils/filter_utils.hpp"
 
 #include "io/mxx_support.hpp"
 
@@ -430,7 +431,7 @@ int main(int argc, char** argv) {
       for (auto x : file_data) {
         temp.clear();
         comm.barrier();  // need to sync this, since the parser needs to collectively parse the records.
-        ::bliss::io::KmerFileHelper::parse_file_data<DBGNodeParser, FileParser, ::bliss::io::NFilterSequencesIterator>(x, temp, comm);
+        ::bliss::io::KmerFileHelper::parse_file_data_old<DBGNodeParser, FileParser, ::bliss::io::NFilterSequencesIterator>(x, temp, comm);
         if (comm.rank() == 0) printf("PARSED\n");
         comm.barrier();  // need to sync again.
         idx.insert(temp);
@@ -491,7 +492,7 @@ int main(int argc, char** argv) {
     //	    }
     //
     //	      comm.barrier();
-    //	      idx.get_map().erase(::fsc::TruePredicate());
+    //	      idx.get_map().erase(::bliss::filter::TruePredicate());
     //	      comm.barrier();
     //		  BL_BENCH_START(test);
     //		  idx.insert(temp);
@@ -1128,7 +1129,7 @@ int main(int argc, char** argv) {
         ::std::vector<typename DBGNodeParser::value_type> temp;
         for (auto x : file_data) {
           temp.clear();
-          ::bliss::io::KmerFileHelper::parse_file_data<DBGNodeParser, FileParser, ::bliss::io::NFilterSequencesIterator>(x, temp, comm);
+          ::bliss::io::KmerFileHelper::parse_file_data_old<DBGNodeParser, FileParser, ::bliss::io::NFilterSequencesIterator>(x, temp, comm);
           idx2.insert(temp);
         }
         // idx2.insert(temp);

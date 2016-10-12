@@ -40,11 +40,13 @@
 #include <utility>  // std::declval
 
 #include "utils/logging.h"
+#include "utils/filter_utils.hpp"
 
 #include "common/alphabets.hpp"
 #include "common/kmer.hpp"
 #include "common/base_types.hpp"
 #include "utils/kmer_utils.hpp"
+#include "utils/filter_utils.hpp"
 
 #include "io/mxx_support.hpp"
 
@@ -303,7 +305,7 @@ void build_index(::std::vector<::bliss::io::file_data> const & file_data, Index 
 	for (auto x : file_data) {
 		temp.clear();
 
-    ::bliss::io::KmerFileHelper::template parse_file_data<DBGNodeParser, FileParser, SplitSeqIterType>(x, temp, comm);
+    ::bliss::io::KmerFileHelper::template parse_file_data_old<DBGNodeParser, FileParser, SplitSeqIterType>(x, temp, comm);
 
 		idx.insert(temp);
 	}
@@ -394,7 +396,7 @@ std::vector<bool> select_k2mers_by_edge_frequency(std::vector<K2merType> const &
     {
 //      size_t query_size = query.size();
 
-      auto remote_counts = k1mer_counter.template count<true, ::fsc::TruePredicate>(query);
+      auto remote_counts = k1mer_counter.template count<true, ::bliss::filter::TruePredicate>(query);
 //      size_t res_size = remote_counts.size();
 
       for (auto x : remote_counts) {
@@ -419,7 +421,7 @@ std::vector<bool> select_k2mers_by_edge_frequency(std::vector<K2merType> const &
     {
 //      size_t query_size = query.size();
 
-      auto remote_counts = k1mer_counter.template count<true, ::fsc::TruePredicate>(query);
+      auto remote_counts = k1mer_counter.template count<true, ::bliss::filter::TruePredicate>(query);
 //      size_t res_size = remote_counts.size();
 
       for (auto x : remote_counts) {
@@ -558,7 +560,7 @@ std::vector<bool> select_k2mers_by_edge_frequency_2(std::vector<K2merType> const
 //      size_t query_size = query.size();
       local_counts.clear();
       // try not doing unique and see if not using an internal hash table
-      auto remote_counts = k1mer_counter.template count<false, ::fsc::TruePredicate>(query);
+      auto remote_counts = k1mer_counter.template count<false, ::bliss::filter::TruePredicate>(query);
 //      size_t res_size = remote_counts.size();
       for (auto x : remote_counts) {
         if (x.second > 0) local_counts.insert(::std::make_pair(x.first, static_cast<typename K1merCountMap::mapped_type>(x.second)));
@@ -702,7 +704,7 @@ void filter_k2mers(std::vector<bool> const & edge_filter, std::vector<K2merType>
 
   // the parser needs to collectively parse the records.
   // for kmer at the beginning and end of sequence, generated a padded version.
-  ::bliss::io::KmerFileHelper::template parse_file_data<::bliss::debruijn::PaddedKmerParser<K2merType>, FileParser, SplitSeqIterType>(file_data, temp, comm);
+  ::bliss::io::KmerFileHelper::template parse_file_data_old<::bliss::debruijn::PaddedKmerParser<K2merType>, FileParser, SplitSeqIterType>(file_data, temp, comm);
 
   // transform and insert.
   decltype(::std::declval<DBGNodeParser>().transformer) trans;
@@ -727,7 +729,7 @@ void filter_k2mers(std::vector<bool> const & edge_filter, std::vector<K2merType>
 
   // the parser needs to collectively parse the records.
   // for kmer at the beginning and end of sequence, generated a padded version.
-  ::bliss::io::KmerFileHelper::template parse_file_data<::bliss::debruijn::PaddedKmerParser<K2merType>, FileParser, SplitSeqIterType>(file_data, temp, comm);
+  ::bliss::io::KmerFileHelper::template parse_file_data_old<::bliss::debruijn::PaddedKmerParser<K2merType>, FileParser, SplitSeqIterType>(file_data, temp, comm);
 
   // filter temp by k1mer freq
   filter_k2mers(selected, temp, comm);
@@ -796,7 +798,7 @@ template <typename Index>
 		for (auto x : file_data) {
 			temp.clear();
 			// the parser needs to collectively parse the records.
-			::bliss::io::KmerFileHelper::template parse_file_data<K1merParser, FileParser, SplitSeqIterType>(x, temp, comm);
+			::bliss::io::KmerFileHelper::template parse_file_data_old<K1merParser, FileParser, SplitSeqIterType>(x, temp, comm);
 			counter.insert(temp);  // this distributes the counts according to k-mer hash.
 			// TODO: build from k+2 mer, so that overlap region does not become an issue for fasta files.
 		}
@@ -838,7 +840,7 @@ template <typename Index>
 		  temp.clear();
 
       // the parser needs to collectively parse the records.
-      ::bliss::io::KmerFileHelper::template parse_file_data<::bliss::debruijn::PaddedKmerParser<K2merType>, FileParser, SplitSeqIterType>(x, temp, comm);
+      ::bliss::io::KmerFileHelper::template parse_file_data_old<::bliss::debruijn::PaddedKmerParser<K2merType>, FileParser, SplitSeqIterType>(x, temp, comm);
 
 			// filter temp by k1mer
 			auto selected = select_k2mers_by_edge_frequency_2(temp, counter, comm);
@@ -1595,14 +1597,14 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 
 	BL_BENCH_START(valid_print);
 	// get the kmers
-  ::bliss::io::KmerFileHelper::template parse_file_data<::bliss::index::kmer::KmerParser<KmerType>, FileParser, SeqIterType>(fdata, kmers, comm);
+  ::bliss::io::KmerFileHelper::template parse_file_data_old<::bliss::index::kmer::KmerParser<KmerType>, FileParser, SeqIterType>(fdata, kmers, comm);
 	std::transform(kmers.begin(), kmers.end(), kmers.begin(), canonical);
 	BL_BENCH_COLLECTIVE_END(valid_print, "parse kmers", kmers.size(), comm);
 
 
 	BL_BENCH_START(valid_print);
 	// get the read lengths
-  ::bliss::io::KmerFileHelper::template parse_file_data<::bliss::debruijn::ReadLengthParser<KmerType>, FileParser, SeqIterType>(fdata, local_offsets, comm);
+  ::bliss::io::KmerFileHelper::template parse_file_data_old<::bliss::debruijn::ReadLengthParser<KmerType>, FileParser, SeqIterType>(fdata, local_offsets, comm);
 	// prefix scan to get the offsets
 	for (size_t i = 1; i < local_offsets.size(); ++i) {
 		local_offsets[i].first += local_offsets[i-1].first;
@@ -1637,7 +1639,7 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 	BL_BENCH_START(valid_print);
 	// get the kmers again - earlier kmer vector is scrambled by idx.count.  doing this instead of saving another copy because of space constraints.
 	kmers.clear();
-  ::bliss::io::KmerFileHelper::template parse_file_data<::bliss::index::kmer::KmerParser<KmerType>, FileParser, SeqIterType>(fdata, kmers, comm);
+  ::bliss::io::KmerFileHelper::template parse_file_data_old<::bliss::index::kmer::KmerParser<KmerType>, FileParser, SeqIterType>(fdata, kmers, comm);
 	std::transform(kmers.begin(), kmers.end(), kmers.begin(), canonical);
 	BL_BENCH_COLLECTIVE_END(valid_print, "reparse", kmers.size(), comm);
 
