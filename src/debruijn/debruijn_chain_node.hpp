@@ -62,7 +62,10 @@ namespace bliss
 			if (neighbors.size() == 1) {
 				std::get<0>(node) = neighbors[0];
 				std::get<2>(node) = 1;
-			}
+			} // else if there is no neighbor, leave kmer as blank and distance as 0
+//			else {
+//				std::cout << " node without IN edge: " << t << std::endl;
+//			}
 
 			// get the out neighbor
 			neighbors.clear();
@@ -71,7 +74,10 @@ namespace bliss
 			if (neighbors.size() == 1) {
 				std::get<1>(node) = neighbors[0];
 				std::get<3>(node) = 1;
-			}
+			} // else if there is no neighbor, leave kmer as blank and distance as 0
+//			else {
+//				std::cout << " node without OUT edge: " << t << std::endl;
+//			}
 
     		return std::make_pair(t.first, node);
     	}

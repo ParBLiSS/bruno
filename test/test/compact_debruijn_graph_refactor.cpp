@@ -337,9 +337,9 @@ parse_nodes(::bliss::io::file_data const & file_data,
    ::bliss::debruijn::biedge::io::debruijn_kmer_simple_biedge_parser<KmerType>,
    FileParser, SplitSeqIterType>(file_data, nodes, comm);
 
-  std::cout << "rank " << comm.rank() << " read " << nodes.size() << " nodes " << std::endl;
-  std::cout << "rank " << comm.rank() << " first " << nodes.front() << std::endl;
-  std::cout << "      last " << nodes.back() << std::endl;
+//  std::cout << "rank " << comm.rank() << " read " << nodes.size() << " nodes " << std::endl;
+//  std::cout << "rank " << comm.rank() << " first " << nodes.front() << std::endl;
+//  std::cout << "      last " << nodes.back() << std::endl;
 
   return nodes;
 }
@@ -376,7 +376,7 @@ parse_nodes(::bliss::io::file_data const & file_data,
 //  3. reconstructive filtering:  parser kmers, add edges, filter and copy, insert.
 
 // FILTERING ONLY WORKS WITH FASTQ files right now.  TODO: STILL NEEDED?
-#if (pPARSER == FASTQ)
+//#if (pPARSER == FASTQ)
 
 /*
  * @brief  build an index with thresholded k+2-mers.  note that the threshold is specified for k+2-mers, not k-mers, and is exclusive.
@@ -462,7 +462,7 @@ build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data,
 	return results;
 }
 
-#endif
+//#endif
 
 
 template <typename Index>
@@ -1025,12 +1025,12 @@ void count_edges(::std::vector<::bliss::io::file_data> const & file_data,
 	::std::vector<::bliss::debruijn::biedge::compact_simple_biedge_kmer_node<KmerType> > temp;
 	size_t count = 0;
 	for (size_t i = 0; i < file_data.size(); ++i) {
-#if (pPARSER == FASTQ)
+//#if (pPARSER == FASTQ)
     if (thresholding)
       parse_and_filter_nodes(file_data[i], selected_edges[i], comm).swap(temp);
 
     else
-#endif
+//#endif
       parse_nodes(file_data[i], comm).swap(temp);
 
 	  count += idx2.update(temp, false, updater);
@@ -1067,12 +1067,12 @@ void count_edges_old(std::vector<KmerType> const & selected,
 	::std::vector<::bliss::debruijn::biedge::compact_simple_biedge_kmer_node<KmerType> > temp;
 	size_t count = 0;
 	for (size_t i = 0; i < file_data.size(); ++i) {
-#if (pPARSER == FASTQ)
+//#if (pPARSER == FASTQ)
     if (thresholding)
       parse_and_filter_nodes(file_data[i], selected_edges[i], comm).swap(temp);
 
     else
-#endif
+//#endif
       parse_nodes(file_data[i], comm).swap(temp);
 
 		count += idx2.get_map().update(temp, false, updater);
@@ -1559,11 +1559,11 @@ void count_kmers(::std::vector<::bliss::io::file_data> const & file_data,
 		// TODO: this part can be simplified? so that memory usage is further reduced?
 
 	  // use the same mechanism as the one for building the graph, so we can count.
-#if (pPARSER == FASTQ)
+//#if (pPARSER == FASTQ)
 	  if (thresholding)
 		  parse_and_filter_nodes(file_data[i], selected_edges[i], comm).swap(temp1);
 	  else
-#endif
+//#endif
 	    parse_nodes(file_data[i], comm).swap(temp1);
 
 		// copy out the kmer only.  overlap is k+1 plus any newline chars.  because of the newline chars, not practical to truncate x.
@@ -1866,9 +1866,9 @@ int main(int argc, char** argv) {
 	std::string out_prefix;
 	out_prefix.assign("./output");
 
-#if (pPARSER == FASTQ)
+//#if (pPARSER == FASTQ)
 	CountType lower, upper;
-#endif
+//#endif
 
 	bool thresholding = false;
 
@@ -1911,10 +1911,10 @@ int main(int argc, char** argv) {
 		filenames = fileArg.getValue();
 		out_prefix = outputArg.getValue();
 
-#if (pPARSER == FASTQ)
+//#if (pPARSER == FASTQ)
     lower = lowerThreshArg.getValue();
     upper = upperThreshArg.getValue();
-#endif
+//#endif
 
 		thresholding = threshArg.getValue();
 
@@ -1926,10 +1926,10 @@ int main(int argc, char** argv) {
 		exit(-1);
 	}
 
-#if (pPARSER == FASTA)
-    if (thresholding)
-      throw std::invalid_argument("ERROR: FASTA version of debruijn graph compaction does not currently support filtering.");
-#endif
+//#if (pPARSER == FASTA)
+//    if (thresholding)
+//      throw std::invalid_argument("ERROR: FASTA version of debruijn graph compaction does not currently support filtering.");
+//#endif
 
 	if (filenames.size() == 0) {
 		filename.assign(PROJ_SRC_DIR);
@@ -2005,15 +2005,17 @@ int main(int argc, char** argv) {
 
 
 		if (thresholding) {
-#if (pPARSER == FASTQ)
+//#if (pPARSER == FASTQ)
 			selected_edges = build_index_thresholded(file_data, idx, lower, upper, comm);
-#else
-			// TODO: VERIFY FASTA is working. THIS IS WORKING.  FASTA does not support thresholded index build because fasta reader is not yet handling overlaps correctly when dealing with k+2-mers.
-			if (comm.rank() == 0) printf("ERROR: FASTA files does not yet support pre-filter by frequency.\n");
-#endif
+//#else
+//			// TODO: VERIFY FASTA is working. THIS IS WORKING.  FASTA does not support thresholded index build because fasta reader is not yet handling overlaps correctly when dealing with k+2-mers.
+//			if (comm.rank() == 0) printf("ERROR: FASTA files does not yet support pre-filter by frequency.\n");
+//#endif
 		} else {
 			build_index(file_data, idx, comm);
 		}
+
+
 
 		BL_BENCH_COLLECTIVE_END(app, "construct", idx.local_size(), comm);
 

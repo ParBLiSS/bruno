@@ -31,6 +31,7 @@
 namespace bliss {
   namespace debruijn {
 
+  // forward declare
   template <typename KMER>
       struct lex_less;
 
