@@ -1115,6 +1115,8 @@ void make_chain_map(Index const & idx, ChainMapType & chainmap, mxx::comm const 
 
 	size_t iterations = 0;
 	size_t cycle_nodes = 0;
+	size_t unfinished_count = 0;
+
 
 	{
 		if (comm.rank() == 0) printf("LIST RANKING\n");
@@ -1196,6 +1198,7 @@ void make_chain_map(Index const & idx, ChainMapType & chainmap, mxx::comm const 
 
 			// search unfinished.
 			unfinished = chainmap.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
+			unfinished_count = unfinished.size();
 
 			// at this point, the new distances in lists are 2^(iterations + 1)
 			++iterations;
@@ -1228,8 +1231,8 @@ void make_chain_map(Index const & idx, ChainMapType & chainmap, mxx::comm const 
 
         // get global unfinished count
 
-        all_compacted = (count == 0) || (cycle_nodes == unfinished.size());
-        if (!all_compacted) printf("rank %d iter %lu updated %lu, unfinished %lu cycle nodes %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_nodes);
+				all_compacted = (count == 0) || (cycle_nodes == unfinished_count);
+				if (!all_compacted) printf("rank %d iter %lu updated %lu, unfinished %lu cycle nodes %lu\n", comm.rank(), iterations, count, unfinished_count, cycle_nodes);
 			}
 			all_compacted = ::mxx::all_of(all_compacted, comm);
 
@@ -1339,30 +1342,38 @@ void make_chain_map(Index const & idx, ChainMapType & chainmap, mxx::comm const 
 	std::vector<KmerType> cycles;
 
 	{
-		if (comm.rank() == 0) printf("REMOVE CYCLES\n");
+		// only do this if there are some unfinished.
+		auto unfinished = chainmap.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
+		bool all_compacted = (unfinished.size() == 0);
+		all_compacted = ::mxx::all_of(all_compacted, comm);
 
-		BL_BENCH_INIT(cycle);
+		if (!all_compacted) {
 
-    BL_BENCH_START(cycle);
-    auto res = chainmap.find(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
-    for (auto x : res) {
-      cycles.emplace_back(x.first);
-    }
-    BL_BENCH_COLLECTIVE_END(cycle, "save cycle kmers", cycles.size(), comm);
+			if (comm.rank() == 0) printf("REMOVE CYCLES\n");
+
+			BL_BENCH_INIT(cycle);
+
+			BL_BENCH_START(cycle);
+			auto res = chainmap.find(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
+			for (auto x : res) {
+			  cycles.emplace_back(x.first);
+			}
+			BL_BENCH_COLLECTIVE_END(cycle, "save cycle kmers", cycles.size(), comm);
 
 
-		// remove cycle nodes.  has to do after query, to ensure that exactly middle is being treated not as a cycle node.
-		BL_BENCH_START(cycle);
-		size_t cycle_node_count = chainmap.erase(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
-		assert(cycle_node_count == cycles.size());
-		BL_BENCH_COLLECTIVE_END(cycle, "erase cycle", cycle_node_count, comm);
+			// remove cycle nodes.  has to do after query, to ensure that exactly middle is being treated not as a cycle node.
+			BL_BENCH_START(cycle);
+			size_t cycle_node_count = chainmap.erase(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
+			assert(cycle_node_count == cycles.size());
+			BL_BENCH_COLLECTIVE_END(cycle, "erase cycle", cycle_node_count, comm);
 
-		//printf("REMOVED %ld cycle nodes\n", cycle_node_count);
+			//printf("REMOVED %ld cycle nodes\n", cycle_node_count);
 
-		cycle_node_count = mxx::allreduce(cycle_node_count, comm);
-		if (comm.rank() == 0) printf("REMOVED %ld cycle nodes\n", cycle_node_count);
+			cycle_node_count = mxx::allreduce(cycle_node_count, comm);
+			if (comm.rank() == 0) printf("REMOVED %ld cycle nodes\n", cycle_node_count);
 
-		BL_BENCH_REPORT_MPI_NAMED(cycle, "rem_cycle", comm);
+			BL_BENCH_REPORT_MPI_NAMED(cycle, "rem_cycle", comm);
+		}
 	}
 
 	{

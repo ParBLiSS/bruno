@@ -153,12 +153,15 @@ namespace bliss {
             }
         };
 
-        /// A node that is part of a cycle.  valid only after chain compaction.
+        /// A node that MAY BE part of a cycle.  used during chain compaction for stopping criteria
+        ///    also used after compaction to remove true cycle nodes.
         struct IsCycleNode {
             int max_distance;
 
             IsCycleNode(size_t const iter) : max_distance(0x1 << iter) {
-            	assert(iter > 0);  // has to have at least 1 iteration.
+				// commented out because it should be valid for list ranking to have an isolated node with distance of 1 to itself.   a
+            	// so preventing cycle check to run should be based on other criteria (i.e. no unfinished nodes).
+//            	assert(iter > 0);  // has to have at least 1 iteration.
             };
 
             /// does not filter by group of results.

@@ -1087,24 +1087,31 @@ int main(int argc, char** argv) {
 
     BL_BENCH_RESET(test);
     {
-      if (comm.rank() == 0) printf("REMOVE CYCLES\n");
+		// only do this if there are some unfinished.
+		auto unfinished = chainmap.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
+		  bool all_compacted = (unfinished.size() == 0);
+		  all_compacted = ::mxx::all_of(all_compacted, comm);
+
+		if (!all_compacted) {
+
+		  if (comm.rank() == 0) printf("REMOVE CYCLES\n");
 
 
-      // remove cycle nodes.  has to do after query, to ensure that exactly middle is being treated not as a cycle node.
+		  // remove cycle nodes.  has to do after query, to ensure that exactly middle is being treated not as a cycle node.
+		  BL_BENCH_START(test);
+		  size_t cycle_node_count = chainmap.erase(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
+		  BL_BENCH_COLLECTIVE_END(test, "erase cycle", cycle_node_count, comm);
+
+		  //printf("REMOVED %ld cycle nodes\n", cycle_node_count);
+
+		  cycle_node_count = mxx::allreduce(cycle_node_count, comm);
+		  if (comm.rank() == 0) printf("REMOVED %ld cycle nodes\n", cycle_node_count);
+		}
+
       BL_BENCH_START(test);
-      size_t cycle_node_count = chainmap.erase(::bliss::debruijn::filter::chain::IsCycleNode(iterations));
-      BL_BENCH_COLLECTIVE_END(test, "erase cycle", cycle_node_count, comm);
+      unfinished = chainmap.find(::bliss::debruijn::filter::chain::IsUncompactedNode(iterations));
 
-      //printf("REMOVED %ld cycle nodes\n", cycle_node_count);
-
-      cycle_node_count = mxx::allreduce(cycle_node_count, comm);
-      if (comm.rank() == 0) printf("REMOVED %ld cycle nodes\n", cycle_node_count);
-
-
-      BL_BENCH_START(test);
-      auto unfinished = chainmap.find(::bliss::debruijn::filter::chain::IsUncompactedNode(iterations));
-
-      bool all_compacted = (unfinished.size() == 0);
+      all_compacted = (unfinished.size() == 0);
       all_compacted = ::mxx::all_of(all_compacted, comm);
 
       assert(all_compacted);

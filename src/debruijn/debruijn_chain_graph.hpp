@@ -589,7 +589,6 @@ namespace graph
 
 
 		size_t separate_cycles(size_t iterations) {
-
 			::bliss::debruijn::filter::chain::IsCycleNode is_cycle(iterations);
 
 			if (comm.rank() == 0) printf("REMOVE CYCLES\n");
@@ -717,8 +716,8 @@ namespace graph
 							// send rr to ll.  also let ll know if rr is a terminus.  orientation is OUT
 							updates.emplace_back(std::get<0>(md),
 									update_md((std::get<3>(md) == 0) ? t.first : std::get<1>(md),
-											((std::get<3>(md) > 0) ? dist : -dist),
-											bliss::debruijn::operation::OUT));
+											((std::get<3>(md) > 0) ? dist : -dist),     // if md.3 <= 0, then finished, so use negative dist.
+											bliss::debruijn::operation::OUT));		// update target (md.0)'s out edge
 							// if out dist is 0, then this node is a terminal node.  sent self as target.  else use right kmer.
 							// if out dist is negative, then out kmer (rr) points to a terminus, including self (dist = 0), set update distance to negative to indicate so.
 
@@ -729,8 +728,8 @@ namespace graph
 							// send ll to rr.  also let rr know if ll is a terminus.  orientation is IN
 							updates.emplace_back(std::get<1>(md),
 									update_md((std::get<2>(md) == 0) ? t.first : std::get<0>(md),
-											((std::get<2>(md) > 0) ? dist : -dist),
-											bliss::debruijn::operation::IN));
+											((std::get<2>(md) > 0) ? dist : -dist),  // if md.3 <= 0, then finished, so use negative dist.
+											bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
 							// if target is a terminus, then set self as target.  else use left kmer
 							// if target points to a terminus, including self (dist = 0), set update distance to negative to indicate so.
 						}  // else case is same as above
@@ -750,6 +749,7 @@ namespace graph
 					// at this point, the new distances in lists are 2^(iterations + 1)
 					++iterations;
 
+					std::cout << "rank " << comm.rank() << " iterations " << iterations << std::endl;
 					// find cycles
 					cycle_node_count = std::count_if(unfinished.begin(), unfinished.end(),
 							::bliss::debruijn::filter::chain::IsCycleNode(iterations));
@@ -886,9 +886,16 @@ namespace graph
 //				BL_BENCH_REPORT_MPI_NAMED(list_update, "finalize", comm);
 //			}
 
+			{
 
-			separate_cycles(iterations);
+				auto unfinished = map.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
+				bool all_compacted = (unfinished.size() == 0);
+				all_compacted = ::mxx::all_of(all_compacted, comm);
 
+				if (!all_compacted)
+					separate_cycles(iterations);
+
+			}
 			{
 				// VERIFY ALL DONE.
 				auto unfinished = map.find(::bliss::debruijn::filter::chain::IsUncompactedNode(iterations));
