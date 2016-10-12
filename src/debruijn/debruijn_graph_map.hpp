@@ -36,6 +36,8 @@
 
 #include "utils/benchmark_utils.hpp"  // for timing.
 #include "utils/function_traits.hpp"
+#include "utils/filter_utils.hpp"
+
 #include "utils/logging.h"
 
 
@@ -130,7 +132,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		//this->local_reserve(before + ::std::distance(first, last));
 
 		for (auto it = first; it != last; ++it) {
-			auto result = this->c.insert(::std::make_pair(*it, Edge()));   // TODO: reduce number of allocations.
+			this->c.insert(::std::make_pair(*it, Edge()));   // TODO: reduce number of allocations.
 		}
 
 		if (this->c.size() != before) this->local_changed = true;
@@ -173,7 +175,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 	}
 
 	/**
-	 * @brief insert new elements in the distributed unordered_multimap.
+	 * @brief insert new elements in the distributed unordered_multimap, with default constructed mapped data. useful as pre-filter for updating.
 	 * @param first
 	 * @param last
 	 */
@@ -193,7 +195,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		for (auto it = first; it != last; ++it) {
 			if (pred(*it)) {
 
-				auto result = this->c.insert(::std::make_pair(it, Edge()));   // TODO: reduce number of allocations.
+				this->c.insert(::std::make_pair(*it, Edge()));   // TODO: reduce number of allocations.
 			}
 		}
 
@@ -219,7 +221,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 	 * @param first
 	 * @param last
 	 */
-	template <typename InputElemType, typename Predicate = ::fsc::TruePredicate>
+	template <typename InputElemType, typename Predicate = ::bliss::filter::TruePredicate>
 	size_t insert(std::vector<InputElemType >& input, bool sorted_input = false, Predicate const & pred = Predicate()) {
 		// even if count is 0, still need to participate in mpi calls.  if (input.size() == 0) return;
 		BL_BENCH_INIT(insert);
@@ -246,7 +248,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		BL_BENCH_START(insert);
 		// local compute part.  called by the communicator.
 		size_t count = 0;
-		if (!::std::is_same<Predicate, ::fsc::TruePredicate>::value)
+		if (!::std::is_same<Predicate, ::bliss::filter::TruePredicate>::value)
 			count = this->local_insert(input.begin(), input.end(), pred);
 		else
 			count = this->local_insert(input.begin(), input.end());

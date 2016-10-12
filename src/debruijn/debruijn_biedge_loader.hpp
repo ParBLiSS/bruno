@@ -30,6 +30,7 @@
 #include "common/alphabets.hpp"
 #include "common/kmer.hpp"
 #include "io/kmer_parser.hpp"
+#include "utils/filter_utils.hpp"
 
 namespace bliss
 {
@@ -45,14 +46,19 @@ namespace bliss
       ///   uses DNA alphabet and is the most informative of the alphabet.
       using compact_simple_biedge = bliss::common::Kmer<2, ::bliss::common::DNA16, uint8_t>;
 
+      // sanity check.
+      static_assert(sizeof(compact_simple_biedge) == 1, "size of compact simple biedge is larger than 1 byte.");
+
       /// Kmer representing one edge between 2 nodes.
       template <typename KmerType>
       using kmer_simple_edge = bliss::common::Kmer<KmerType::size + 1, typename KmerType::KmerAlphabet, typename KmerType::KmerWordType>;
 
-      // sanity check.
-      static_assert(sizeof(compact_simple_biedge) == 1, "size of compact simple biedge is larger than 1 byte.");
+      /// node from Kmer and biedge
+      template <typename KmerType>
+      using compact_simple_biedge_kmer_node = ::std::pair<KmerType, compact_simple_biedge>;
 
 
+      // TODO: turn these into class member functions.
 
       /**
        * @brief function to get IN edge source kmer given central kmer and biedge.
@@ -70,7 +76,7 @@ namespace bliss
         return kk;
       }
       template <typename KmerType>
-      KmerType get_in_kmer(std::pair<KmerType, compact_simple_biedge> const & edge) {
+      KmerType get_in_kmer(compact_simple_biedge_kmer_node<KmerType> const & edge) {
         return get_in_kmer(edge.first, edge.second);
       }
 
@@ -90,7 +96,7 @@ namespace bliss
         return kk;
       }
       template <typename KmerType>
-      KmerType get_out_kmer(std::pair<KmerType, compact_simple_biedge> const & edge) {
+      KmerType get_out_kmer(compact_simple_biedge_kmer_node<KmerType> const & edge) {
         return get_out_kmer(edge.first, edge.second);
       }
 
@@ -115,7 +121,7 @@ namespace bliss
         return kk | kk2;
       }
       template <typename KmerType>
-      kmer_simple_edge<KmerType> get_in_edge_k1mer(std::pair<KmerType, compact_simple_biedge> const & edge) {
+      kmer_simple_edge<KmerType> get_in_edge_k1mer(compact_simple_biedge_kmer_node<KmerType> const & edge) {
         return get_in_edge_k1mer(edge.first, edge.second);
       }
 
@@ -138,7 +144,7 @@ namespace bliss
         return kk;
       }
       template <typename KmerType>
-      kmer_simple_edge<KmerType> get_out_edge_k1mer(std::pair<KmerType, compact_simple_biedge> const & edge) {
+      kmer_simple_edge<KmerType> get_out_edge_k1mer(compact_simple_biedge_kmer_node<KmerType> const & edge) {
         return get_out_edge_k1mer(edge.first, edge.second);
       }
 
@@ -156,7 +162,7 @@ namespace bliss
       struct extract_biedge {
 
           template <typename KmerType>
-          compact_simple_biedge operator()(std::pair<KmerType, compact_simple_biedge> const & edge) {
+          compact_simple_biedge operator()(compact_simple_biedge_kmer_node<KmerType> const & edge) {
             return edge.second;
           }
 
@@ -174,7 +180,7 @@ namespace bliss
       struct merge_kmer_biedge {
 
           template <typename KmerType>
-          std::pair<KmerType, compact_simple_biedge> operator()(KmerType const & kmer, compact_simple_biedge const & edge) {
+          compact_simple_biedge_kmer_node<KmerType> operator()(KmerType const & kmer, compact_simple_biedge const & edge) {
             return std::make_pair(kmer, edge);
           }
 
@@ -451,16 +457,16 @@ namespace bliss
 
               typename SeqType::IteratorType seq_begin;
               typename SeqType::IteratorType seq_end;
-              bool has_window;
+              bool longer_than_window = false;
 
-              std::tie(seq_begin, seq_end, has_window) =
+              std::tie(seq_begin, seq_end, longer_than_window) =
             		  ::bliss::index::kmer::KmerParser<KmerType>::get_valid_iterator_range(read, valid_range, window);
 
               //== set up the kmer generating iterators.
               bliss::utils::file::NotEOL neol;
 
 
-              if (has_window) {
+              if (longer_than_window) {
                   KmerIter<SeqType> start(BaseCharIterator<SeqType>(
                 		  CharIter<SeqType>(neol, seq_begin, seq_end),
                 		  bliss::common::ASCII2<Alphabet>()),
@@ -476,7 +482,11 @@ namespace bliss
 				  iterator_type<SeqType> node_start(start, edge_start);
 
 				  // advance one if needed.
-				  if (read.is_record_truncated_at_begin()) ++node_start;
+	//			  std::cout << "partition " << valid_range << " seq " << read << " truncated ? " << (read.is_record_truncated_at_begin() ? "y" : "n") << std::endl;
+				  if (read.is_record_truncated_at_begin()) {
+	//				  std::cout << " truncated.  move forward 1." << std::endl;
+					  ++node_start;
+				  }
 
 				  return node_start;
               } else {
@@ -501,11 +511,16 @@ namespace bliss
 
               typename SeqType::IteratorType seq_begin;
               typename SeqType::IteratorType seq_end;
-              bool has_window;
+              bool longer_than_window = false;
 
-              std::tie(seq_begin, seq_end, has_window) =
-            		  ::bliss::index::kmer::KmerParser<KmerType>::get_valid_iterator_range(read, valid_range, window);
+              // if sequence is split across partitions, and this record is truncated at its end,
+              // then we want to iterate up to end position in the overlap at window-1
+              // The iterator can stop with kmer trailing end just inside the overlap region (valid end)
+              // and left edge is at last valid region position while right edge is at the window-1 position.
+              size_t seq_overlap_window = (read.is_record_truncated_at_end() ? window - 1 : window);
 
+              std::tie(seq_begin, seq_end, longer_than_window) =
+            		  ::bliss::index::kmer::KmerParser<KmerType>::get_valid_iterator_range(read, valid_range, seq_overlap_window);
 
               //== set up the kmer generating iterators.
               bliss::utils::file::NotEOL neol;
@@ -526,7 +541,7 @@ namespace bliss
 
 
 
-          template <typename SeqType, typename OutputIt, typename Predicate = ::fsc::TruePredicate>
+          template <typename SeqType, typename OutputIt, typename Predicate = ::bliss::filter::TruePredicate>
           OutputIt operator()(SeqType const & read, OutputIt output_iter, Predicate const & pred = Predicate()) {
 
 //            std::cout << " first raw dist = " << read.seq_size() << std::endl;

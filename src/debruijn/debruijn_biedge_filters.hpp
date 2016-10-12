@@ -28,6 +28,7 @@
 #include "iterators/zip_iterator.hpp"
 #include "io/kmer_parser.hpp"
 #include "utils/benchmark_utils.hpp"
+#include "utils/filter_utils.hpp"
 
 namespace bliss {
   namespace debruijn {
@@ -93,8 +94,32 @@ namespace bliss {
           return results;
         }
 
+        /// reconstruct filtered nodes by replacing the edges, and copy only if filtered
+        template <typename KmerType>
+        std::vector<::bliss::debruijn::biedge::compact_simple_biedge_kmer_node<KmerType> >
+        reconstruct_filter_nodes(
+        		std::vector<::bliss::debruijn::biedge::compact_simple_biedge_kmer_node<KmerType> > const & nodes,
+				std::vector<::bliss::debruijn::biedge::compact_simple_biedge> const & biedges)
+		{
 
-#define USE_MPI
+          assert(nodes.size() == biedges.size());
+
+          std::vector<::bliss::debruijn::biedge::compact_simple_biedge_kmer_node<KmerType> > results;
+          results.reserve(nodes.size());
+          ::fsc::back_emplace_iterator<std::vector<::std::pair<KmerType, ::bliss::debruijn::biedge::compact_simple_biedge> > > emplacer(results);
+
+          auto n_it = nodes.begin();
+          auto e_it = biedges.begin();
+          for (; n_it != nodes.end(); ++n_it, ++e_it ) {
+        	  if ((*e_it).getData()[0] != 0) {
+        		  // edge is not empty.
+        		  results.emplace_back((*n_it).first, *e_it);
+        	  }
+          }
+          return results;
+        }
+
+
 #if defined(USE_MPI)
 
         /// convenience function to generate k+1mer frequency map.
@@ -223,7 +248,7 @@ namespace bliss {
               local_counts.clear();
               // not doing unique since unique requires a high AVERAGE repeat rate to make sense.  this reduces running time and space usage.
               // using find would reduce return data size.
-              auto remote_counts = k1mer_counter.template find<::fsc::TruePredicate>(query);
+              auto remote_counts = k1mer_counter.template find<::bliss::filter::TruePredicate>(query);
               // insert into local count map.
               local_counts.insert(remote_counts.begin(), remote_counts.end());
             }
@@ -244,6 +269,7 @@ namespace bliss {
                 biedges[j].second.getDataRef()[0] &= 0x0F;
               }
 
+              // get right as canonical.
               k1 = canonical(::bliss::debruijn::biedge::get_out_edge_k1mer(biedges[j]));
               // check local count
               count_iter = local_counts.find(k1);

@@ -28,6 +28,8 @@
 #include "bliss-config.hpp"
 
 #include "utils/logging.h"
+#include "utils/transform_utils.hpp"
+
 #include "debruijn/debruijn_biedge_loader.hpp"
 #include "debruijn/debruijn_chain_operations.hpp"
 #include "debruijn/debruijn_chain_node.hpp"
@@ -61,10 +63,10 @@ namespace bliss
     using CanonicalDeBruijnHashMapParams = ::dsc::HashMapParams<
         Kmer,
         ::bliss::debruijn::lex_less,  // precanonalizer.  operates on the value as well
-         ::bliss::kmer::transform::identity,  // only one that makes sense given InputTransform
+         ::bliss::transform::identity,  // only one that makes sense given InputTransform
           ::bliss::index::kmer::DistHashMurmur,
           ::std::equal_to,
-           ::bliss::kmer::transform::identity,
+           ::bliss::transform::identity,
             ::bliss::index::kmer::StoreHashMurmur,
             ::std::equal_to
           >;
