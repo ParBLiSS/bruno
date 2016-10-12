@@ -56,6 +56,18 @@ namespace bliss {
             }
         };
 
+        struct IsInternal {
+            /// does not filter by group of results.
+            template <typename Iter>
+            inline bool operator()(Iter first, Iter last) const {  return true; }
+
+            template <typename Kmer, typename Edge>
+            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+              return (std::get<2>(t.second) != 0) && (std::get<3>(t.second) != 0);
+            }
+        };
+
+
         struct IsTerminusOrIsolated {
             /// does not filter by group of results.
             template <typename Iter>
@@ -110,6 +122,10 @@ namespace bliss {
             }
         };
 
+
+        //=========== below are filters used during and after chain compaction.
+
+        /// Used during compaction.  Indicate that a node has it's edges pointing to terminal nodes.
         struct PointsToTermini {
             /// does not filter by group of results.
             template <typename Iter>
@@ -124,6 +140,7 @@ namespace bliss {
         };
 
 
+        /// Used during compaction.  Indicate that a node has it's edges pointing to non-terminal nodes.
         struct PointsToInternalNode {
             /// does not filter by group of results.
             template <typename Iter>
@@ -136,11 +153,13 @@ namespace bliss {
             }
         };
 
-        // points to internal node that are not cycles
+        /// A node that is part of a cycle.  valid only after chain compaction.
         struct IsCycleNode {
             int max_distance;
 
-            IsCycleNode(size_t const iter) : max_distance(0x1 << iter) {};
+            IsCycleNode(size_t const iter) : max_distance(0x1 << iter) {
+            	assert(iter > 0);  // has to have at least 1 iteration.
+            };
 
             /// does not filter by group of results.
             template <typename Iter>

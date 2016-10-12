@@ -31,6 +31,7 @@
 
 #include "common/alphabets.hpp"
 #include "common/kmer.hpp"
+#include "debruijn/debruijn_graph_node.hpp"
 
 namespace bliss
 {
@@ -44,6 +45,66 @@ namespace bliss
     using simple_biedge = ::std::tuple<KMER, KMER, int, int>;
     //static_assert(sizeof(simple_biedge<::bliss::common::Kmer<31, ::bliss::common::DNA> >) == sizeof(::bliss::common::Kmer<31, ::bliss::common::DNA>) * 2 + 2 * sizeof(int), "size of simple biedge is not what's expected");
 
+
+    template <typename KMER>
+	struct to_simple_biedge {
+
+    	template <typename EdgeEncoding, typename COUNT, typename DUMMY>
+    	std::pair<KMER, simple_biedge<KMER> >
+    	operator()(::std::pair<KMER, ::bliss::debruijn::graph::compact_multi_biedge<EdgeEncoding, COUNT, DUMMY> > const & t) {
+
+			simple_biedge<KMER> node(KMER(), KMER(), 0, 0);   // default node
+
+			// get the in neighbor
+			std::vector<KMER> neighbors;
+			t.second.get_in_neighbors(t.first, neighbors);
+			assert(neighbors.size() < 2);   // should not have more than 1 neighbors.
+			if (neighbors.size() == 1) {
+				std::get<0>(node) = neighbors[0];
+				std::get<2>(node) = 1;
+			}
+
+			// get the out neighbor
+			neighbors.clear();
+			t.second.get_out_neighbors(t.first, neighbors);
+			assert(neighbors.size() < 2);   // should not have more than 1 neighbors.
+			if (neighbors.size() == 1) {
+				std::get<1>(node) = neighbors[0];
+				std::get<3>(node) = 1;
+			}
+
+    		return std::make_pair(t.first, node);
+    	}
+
+    	template <typename EdgeEncoding, typename COUNT, typename DUMMY>
+    	std::pair<KMER, simple_biedge<KMER> >
+    	operator()(::std::pair<const KMER, ::bliss::debruijn::graph::compact_multi_biedge<EdgeEncoding, COUNT, DUMMY> > const & t) {
+
+			simple_biedge<KMER> node(KMER(), KMER(), 0, 0);   // default node
+
+			// get the in neighbor
+			std::vector<KMER> neighbors;
+			t.second.get_in_neighbors(t.first, neighbors);
+			assert(neighbors.size() < 2);   // should not have more than 1 neighbors.
+			if (neighbors.size() == 1) {
+				std::get<0>(node) = neighbors[0];
+				std::get<2>(node) = 1;
+			}
+
+			// get the out neighbor
+			neighbors.clear();
+			t.second.get_out_neighbors(t.first, neighbors);
+			assert(neighbors.size() < 2);   // should not have more than 1 neighbors.
+			if (neighbors.size() == 1) {
+				std::get<1>(node) = neighbors[0];
+				std::get<3>(node) = 1;
+			}
+
+    		return std::make_pair(t.first, node);
+    	}
+
+
+    };
 
     namespace chain
     {
