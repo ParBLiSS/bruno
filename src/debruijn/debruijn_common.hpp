@@ -56,13 +56,21 @@ namespace bliss
               std::pair<KMER, VAL >(y, ::bliss::debruijn::transform::reverse_complement(x.second) );
         }
 
+        // standard operator to get canonical k-mer and value.  value is also reversed and complemented.
+        template <typename VAL>
+        inline ::std::pair<KMER, VAL > operator()(std::pair<const KMER, VAL > const & x) const {
+          auto y = x.first.reverse_complement();
+          return (x.first < y) ? x :   // if already canonical, just return input
+              std::pair<KMER, VAL >(y, ::bliss::debruijn::transform::reverse_complement(x.second) );
+        }
+
     };
 
 
     template <typename Kmer >
     using CanonicalDeBruijnHashMapParams = ::dsc::HashMapParams<
         Kmer,
-        ::bliss::debruijn::lex_less,  // precanonalizer.  operates on the value as well
+        ::bliss::debruijn::lex_less,  // precanonalizer.  OPERATES ON VALUE AS WELL
          ::bliss::transform::identity,  // only one that makes sense given InputTransform
           ::bliss::index::kmer::DistHashMurmur,
           ::std::equal_to,

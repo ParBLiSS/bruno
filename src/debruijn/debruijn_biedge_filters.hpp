@@ -191,6 +191,9 @@ namespace bliss {
           // define k1mer type
           using K1merType = typename Counter::key_type;
 
+          size_t changed_count = 0;
+          bool edge_changed = false;
+
           // create a mask.
           BL_BENCH_START(filter_biedge_by_frequency);
 
@@ -227,10 +230,17 @@ namespace bliss {
             jmin = std::min(biedges.size(), i * step_size);
             jmax = std::min(biedges.size(), jmin + step_size);
 
+            // clear query from previous iteration.
+            query.clear();
+
+            //===== add the very first left query (for reads that are split between partitions).
+            //  when read is split between partitions, the second half gets the first node at offset of 1 from the partition start.
+            //  we need to query for this edge.  this is at i == 0.
+            if (jmin != jmax) query.emplace_back(canonical(::bliss::debruijn::biedge::get_in_edge_k1mer(biedges[jmin])));
+
             //===== populate right query.  only right is needed since left edge of the next node is the same.
             // NOTE: do both and not checking local counts from prev iteration.
             // next time, do check and update the bit vec here and later.
-            query.clear();
             for (size_t j = jmin; j < jmax; ++j) {
               // get left as canonical.
               k1 = canonical(::bliss::debruijn::biedge::get_out_edge_k1mer(biedges[j]));  // if empty edge, would not be a valid k+1 mer in counter.
@@ -249,6 +259,8 @@ namespace bliss {
               // not doing unique since unique requires a high AVERAGE repeat rate to make sense.  this reduces running time and space usage.
               // using find would reduce return data size.
               auto remote_counts = k1mer_counter.template find<::bliss::filter::TruePredicate>(query);
+
+              // results have canonical kmers.  insert directly into local_counts.
               // insert into local count map.
               local_counts.insert(remote_counts.begin(), remote_counts.end());
             }
@@ -259,6 +271,7 @@ namespace bliss {
             // we check left and right edges here so that all edges are consistent.
             for (size_t j = jmin; j < jmax; ++j) {
               // check each for query result
+            	edge_changed = false;  // DEBUG ONLY
 
               // get left as canonical.
               k1 = canonical(::bliss::debruijn::biedge::get_in_edge_k1mer(biedges[j]));
@@ -266,7 +279,11 @@ namespace bliss {
               count_iter = local_counts.find(k1);
               if (count_iter == local_counts.end()) {
                 // did not find, so clear the in edge (upper 4 bits of the byte).
-                biedges[j].second.getDataRef()[0] &= 0x0F;
+                edge_changed = (biedges[j].second.getDataRef()[0] != (biedges[j].second.getDataRef()[0] & 0x0F));
+//                if (edge_changed) std::cout << "rank " << comm.rank() << " missing count locally for in edge " << k1 << std::endl;
+
+			    biedges[j].second.getDataRef()[0] &= 0x0F;
+
               }
 
               // get right as canonical.
@@ -275,13 +292,20 @@ namespace bliss {
               count_iter = local_counts.find(k1);
               if (count_iter == local_counts.end()) {
                 // did not find, so clear the out edge (lower 4 bits of the byte).
+            	edge_changed = (biedges[j].second.getDataRef()[0] != (biedges[j].second.getDataRef()[0] & 0xF0));
+//                if (edge_changed) std::cout << "rank " << comm.rank() << " missing count locally for out edge " << k1 << std::endl;
+
                 biedges[j].second.getDataRef()[0] &= 0xF0;
               }
+
+              if (edge_changed) ++changed_count;
 
             } // end scan of current step to create the bit vector.
 
           }  // end iterations
-          BL_BENCH_COLLECTIVE_END(filter_biedge_by_frequency, "query_filter", biedges.size(), comm);
+          BL_BENCH_COLLECTIVE_END(filter_biedge_by_frequency, "query_filter", changed_count, comm);
+
+//          std::cout << "rank " << comm.rank() << " transformed " << changed_count << " by kmer frequency. " << std::endl;
 
 
           BL_BENCH_REPORT_MPI_NAMED(filter_biedge_by_frequency, "filter_biedge_by_frequency", comm);

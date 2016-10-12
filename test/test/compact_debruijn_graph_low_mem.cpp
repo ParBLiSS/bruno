@@ -521,18 +521,21 @@ std::vector<bool> select_k2mers_by_edge_frequency_2(std::vector<K2merType> const
     // NOTE: do both and no checking local counts from prev iteration.
     // next time, do check and update the bit vec here and later.
     query.clear();
+    if ((jmin < jmax))
+    	query.emplace_back(canonical(K1merType((k2mers[jmin] >> 1).getData())));
+
     for (size_t j = jmin; j < jmax; ++j) {
       // get left as canonical.
       k1 = canonical(K1merType((k2mers[j] >> 1).getData()));
       //query.emplace_back(k1);
 
       count_iter = local_counts.find(k1);
-      if (count_iter == local_counts.end()) {
-    	  query.emplace_back(k1);
-      } else {
+      if (count_iter != local_counts.end()) {
 //    	  if (*(count_iter).second > 0) {
     		  results[2 * j] = true;
 //    	  }
+//      } else {
+    	  //    	  query.emplace_back(k1);
       }
 
       k1 = canonical(K1merType(k2mers[j].getData()));
@@ -543,11 +546,11 @@ std::vector<bool> select_k2mers_by_edge_frequency_2(std::vector<K2merType> const
       // this should be true because we parsed the first and last k+1 mers as k+2 mers.
       count_iter = local_counts.find(k1);
       if (count_iter != local_counts.end()) {
-//    	  query.emplace_back(k1);
-//      } else {
 ////    	  if (*(count_iter).second > 0) {
     		  results[2 * j + 1] = true;
 ////    	  }
+      } else {
+    	  query.emplace_back(k1);
       }
 
     }
@@ -777,6 +780,7 @@ template <typename Index>
 
 	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT\n");
 
+//	if (comm.rank() == 0) std::cout << "thresholds: [" << lower_thresh << "-" << upper_thresh << ")" << std::endl;
 
 	// k+2 mer types
 	using K2merToEdge = ::bliss::debruijn::k2mer_to_edge<KmerType>;

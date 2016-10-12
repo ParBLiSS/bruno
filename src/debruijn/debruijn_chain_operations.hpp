@@ -32,6 +32,7 @@
 namespace bliss {
   namespace debruijn {
 
+  // forward declare.
   template <typename KMER>
       struct lex_less;
 
@@ -137,6 +138,10 @@ namespace bliss {
                 // current node not be a terminus. and if it's negative (finished), the sent update should point to same.
                 // k-mer sending update is between current and end, and should have finished sooner.
                 // terminus (x[3] == 0) should not get an update itself, since nothing is to the right of it to send it update.
+//            	if (std::get<2>(x) == 0) {
+ //           		std::cout << "L end: " << x << " update " << y << std::endl;
+   //         	}
+//
                 assert( std::get<2>(x) != 0);
                 assert( ( ( std::get<2>(x) < 0 ) && ((dist < -(std::get<2>(x)) ) || ((dist == -(std::get<2>(x))) && (std::get<0>(y) == std::get<0>(x)))) ) ||
                         ( ( std::get<2>(x) > 0 ) && ((dist != std::get<2>(x) ) || ((dist == std::get<2>(x)) && (std::get<0>(y) == std::get<0>(x)))) ));
@@ -151,7 +156,7 @@ namespace bliss {
                 //                }
                 if (std::get<2>(x) > 0) {
                   if (dist > std::get<2>(x)) std::get<0>(x) = std::get<0>(y);
-                  if (dist >= std::get<2>(x)) {
+                  if (dist >= std::get<2>(x)) {			// == is to change sign of x.2, as y.1 may be negative to indicate finished.
                     std::get<2>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
                     return 1;
                   }
@@ -172,7 +177,11 @@ namespace bliss {
                 // current node not be a terminus. and if it's negative (finished), the sent update should point to same.
                 // k-mer sending update is between current and end, and should have finished sooner.
                 // terminus (x[3] == 0) should not get an update itself, since nothing is to the right of it to send it update.
-                assert( std::get<3>(x) != 0);
+//              	if (std::get<3>(x) == 0) {
+//              		std::cout << "R end: " << x << " update " << y << std::endl;
+//              	}
+//
+              	assert( std::get<3>(x) != 0);
                 assert( ( ( std::get<3>(x) < 0 ) && ((dist < -(std::get<3>(x)) ) || ((dist == -(std::get<3>(x))) && (std::get<0>(y) == std::get<1>(x)))) ) ||
                         ( ( std::get<3>(x) > 0 ) && ((dist != std::get<3>(x) ) || ((dist == std::get<3>(x)) && (std::get<0>(y) == std::get<1>(x)))) ));
                 // if current node not pointing to terminus, update distance should be larger than current distance,
@@ -186,7 +195,7 @@ namespace bliss {
                 // update out edge IF new distance is larger than current.
                 if (std::get<3>(x) > 0) {
                   if (dist > std::get<3>(x)) std::get<1>(x) = std::get<0>(y);
-                  if (dist >= std::get<3>(x)) {
+                  if (dist >= std::get<3>(x)) { // == is to change sign of x.2, as y.1 may be negative to indicate finished.
                     std::get<3>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
                     return 1;
                   }
