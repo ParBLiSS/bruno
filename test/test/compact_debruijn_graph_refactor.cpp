@@ -1871,6 +1871,8 @@ int main(int argc, char** argv) {
 //#endif
 
 	bool thresholding = false;
+	bool benchmark = false;
+	bool LRoptimized = false;
 
 	//  std::string queryname(filename);
 	//  int sample_ratio = 100;
@@ -1896,10 +1898,15 @@ int main(int argc, char** argv) {
 		// such as "-n Bishop".
 		TCLAP::ValueArg<std::string> outputArg("O", "output_prefix", "Prefix for output files, including directory", false, "", "string", cmd);
 
-		TCLAP::SwitchArg threshArg("T", "thresholding", "on/off for thresholding", cmd);
+		TCLAP::SwitchArg threshArg("T", "thresholding", "on/off for thresholding", cmd, false);
 		TCLAP::ValueArg<CountType> lowerThreshArg("L", "lower_thresh", "Lower Threshold for Kmer and Edge frequency", false, 0, "uint16", cmd);
 		TCLAP::ValueArg<CountType> upperThreshArg("U", "upper_thresh", "Upper Threshold for Kmer and Edge frequency", false,
 				std::numeric_limits<CountType>::max(), "uint16", cmd);
+
+		TCLAP::SwitchArg benchmarkArg("B", "benchmark", "on/off for benchmarking (no file output)", cmd, false);
+
+		TCLAP::SwitchArg lrOptimizeArg("R", "list_rank_opt", "on/off for list ranking optimization", cmd, false);
+
 
 		//    TCLAP::ValueArg<std::string> fileArg("F", "file", "FASTQ file path", false, filename, "string", cmd);
 		TCLAP::UnlabeledMultiArg<std::string> fileArg("filenames", "FASTA or FASTQ file names", false, "string", cmd);
@@ -1917,7 +1924,8 @@ int main(int argc, char** argv) {
 //#endif
 
 		thresholding = threshArg.getValue();
-
+		benchmark = benchmarkArg.getValue();
+		LRoptimized = lrOptimizeArg.getValue();
 
 
 	} catch (TCLAP::ArgException &e)  // catch any exceptions
@@ -2020,18 +2028,18 @@ int main(int argc, char** argv) {
 		BL_BENCH_COLLECTIVE_END(app, "construct", idx.local_size(), comm);
 
 		BL_BENCH_START(app);
-		print_edge_histogram(idx, comm);
+		if (!benchmark) print_edge_histogram(idx, comm);
 		BL_BENCH_COLLECTIVE_END(app, "histo", idx.local_size(), comm);
 		// == DONE == make compacted simple DBG
 
-		check_index(idx, comm);
+		if (!benchmark) check_index(idx, comm);
 		printf("rank %d finished checking index\n", comm.rank());
 
 		// TODO: filter out, or do something, about "N".  May have to add back support for ASCII edge encoding so that we can use DNA5 alphabet
 		//   this is done via read filtering/splitting.
 
 		// == PRINT == prep branch for printing - here ONLY BECAUSE WE ARE DISCARDING IDX AFTER MAKING CHAINMAPS
-		{
+		if (!benchmark) {
 			// TODO: try using CountDBGType as base instead of DBGType, then this data is captured to begin with.
 			CountDBGType idx2(comm);
 			{
@@ -2074,7 +2082,11 @@ int main(int argc, char** argv) {
 
 	// ===== parallel list ranking for chain compaction
 	BL_BENCH_START(app);
-	size_t iterations = chainmap.list_rank();
+	size_t iterations = 0;
+	if (LRoptimized)
+		iterations = chainmap.list_rank_min_update();
+	else
+		iterations = chainmap.list_rank();
 	//auto cycle_node_kmers = list_rank(chainmap, comm);
 	BL_BENCH_COLLECTIVE_END(app, "list_rank", iterations, comm);
 	// == DONE == parallel list ranking for chain compaction
@@ -2083,137 +2095,137 @@ int main(int argc, char** argv) {
 	// =============================================================
 	// below is for printing.
 
+	if (!benchmark) {
+		// =========== remove cycles and isolated
+		BL_BENCH_START(app);
+		auto cycle_kmers = chainmap.get_cycle_node_kmers();
+		idx.erase(cycle_kmers);
+		idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+		BL_BENCH_COLLECTIVE_END(app, "remove cycles/isolated/etc", idx.local_size(), comm);
 
-	// =========== remove cycles and isolated
-  BL_BENCH_START(app);
-  auto cycle_kmers = chainmap.get_cycle_node_kmers();
-  idx.erase(cycle_kmers);
-  idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
-  BL_BENCH_COLLECTIVE_END(app, "remove cycles/isolated/etc", idx.local_size(), comm);
 
+		//  auto lidx = idx.get_map().get_local_container();
+		//  for (auto it = lidx.begin(); it != lidx.end(); ++it) {
+		//    std::cout << "valid kmer in index: " << (*it).first << std::endl;
+		//  }
 
-//  auto lidx = idx.get_map().get_local_container();
-//  for (auto it = lidx.begin(); it != lidx.end(); ++it) {
-//    std::cout << "valid kmer in index: " << (*it).first << std::endl;
-//  }
-
-  // == PRINT == valid k-mers files
-  if (thresholding) {
+		// == PRINT == valid k-mers files
+		if (thresholding) {
 
 #if (pPARSER == FASTA)
-    if (comm.rank() == 0) printf("WARNING: outputting first/last valid kmer position for each read is supported for FASTQ format only.\n");
+			if (comm.rank() == 0) printf("WARNING: outputting first/last valid kmer position for each read is supported for FASTQ format only.\n");
 #elif (pPARSER == FASTQ)
 
-    BL_BENCH_START(app);
-    for (size_t i = 0; i < filenames.size(); ++i) {
-      std::string fn(out_prefix);
+			BL_BENCH_START(app);
+			for (size_t i = 0; i < filenames.size(); ++i) {
+				std::string fn(out_prefix);
 
-      fn.append(".");
-      fn.append(std::to_string(i));
-      fn.append(".valid");
+				fn.append(".");
+				fn.append(std::to_string(i));
+				fn.append(".valid");
 
-      print_valid_kmer_pos_in_reads(fn, file_data[i], idx, comm);
-    }
-    BL_BENCH_COLLECTIVE_END(app, "print_valid_kmer_pos", filenames.size(), comm);
+				print_valid_kmer_pos_in_reads(fn, file_data[i], idx, comm);
+			}
+			BL_BENCH_COLLECTIVE_END(app, "print_valid_kmer_pos", filenames.size(), comm);
 #endif
-  }
-
-
-
-	// == print ===  prepare for printing compacted chain and frequencies
-
-	// search in chainmap to find canonical termini.
-	BL_BENCH_START(app);
-	ChainVecType chain_rep = chainmap.find_if(::bliss::debruijn::filter::chain::IsCanonicalTerminusOrIsolated());
-	BL_BENCH_COLLECTIVE_END(app, "chain rep", chain_rep.size(), comm);
-
-	BL_BENCH_START(app);
-	//ChainVecType termini = chainmap.find_if(::bliss::debruijn::filter::chain::IsTerminusOrIsolated());
-	std::vector<KmerType> termini = chainmap.get_terminal_node_kmers();
-	BL_BENCH_COLLECTIVE_END(app, "chain termini", termini.size(), comm);
-
-
-	FreqMapType freq_map(comm);
-	{
-		// prepare
-		BL_BENCH_START(app);
-		ListRankedChainNodeVecType compacted_chain = chainmap.to_ranked_chain_nodes();
-		BL_BENCH_COLLECTIVE_END(app, "compacted_chain", compacted_chain.size(), comm);
-
-
-		// release chainmap
-		BL_BENCH_START(app);
-		chainmap.get_map().get_local_container().reset();
-		BL_BENCH_COLLECTIVE_END(app, "chainmap_reset", chainmap.local_size(), comm);
-
-
-		// do this first because we need the order of compacted chain to be same as hashed distribution.
-		{
-			// compute count index
-			BL_BENCH_START(app);
-			CountIndexType count_idx(comm);
-			count_kmers(file_data, selected_edges, thresholding, count_idx, comm);
-			BL_BENCH_COLLECTIVE_END(app, "count_kmers", count_idx.local_size(), comm);
-
-			// compute freq map
-			BL_BENCH_START(app);
-			compute_freq_map(compacted_chain, count_idx, freq_map, comm);
-			BL_BENCH_COLLECTIVE_END(app, "chain_freqs", freq_map.local_size(), comm);
-		} // ensure delet count_index
-
-
-
-		// now print chain string - order is destroyed via psort.
-		BL_BENCH_START(app);
-		print_chain_string(compacted_chain_str_filename, compacted_chain, comm);
-		BL_BENCH_COLLECTIVE_END(app, "chain_str", compacted_chain.size(), comm);
-
-		BL_BENCH_START(app);
-		print_chain_nodes(compacted_chain_kmers_filename, compacted_chain, comm);
-		BL_BENCH_COLLECTIVE_END(app, "chain_node", compacted_chain.size(), comm);
-
-		{
-      BL_BENCH_START(app);
-      ::std::vector<::std::string> compressed_chain;
-      compress_chains(compacted_chain, compressed_chain, comm);
-      BL_BENCH_COLLECTIVE_END(app, "compress_chains", compressed_chain.size(), comm);
-
-      BL_BENCH_START(app);
-      print_compressed_chains(compressed_chain_filename, compressed_chain, comm);
-      BL_BENCH_COLLECTIVE_END(app, "print_compress_chains", compressed_chain.size(), comm);
-
 		}
-	} // ensure release compacted chain
 
 
 
-	// get terminal k-mers
-	CountDBGType idx2(comm);
-	{
+		// == print ===  prepare for printing compacted chain and frequencies
+
+		// search in chainmap to find canonical termini.
+		BL_BENCH_START(app);
+		ChainVecType chain_rep = chainmap.find_if(::bliss::debruijn::filter::chain::IsCanonicalTerminusOrIsolated());
+		BL_BENCH_COLLECTIVE_END(app, "chain rep", chain_rep.size(), comm);
 
 		BL_BENCH_START(app);
-		// same distribution (using same hashmap params) as idx, so is_local can be set to true.
-		idx2.insert(termini, true);
-		assert(idx2.local_size() == termini.size());  // should be 1 to 1.
-		BL_BENCH_COLLECTIVE_END(app, "make_terminal_counter", termini.size(), comm);
+		//ChainVecType termini = chainmap.find_if(::bliss::debruijn::filter::chain::IsTerminusOrIsolated());
+		std::vector<KmerType> termini = chainmap.get_terminal_node_kmers();
+		BL_BENCH_COLLECTIVE_END(app, "chain termini", termini.size(), comm);
 
 
-		// get the edges counts for these kmers.
+		FreqMapType freq_map(comm);
+		{
+			// prepare
+			BL_BENCH_START(app);
+			ListRankedChainNodeVecType compacted_chain = chainmap.to_ranked_chain_nodes();
+			BL_BENCH_COLLECTIVE_END(app, "compacted_chain", compacted_chain.size(), comm);
+
+
+			// release chainmap
+			BL_BENCH_START(app);
+			chainmap.get_map().get_local_container().reset();
+			BL_BENCH_COLLECTIVE_END(app, "chainmap_reset", chainmap.local_size(), comm);
+
+
+			// do this first because we need the order of compacted chain to be same as hashed distribution.
+			{
+				// compute count index
+				BL_BENCH_START(app);
+				CountIndexType count_idx(comm);
+				count_kmers(file_data, selected_edges, thresholding, count_idx, comm);
+				BL_BENCH_COLLECTIVE_END(app, "count_kmers", count_idx.local_size(), comm);
+
+				// compute freq map
+				BL_BENCH_START(app);
+				compute_freq_map(compacted_chain, count_idx, freq_map, comm);
+				BL_BENCH_COLLECTIVE_END(app, "chain_freqs", freq_map.local_size(), comm);
+			} // ensure delet count_index
+
+
+
+			// now print chain string - order is destroyed via psort.
+			BL_BENCH_START(app);
+			print_chain_string(compacted_chain_str_filename, compacted_chain, comm);
+			BL_BENCH_COLLECTIVE_END(app, "chain_str", compacted_chain.size(), comm);
+
+			BL_BENCH_START(app);
+			print_chain_nodes(compacted_chain_kmers_filename, compacted_chain, comm);
+			BL_BENCH_COLLECTIVE_END(app, "chain_node", compacted_chain.size(), comm);
+
+			{
+				BL_BENCH_START(app);
+				::std::vector<::std::string> compressed_chain;
+				compress_chains(compacted_chain, compressed_chain, comm);
+				BL_BENCH_COLLECTIVE_END(app, "compress_chains", compressed_chain.size(), comm);
+
+				BL_BENCH_START(app);
+				print_compressed_chains(compressed_chain_filename, compressed_chain, comm);
+				BL_BENCH_COLLECTIVE_END(app, "print_compress_chains", compressed_chain.size(), comm);
+
+			}
+		} // ensure release compacted chain
+
+
+
+		// get terminal k-mers
+		CountDBGType idx2(comm);
+		{
+
+			BL_BENCH_START(app);
+			// same distribution (using same hashmap params) as idx, so is_local can be set to true.
+			idx2.insert(termini, true);
+			assert(idx2.local_size() == termini.size());  // should be 1 to 1.
+			BL_BENCH_COLLECTIVE_END(app, "make_terminal_counter", termini.size(), comm);
+
+
+			// get the edges counts for these kmers.
+			BL_BENCH_START(app);
+			count_edges(file_data, selected_edges, thresholding, idx2, comm);
+			BL_BENCH_COLLECTIVE_END(app, "terminal_edge_freq", idx2.local_size(), comm);
+		} // ensure delete kmers.
+
+
 		BL_BENCH_START(app);
-		count_edges(file_data, selected_edges, thresholding, idx2, comm);
-		BL_BENCH_COLLECTIVE_END(app, "terminal_edge_freq", idx2.local_size(), comm);
-	} // ensure delete kmers.
-
-
-	BL_BENCH_START(app);
-	print_chain_frequencies(compacted_chain_ends_filename, chain_rep, idx2, freq_map, comm);
-	BL_BENCH_COLLECTIVE_END(app, "print_chain_freq", chain_rep.size(), comm);
+		print_chain_frequencies(compacted_chain_ends_filename, chain_rep, idx2, freq_map, comm);
+		BL_BENCH_COLLECTIVE_END(app, "print_chain_freq", chain_rep.size(), comm);
+	}
 
 	BL_BENCH_REPORT_MPI_NAMED(app, "app", comm);
 
 
 	// mpi cleanup is automatic
-	comm.barrier();
 
 	return 0;
 
