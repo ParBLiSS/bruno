@@ -2027,14 +2027,15 @@ int main(int argc, char** argv) {
 
 		BL_BENCH_COLLECTIVE_END(app, "construct", idx.local_size(), comm);
 
-		BL_BENCH_START(app);
-		if (!benchmark) print_edge_histogram(idx, comm);
-		BL_BENCH_COLLECTIVE_END(app, "histo", idx.local_size(), comm);
-		// == DONE == make compacted simple DBG
+		if (!benchmark) {
+			BL_BENCH_START(app);
+			print_edge_histogram(idx, comm);
+			BL_BENCH_COLLECTIVE_END(app, "histo", idx.local_size(), comm);
+			// == DONE == make compacted simple DBG
 
-		if (!benchmark) check_index(idx, comm);
-		printf("rank %d finished checking index\n", comm.rank());
-
+			check_index(idx, comm);
+			printf("rank %d finished checking index\n", comm.rank());
+		}
 		// TODO: filter out, or do something, about "N".  May have to add back support for ASCII edge encoding so that we can use DNA5 alphabet
 		//   this is done via read filtering/splitting.
 
