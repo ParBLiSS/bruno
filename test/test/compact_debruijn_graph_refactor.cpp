@@ -119,7 +119,6 @@ using KmerType = bliss::common::Kmer<31, Alphabet, WordType>;
 #endif
 
 
-using KmerType = bliss::common::Kmer<31, Alphabet, WordType>;
 using EdgeEncoding = Alphabet;
 
 // sequence iterator for use in constructing the dbg.  here we throw away reads containing N.  technically, the splitting sequence iterator works here too,

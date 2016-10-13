@@ -112,7 +112,6 @@ using KmerType = bliss::common::Kmer<31, Alphabet, WordType>;
 #endif
 
 
-using KmerType = bliss::common::Kmer<31, Alphabet, WordType>;
 using EdgeEncoding = Alphabet;
 
 using FileReaderType = ::bliss::io::parallel::partitioned_file<::bliss::io::posix_file, FileParser >;
