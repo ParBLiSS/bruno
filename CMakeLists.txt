@@ -887,7 +887,10 @@ include_directories("${EXT_PROJECTS_DIR}/sparsehash/src")
 
 
 add_subdirectory(src/utils)
-set(EXTRA_LIBS ${EXTRA_LIBS} bliss-utils)
+if (LOG_ENGINE STREQUAL "BOOST_TRIVIAL" OR
+                LOG_ENGINE STREQUAL "BOOST_CUSTOM")
+	set(EXTRA_LIBS ${EXTRA_LIBS} bliss-utils)
+endif()
 
 add_subdirectory(src/containers)
 add_subdirectory(src/partition)
@@ -901,7 +904,8 @@ add_subdirectory(test/compiler_tests)
 add_subdirectory(test/benchmark)
 add_subdirectory(utils)
 
-add_subdirectory(ext/mxx)
+#disabled on EDISON so that the gtest libs are not linked.
+#add_subdirectory(ext/mxx)
 
 # Install Settings
 
