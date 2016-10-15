@@ -1,6 +1,6 @@
 #!/bin/sh
 
-DIR=test
+DIR=test-dbg-low
 
 rm -rf ${DIR}
 
