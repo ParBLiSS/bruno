@@ -1173,6 +1173,10 @@ namespace graph
 
 
 
+
+	   //====== OUTPUT....
+
+
 	   std::vector<::bliss::debruijn::chain::listranked_chain_node<KmerType> >
 	   to_ranked_chain_nodes() {
 
@@ -1188,8 +1192,97 @@ namespace graph
 			return compacted_chain;
 	   }
 
-
 	};
+
+
+	// to do proper filtering, need to
+	//   1. compute chain statistics - frequency min, max, mean, stdev.
+	//	 2. then we can perform filtering
+	//   3. then we can perform recompaction (using chain representatives)
+	//   4. and new cycle detection and removal (sum of distances of all nodes is power of 2 (probably not strictly enough)
+
+
+	//========= graph topological filtering.
+
+//	/**
+//	 * @brief return a vector of chain representatives, each a separate deadend.
+//	 */
+//	template <typename somedatatype, >
+//	somedatatype find_deadends(std::pair<dbg, chain_graph> const & x, predicate) {
+//
+//	}
+//	/**
+//	 * @brief return a vector of chain representatives, each a separate deadend.
+//	 */
+//	template <typename somedatatype, >
+//	somedatatype count_deadends(std::pair<dbg, chain_graph> const & x, predicate) {
+//
+//	}
+//	/**
+//	 * @brief return a vector of chain representatives, each a separate deadend.
+//	 */
+//	template <typename somedatatype, >
+//	somedatatype erase_deadends(std::pair<dbg, chain_graph> const & x, predicate) {
+//
+//	}
+//	/**
+//	 * @brief return a vector of chain representatives, each a separate deadend.
+//	 * @note  do special operations with deadends.
+//	 */
+//	template <typename somedatatype, >
+//	somedatatype update_deadends(std::pair<dbg, chain_graph> const & x, updater, predicate) {
+//
+//	}
+//
+//
+//
+//	/**
+//	 * @brief return a vector of chain representatives, each a separate deadend.
+//	 */
+//	template <typename somedatatype, >
+//	somedatatype find_bubbles(std::pair<dbg, chain_graph> const & x, predicate) {
+//
+//	}
+//	/**
+//	 * @brief return a vector of chain representatives, each a separate deadend.
+//	 */
+//	template <typename somedatatype, >
+//	somedatatype count_bubbles(std::pair<dbg, chain_graph> const & x, predicate) {
+//
+//	}
+//	/**
+//	 * @brief return a vector of chain representatives, each a separate deadend.
+//	 */
+//	template <typename somedatatype, >
+//	somedatatype erase_bubbles(std::pair<dbg, chain_graph> const & x, predicate) {
+//
+//	}
+//	/**
+//	 * @brief return a vector of chain representatives, each a separate deadend.
+//	 */
+//	template <typename somedatatype, >
+//	somedatatype recursively_erase_bubbles(std::pair<dbg, chain_graph> const & x, predicate) {
+//
+//	}
+//	/**
+//	 * @brief return a vector of chain representatives, each a separate deadend.
+//	 * @note  do special operations with bubbles, such as merging both sides, etc.
+//	 */
+//	template <typename somedatatype, >
+//	somedatatype update_bubbles(std::pair<dbg, chain_graph> const & x, updater, predicate) {
+//
+//	}
+//	/**
+//	 * @brief return a vector of chain representatives, each a separate deadend.
+//	 * @note  do special operations with bubbles, such as merging both sides, etc.
+//	 */
+//	template <typename somedatatype, >
+//	somedatatype recursively_update_bubbles(std::pair<dbg, chain_graph> const & x, updater, predicate) {
+//
+//	}
+//
+
+
 
 //
 //	template <typename KmerType, template <typename> class MapType>
