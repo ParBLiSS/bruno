@@ -456,7 +456,13 @@ namespace graph
 		template <typename C>
 		void extract_chains(::bliss::debruijn::graph::debruijn_graph<KmerType, C> const & idx) {
 
+			size_t total_idx_size = idx.size();
+			if (total_idx_size == 0) return;
+
+
 			BL_BENCH_INIT(chain);
+
+
 
 			std::vector<KmerType> neighbors;
 			neighbors.reserve(6); // ACGTN.
@@ -515,6 +521,7 @@ namespace graph
 
 				// 8 possible edges, so split the thing into 8 parts to bound the memory usage to about N.  lower in practice
 				size_t step = idx.size() / this->comm.size() / 8;
+				if (step == 0) step = this->comm.size();
 				// size_t step = 1000000;
 				all_neighbors.reserve(step);   // do in steps of 1000000
 				size_t nsteps = (idx.local_size() + step - 1) / step;
