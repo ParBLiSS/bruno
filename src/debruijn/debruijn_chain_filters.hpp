@@ -151,6 +151,11 @@ namespace bliss {
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
               return (std::get<2>(t.second) > 0) || (std::get<3>(t.second) > 0);
             }
+
+            template <typename Iter>
+                        inline bool operator()(Iter it) const {
+            	return operator()(*it);
+            }
         };
 
         /// A node that MAY BE part of a cycle.  used during chain compaction for stopping criteria
@@ -173,6 +178,11 @@ namespace bliss {
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
               return (std::get<2>(t.second) == max_distance) &&
                   (std::get<3>(t.second) == max_distance);
+            }
+
+            template <typename Iter>
+                        inline bool operator()(Iter it) const {
+            	return operator()(*it);
             }
         };
 // not used.

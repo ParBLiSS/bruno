@@ -61,6 +61,7 @@ namespace graph
 		using edge_type =  typename map_type::mapped_type;
 		using value_type = typename map_type::value_type;
 		using mutable_value_type = ::std::pair<kmer_type, edge_type>;
+		using const_iterator = typename map_type::const_iterator;
 
 	protected:
 		/// distributed map fo storage.
@@ -137,6 +138,12 @@ namespace graph
 		std::vector<mutable_value_type> find_if(Predicate const &pred) const {
 			return map.find(pred);
 		}
+
+		template <typename Predicate>
+		std::vector<const_iterator> find_if_iterators(Predicate const &pred) const {
+			return map.find_iterators(pred);
+		}
+
 
 		//==== SET of find function that performs transform of output during query processing.
 		// use the a2a collective find since this is not a multimap.

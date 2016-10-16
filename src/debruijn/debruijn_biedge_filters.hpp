@@ -188,6 +188,11 @@ namespace bliss {
 
           BL_BENCH_INIT(filter_biedge_by_frequency);
 
+          if (comm.rank() == 0) {
+        	  std::cout << "SIZES compact simple biedge size: " << sizeof(::bliss::debruijn::biedge::compact_simple_biedge) <<
+        			  " kmer size " << sizeof(KmerType) << " node size " << sizeof(std::pair<KmerType, ::bliss::debruijn::biedge::compact_simple_biedge>) << std::endl;
+          }
+
           // define k1mer type
           using K1merType = typename Counter::key_type;
 
@@ -197,45 +202,35 @@ namespace bliss {
           // create a mask.
           BL_BENCH_START(filter_biedge_by_frequency);
 
-          // calculate the total number of iterations globally
-          size_t step_size = 8000000;   // this is arbitrary choice.
-          size_t iterations = (biedges.size() + step_size - 1) / step_size;
-          iterations = ::mxx::allreduce(iterations, [](size_t const & x, size_t const & y){
-            return std::max(x, y);
-          }, comm);
-
           // local storage of query results.
           ::std::vector<K1merType> query;
-          query.reserve(std::min(step_size, biedges.size()));  // preallocate space
-          ::std::vector<unsigned char> remote_counts;
-          remote_counts.reserve(query.capacity());
+          query.reserve(biedges.size() + 1);  // preallocate space
+
+          // no k1mertype here...
+          ::std::vector<unsigned char> remote_exists;
+          remote_exists.reserve(query.capacity());
+
           BL_BENCH_COLLECTIVE_END(filter_biedge_by_frequency, "init", biedges.size(), comm);
+
 
           // do left and right together, in batches of step_size.
           BL_BENCH_START(filter_biedge_by_frequency);
 
-          size_t jmin, jmax;
           K1merType k1;
           ::bliss::kmer::transform::lex_less<K1merType> canonical;
 
-          for (size_t i = 0; i < iterations; ++i) {
-            // biedges indices for this iteration.
-            jmin = std::min(biedges.size(), i * step_size);
-            jmax = std::min(biedges.size(), jmin + step_size);
-
-            // clear query from previous iteration.
-            query.clear();
-            remote_counts.clear();
-
-            //===== add the very first left query (for reads that are split between partitions).
-            //  when read is split between partitions, the second half gets the first node at offset of 1 from the partition start.
-            //  we need to query for this edge.  this is at i == 0.
-            if (jmin != jmax) query.emplace_back(canonical(::bliss::debruijn::biedge::get_in_edge_k1mer(biedges[jmin])));
+			//===== add the very first left query (for reads that are split between partitions).
+			//  when read is split between partitions, the second half gets the first node at offset of 1 from the partition start.
+			//  we need to query for this edge.  this is at i == 0.
+			if (biedges.size() > 0) {
+				k1 = canonical(::bliss::debruijn::biedge::get_in_edge_k1mer(biedges[0]));
+				query.emplace_back(k1);
+			}
 
             //===== populate right query.  only right is needed since left edge of the next node is the same.
             // NOTE: do both and not checking local counts from prev iteration.
             // next time, do check and update the bit vec here and later.
-            for (size_t j = jmin; j < jmax; ++j) {
+            for (size_t j = 0; j < biedges.size(); ++j) {
               // get left as canonical.
               k1 = canonical(::bliss::debruijn::biedge::get_out_edge_k1mer(biedges[j]));  // if empty edge, would not be a valid k+1 mer in counter.
 
@@ -243,35 +238,29 @@ namespace bliss {
               query.emplace_back(k1);
             }
 
+            size_t query_size = query.size();
+
             //===== query right and insert into local map.
             // one to one because mxx::bucketing is stable.
-            size_t query_size = query.size();
-	    k1mer_counter.exists(query, false).swap(remote_counts);
-            std::cout << "rank " << comm.rank() << " query size " << query_size << " result " << remote_counts.size() << std::endl;
-
-            assert(remote_counts.size() == query_size);
-
+            k1mer_counter.exists(query, false).swap(remote_exists);
+            assert(remote_exists.size() == query_size);
 
             //====== NOW go through k2mers again and modify the biedges based on frequency.
             // we check left and right edges here so that all edges are consistent.
-            size_t k = 0;
-            for (size_t j = jmin; j < jmax; ++j, ++k) {
+            for (size_t j = 0, k = 0; j < biedges.size(); ++j, ++k) {
               // check each for query result
             	edge_changed = false;  // DEBUG ONLY
 
-              if (remote_counts[k] == 0) {
+              if (remote_exists[k] == 0) {
                 // did not find, so clear the in edge (upper 4 bits of the byte).
                 edge_changed = (biedges[j].second.getDataRef()[0] != (biedges[j].second.getDataRef()[0] & 0x0F));
-//                if (edge_changed) std::cout << "rank " << comm.rank() << " missing count locally for in edge " << k1 << std::endl;
 
                 biedges[j].second.getDataRef()[0] &= 0x0F;
-
               }
 
-              if (remote_counts[k+1] == 0) {
+              if (remote_exists[k+1]== 0) {
                 // did not find, so clear the out edge (lower 4 bits of the byte).
                 edge_changed = (biedges[j].second.getDataRef()[0] != (biedges[j].second.getDataRef()[0] & 0xF0));
-//                if (edge_changed) std::cout << "rank " << comm.rank() << " missing count locally for out edge " << k1 << std::endl;
 
                 biedges[j].second.getDataRef()[0] &= 0xF0;
               }
@@ -280,7 +269,6 @@ namespace bliss {
 
             } // end scan of current step to create the bit vector.
 
-          }  // end iterations
           BL_BENCH_COLLECTIVE_END(filter_biedge_by_frequency, "query_filter", changed_count, comm);
 
 //          std::cout << "rank " << comm.rank() << " transformed " << changed_count << " by kmer frequency. " << std::endl;
@@ -290,7 +278,8 @@ namespace bliss {
 
         }
 
-
+//
+//
 //        /**
 //         * @brief transform biedge by edge frequency
 //         * @details   compact_simple_biedge are zeroed out (char by char) if the associated edge has invalid frequency (not present in k1mer_counter.
@@ -307,7 +296,200 @@ namespace bliss {
 //         * @param comm     MPI communicator
 //         */
 //        template <typename KmerType, typename Counter>
-//        void transform_biedges_by_frequency(std::vector<std::pair<KmerType, ::bliss::debruijn::biedge::compact_simple_biedge> > & biedges,
+//        void transform_biedges_by_frequency3(std::vector<std::pair<KmerType, ::bliss::debruijn::biedge::compact_simple_biedge> > & biedges,
+//                                                              Counter const & k1mer_counter, mxx::comm const & comm) {
+//          static_assert(Counter::key_type::size > 0, "counter kmer type should not be zero-mers.  possible?");
+//          static_assert(KmerType::size + 1 == Counter::key_type::size,
+//                        "counter kmer type should have length 1 less than the input kmer type to filter for implicit debruijn chain nodes");
+//
+//          BL_BENCH_INIT(filter_biedge_by_frequency);
+//
+//          // define k1mer type
+//          using K1merType = typename Counter::key_type;
+//
+//          size_t changed_count = 0;
+//          bool edge_changed = false;
+//
+//          // create a mask.
+//          BL_BENCH_START(filter_biedge_by_frequency);
+//
+//          // calculate the total number of iterations globally
+//          size_t step_size = 8000000;   // this is arbitrary choice.
+//          size_t iterations = (biedges.size() + step_size - 1) / step_size;
+//          iterations = ::mxx::allreduce(iterations, [](size_t const & x, size_t const & y){
+//            return std::max(x, y);
+//          }, comm);
+//
+//          // local storage of query results.
+//          ::std::vector<K1merType> query;
+//          query.reserve(std::min(step_size, biedges.size()));  // preallocate space
+////          ::std::vector<K1merType> query2;
+////          ::std::vector<K1merType> query3;
+////          query2.reserve(std::min(step_size, biedges.size()));  // preallocate space
+////          query3.reserve(std::min(step_size, biedges.size()));  // preallocate space
+//
+//          // no k1mertype here...
+//          ::std::vector<unsigned char> remote_exists;
+////			::std::vector<std::pair<K1merType, unsigned char> > remote_exists;
+//			remote_exists.reserve(query.capacity());
+//
+////          ::std::vector<std::pair<K1merType, size_t> > remote_counts;
+////          remote_counts.reserve(query.capacity());
+//
+//          BL_BENCH_COLLECTIVE_END(filter_biedge_by_frequency, "init", biedges.size(), comm);
+//
+//          // do left and right together, in batches of step_size.
+//          BL_BENCH_START(filter_biedge_by_frequency);
+//
+//          size_t jmin, jmax;
+//          K1merType k1;
+//          ::bliss::kmer::transform::lex_less<K1merType> canonical;
+//
+//          for (size_t i = 0; i < iterations; ++i) {
+//            // biedges indices for this iteration.
+//            jmin = std::min(biedges.size(), i * step_size);
+//            jmax = std::min(biedges.size(), jmin + step_size);
+//
+//            // clear query from previous iteration.
+//            query.clear();
+////            query2.clear();
+////            query3.clear();
+//            remote_exists.clear();
+////            remote_counts.clear();
+//
+//            //===== add the very first left query (for reads that are split between partitions).
+//            //  when read is split between partitions, the second half gets the first node at offset of 1 from the partition start.
+//            //  we need to query for this edge.  this is at i == 0.
+//            if (jmin != jmax) {
+//            	k1 = canonical(::bliss::debruijn::biedge::get_in_edge_k1mer(biedges[jmin]));
+//            	query.emplace_back(k1);
+////            	query2.emplace_back(k1);
+////            	query3.emplace_back(k1);
+//            }
+//
+//
+//            //===== populate right query.  only right is needed since left edge of the next node is the same.
+//            // NOTE: do both and not checking local counts from prev iteration.
+//            // next time, do check and update the bit vec here and later.
+//            for (size_t j = jmin; j < jmax; ++j) {
+//              // get left as canonical.
+//              k1 = canonical(::bliss::debruijn::biedge::get_out_edge_k1mer(biedges[j]));  // if empty edge, would not be a valid k+1 mer in counter.
+//
+//              // always insert.
+//              query.emplace_back(k1);
+////              query2.emplace_back(k1);
+////              query3.emplace_back(k1);
+//
+//            }
+//
+//            size_t query_size = query.size();
+////            if (query_size > 0) {
+////            	K1merType first = query.front();
+////            	K1merType last = query.back();
+////            	std::cout << "rank " << comm.rank() << "n edges=" << query.size() << " first" << first << " last=" << last << std::endl;
+////            } else {
+////            	std::cout << "rank " << comm.rank() << "no edges." << std::endl;
+////            }
+//
+//            //===== query right and insert into local map.
+//            // one to one because mxx::bucketing is stable.
+//            k1mer_counter.exists(query, false).swap(remote_exists);
+//
+////            k1mer_counter.template count<false>(query2, false).swap(remote_counts);
+//
+////			bool same = true;
+////			bool same2 = true;
+////			for (size_t l = 0; l < query_size; ++l) {
+////				same = ((remote_exists[l].second == 1) == (remote_counts[l].second > 0));
+////				if (!same) {
+////					std::cout << "rank " << comm.rank() << " result differ at " << l << ": " << (remote_exists[l].second == 1 ? "y" : "n") << ", " <<  remote_counts[l].second << std::endl;
+////				}
+////			}
+////			for (size_t l = 0; l < query_size; ++l) {
+////				same = (remote_exists[l].first == remote_counts[l].first);
+////				if (!same) {
+////					std::cout << "rank " << comm.rank() << " kmer ordering differ at " << l << ": " << remote_exists[l].first << " VS " << remote_counts[l].first << std::endl;
+////				}
+////			}
+////			for (size_t l = 0; l < query_size; ++l) {
+////				same = (remote_exists[l].first == query3[l]);
+////				if (!same) {
+////					std::cout << "rank " << comm.rank() << " bucket stability differ at " << l << ": " << remote_exists[l].first << " VS query " << query3[l] << std::endl;
+////				}
+////			}
+////			for (size_t l = 0; l < query.size(); ++l) {
+////				same2 = query[l] == query2[l];
+////				if (!same2) {
+////					std::cout << "rank " << comm.rank() << " distribute consistency differ at " << l << ": " << query[l] << ",  " << query2[l] << std::endl;
+////				}
+////			}
+////			std::cout << "rank " << comm.rank() << " query size " << query_size << " exists " << remote_exists.size() << " counts " << remote_counts.size() << " same? " << (same ? "y" : "n") << std::endl;
+////
+////			assert(remote_counts.size() == query_size);
+//            assert(remote_exists.size() == query_size);
+//
+////            if (remote_exists.size() > 0)
+////            std::cout << "rank " << comm.rank() << " first edge " << remote_exists.front() <<
+////            		" last edge " << remote_exists.back() << " n edges = " << remote_exists.size() << std::endl;
+//
+//            //====== NOW go through k2mers again and modify the biedges based on frequency.
+//            // we check left and right edges here so that all edges are consistent.
+//            size_t k = 0;
+//            for (size_t j = jmin; j < jmax; ++j, ++k) {
+//              // check each for query result
+//            	edge_changed = false;  // DEBUG ONLY
+//
+//              if (remote_exists[k] == 0) {
+//                // did not find, so clear the in edge (upper 4 bits of the byte).
+//                edge_changed = (biedges[j].second.getDataRef()[0] != (biedges[j].second.getDataRef()[0] & 0x0F));
+////                if (edge_changed) std::cout << "rank " << comm.rank() << " missing count locally for in edge " << k1 << std::endl;
+//
+//                biedges[j].second.getDataRef()[0] &= 0x0F;
+//              }
+//
+//              if (remote_exists[k+1]== 0) {
+//                // did not find, so clear the out edge (lower 4 bits of the byte).
+//                edge_changed = (biedges[j].second.getDataRef()[0] != (biedges[j].second.getDataRef()[0] & 0xF0));
+////                if (edge_changed) std::cout << "rank " << comm.rank() << " missing count locally for out edge " << k1 << std::endl;
+//
+//                biedges[j].second.getDataRef()[0] &= 0xF0;
+//              }
+//
+//              if (edge_changed) ++changed_count;
+//
+//            } // end scan of current step to create the bit vector.
+//
+//          }  // end iterations
+//          BL_BENCH_COLLECTIVE_END(filter_biedge_by_frequency, "query_filter", changed_count, comm);
+//
+////          std::cout << "rank " << comm.rank() << " transformed " << changed_count << " by kmer frequency. " << std::endl;
+//
+//
+//          BL_BENCH_REPORT_MPI_NAMED(filter_biedge_by_frequency, "filter_biedge_by_frequency", comm);
+//
+//        }
+
+
+//        /**
+//         * @brief transform biedge by edge frequency
+//         * @details   compact_simple_biedge are zeroed out (char by char) if the associated edge has invalid frequency (not present in k1mer_counter.
+//         *            the biedge is modified.
+//         *
+//         *            process:   get out edges of the <kmer, biedge> nodes, then query for frequency
+//         *                       frequencies stored in local count index (done in blocks)
+//         *                       the <kmer, biedge> nodes are then scanned, if edge does not exist in local count index,
+//         *                       then corresponding compact_simple_biedge character is zeroed.
+//         *
+//         *            order of biedges does not change.  no entry of biedges are deleted here.
+//         *
+//         *            VERSION USING COUNTMAP's COUNT FUNCTION, REQUIRES A LOCAL MAP FOR NOW.
+//         *
+//         * @param biedges  <kmer, biedge> nodes.  may be ordered, e.g. same as file reading order.
+//         * @param k1mer_counter   edge frequencies, distributed hash table.
+//         * @param comm     MPI communicator
+//         */
+//        template <typename KmerType, typename Counter>
+//        void transform_biedges_by_frequency_2(std::vector<std::pair<KmerType, ::bliss::debruijn::biedge::compact_simple_biedge> > & biedges,
 //                                                              Counter const & k1mer_counter, mxx::comm const & comm) {
 //          static_assert(Counter::key_type::size > 0, "counter kmer type should not be zero-mers.  possible?");
 //          static_assert(KmerType::size + 1 == Counter::key_type::size,

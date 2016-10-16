@@ -140,6 +140,7 @@ namespace graph
 		using edge_type = typename map_type::mapped_type;
 		using value_type = typename map_type::value_type;
 		using mutable_value_type = ::std::pair<kmer_type, edge_type>;
+		using iterator = typename map_type::iterator;
 
 	protected:
 		// full debruijn graph is stored elsewhere.
@@ -303,6 +304,11 @@ namespace graph
 			return map.find(pred);
 		}
 
+		template <typename Predicate>
+		std::vector<iterator> find_if_iterators(Predicate const &pred) const {
+			return map.find_iterators(pred);
+		}
+
 		//==== SET of find function that performs transform of output during query processing.
 		// use the a2a collective find since this is not a multimap.
 		template <typename Transform>
@@ -455,6 +461,13 @@ namespace graph
 			std::vector<KmerType> neighbors;
 			neighbors.reserve(6); // ACGTN.
 
+	          if (comm.rank() == 0) {
+	        	  std::cout << "SIZES simple biedge size: " << sizeof(::bliss::debruijn::simple_biedge<KmerType>) <<
+	        			  " kmer size " << sizeof(KmerType) <<
+						  " node size " << sizeof(std::pair<KmerType, ::bliss::debruijn::simple_biedge<KmerType> >) << std::endl;
+	          }
+
+
 			if (comm.rank() == 0) printf("MAKE CHAINMAP\n");
 			{
 		//		BL_BENCH_START(chain);
@@ -496,10 +509,13 @@ namespace graph
 			// communicating in this phase.
 			if (comm.rank() == 0) printf("MARK TERMINI NEXT TO BRANCHES\n");
 			{
-				// ==  first compute frequency summary, and store into a reduction map
 				// allocate input
+				//==  BATCHED version
 				std::vector<std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > > all_neighbors;
-				size_t step = 1000000;
+
+				// 8 possible edges, so split the thing into 8 parts to bound the memory usage to about N.  lower in practice
+				size_t step = idx.size() / this->comm.size() / 8;
+				// size_t step = 1000000;
 				all_neighbors.reserve(step);   // do in steps of 1000000
 				size_t nsteps = (idx.local_size() + step - 1) / step;
 				nsteps = mxx::allreduce(nsteps, [](size_t const & x, size_t const & y){
@@ -513,7 +529,6 @@ namespace graph
 				::bliss::debruijn::operation::chain::terminus_update<KmerType> updater;
 				size_t count = 0;
 
-				//==  BATCHED version
 				for (size_t s = 0; s < nsteps; ++s) {
 
 					all_neighbors.clear();
@@ -546,40 +561,40 @@ namespace graph
 				}
 				BL_BENCH_COLLECTIVE_END(chain, "update_termini", map.local_size(), comm);
 
-				// VERSION THAT IS NOT BATCHED.
-		//		//=== find branching nodes. local computation.
-		//		BL_BENCH_START(chain);
-		//		auto nodes = idx.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
-		//		BL_BENCH_COLLECTIVE_END(chain, "get_branches", nodes.size(), comm);
-		//
-		//		//=== mark neighbors of branch points.
-		//		BL_BENCH_START(chain);
-		//		std::vector<std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > > all_neighbors;
-		//		all_neighbors.reserve(nodes.size() * 6);
-		//
-		//		for (auto t : nodes) {
-		//			neighbors.clear();
-		//			t.second.get_out_neighbors(t.first, neighbors);
-		//			for (auto n : neighbors) {
-		//				// insert as is.  let lex_less handle flipping it.
-		//				all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
-		//			}
-		//
-		//			neighbors.clear();
-		//			t.second.get_in_neighbors(t.first, neighbors);
-		//			for (auto n : neighbors) {
-		//				// insert as is.  let lex_less handle flipping it.
-		//				all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
-		//			}
-		//		}
-		//		BL_BENCH_COLLECTIVE_END(chain, "branch_neighbors", all_neighbors.size(), comm);
-		//
-		//
-		//		// mark chain termini that are adjacent to branch points, so we can mark them in the chainmap.
-		//		BL_BENCH_START(chain);
-		//		::bliss::debruijn::operation::chain::terminus_update<KmerType> updater;
-		//		size_t count = chainmap.update(all_neighbors, false, updater );
-		//		BL_BENCH_COLLECTIVE_END(chain, "update_termini", count, comm);
+//				// ======= VERSION THAT IS NOT BATCHED.
+//				//=== find branching nodes. local computation.
+//				BL_BENCH_START(chain);
+//				auto nodes = idx.find_if_iterators(::bliss::debruijn::filter::graph::IsBranchPoint());
+//				BL_BENCH_COLLECTIVE_END(chain, "get_branches", nodes.size(), comm);
+//
+//				//=== mark neighbors of branch points.
+//				BL_BENCH_START(chain);
+//				std::vector<std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > > all_neighbors;
+//				all_neighbors.reserve(nodes.size() * 2);  // branch has at least 2 edges
+//
+//				for (auto t : nodes) {
+//					neighbors.clear();
+//					(*t).second.get_out_neighbors((*t).first, neighbors);
+//					for (auto n : neighbors) {
+//						// insert as is.  let lex_less handle flipping it.
+//						all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>((*t).first, bliss::debruijn::operation::IN));
+//					}
+//
+//					neighbors.clear();
+//					(*t).second.get_in_neighbors((*t).first, neighbors);
+//					for (auto n : neighbors) {
+//						// insert as is.  let lex_less handle flipping it.
+//						all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>((*t).first, bliss::debruijn::operation::OUT));
+//					}
+//				}
+//				BL_BENCH_COLLECTIVE_END(chain, "branch_neighbors", all_neighbors.size(), comm);
+//
+//
+//				// mark chain termini that are adjacent to branch points, so we can mark them in the chainmap.
+//				BL_BENCH_START(chain);
+//				::bliss::debruijn::operation::chain::terminus_update<KmerType> updater;
+//				size_t count = map.update(all_neighbors, false, updater );
+//				BL_BENCH_COLLECTIVE_END(chain, "update_termini", count, comm);
 
 			}
 			BL_BENCH_REPORT_MPI_NAMED(chain, "chain_map", comm);
@@ -653,6 +668,8 @@ namespace graph
 			//		1. only send to non-end edges.  reduces update comm volume for termini.  this is probably normal
 			//		2. only send if we are active (i.e. chain ranked).   reduces number of active chains.
 			//		3. only send to the unfinished side(s), or to the finished side if the total distance is expected to be max (2^(iter + 1), or entire length of chain.)
+			//		4. use vector of iterators to local chain map.  we are not changing the local chain map, so nothing is invalidated.
+			//			then we can operate on the unfinished with partition, etc, also should save memory.
 			// to prove:
 			//		0. distance between left and right doubles each iteration. (middle nodes)
 			//		1. all nodes between 2^iter and 0 have one end pointing to remote
@@ -679,20 +696,23 @@ namespace graph
 				BL_BENCH_COLLECTIVE_END(p_rank, "unfinished", unfinished.size(), comm);
 
 				// check if all chains are compacted
+				BL_BENCH_START(p_rank);
 				bool all_compacted = (unfinished.size() == 0);
 				all_compacted = ::mxx::all_of(all_compacted, comm);
-
-				BL_BENCH_START(p_rank);
 
 				// set up chain node update metadata vector
 				using update_md = bliss::debruijn::operation::chain::chain_update_md<KmerType>;
 				std::vector<std::pair<KmerType, update_md > > updates;
-				updates.reserve(unfinished.size() * 2);  // initially reserve a large block.
+				updates.reserve(unfinished.size());  // initially reserve same size.  will encounter a resize at least.
 
 				int dist = 0;
 				KmerType ll, rr;
 				bliss::debruijn::simple_biedge<KmerType> md;
 				::bliss::debruijn::operation::chain::chain_update<KmerType> chain_updater;
+				BL_BENCH_COLLECTIVE_END(p_rank, "init ranking", updates.capacity(), comm);
+
+				// check if all chains are compacted
+				BL_BENCH_START(p_rank);
 
 				// loop until everything is compacted (except for cycles)
 				while (!all_compacted) {
@@ -744,7 +764,7 @@ namespace graph
 					size_t count = map.update( updates, false, chain_updater );
 
 					// search unfinished.
-					unfinished = map.find(is_unfinished);
+					map.find(is_unfinished).swap(unfinished);
 
 					// at this point, the new distances in lists are 2^(iterations + 1)
 					++iterations;
@@ -974,24 +994,29 @@ namespace graph
 				// search unfinished
 				BL_BENCH_START(p_rank);
 				::bliss::debruijn::filter::chain::PointsToInternalNode is_unfinished;
-				auto unfinished = map.find(is_unfinished);
+				auto unfinished = map.find_iterators(is_unfinished);
 				BL_BENCH_COLLECTIVE_END(p_rank, "unfinished", unfinished.size(), comm);
 
 				// check if all chains are compacted
+				BL_BENCH_START(p_rank);
 				bool all_compacted = (unfinished.size() == 0);
 				all_compacted = ::mxx::all_of(all_compacted, comm);
-
-				BL_BENCH_START(p_rank);
 
 				// set up chain node update metadata vector
 				using update_md = bliss::debruijn::operation::chain::chain_update_md<KmerType>;
 				std::vector<std::pair<KmerType, update_md > > updates;
-				updates.reserve(unfinished.size() * 2);  // initially reserve a large block.
+				updates.reserve(unfinished.size());  // initially reserve a large block - at least same number as unfinisehd
+						// will grow
+
+				if (comm.rank() == 0)
+				std::cout << "SIZES chain_update_md size is " << sizeof(update_md) << std::endl;
 
 				int dist = 0, ldist = 0, rdist = 0;
 				KmerType ll, rr;
 				bliss::debruijn::simple_biedge<KmerType> md;
+				KmerType km;
 				::bliss::debruijn::operation::chain::chain_update<KmerType> chain_updater;
+				BL_BENCH_COLLECTIVE_END(p_rank, "init ranking", updates.capacity(), comm);
 
 				// loop until everything is compacted (except for cycles)
 				while (!all_compacted) {
@@ -1000,7 +1025,8 @@ namespace graph
 
 					// get left and right edges, generate updates
 					for (auto t : unfinished) {
-						md = t.second;
+						md = (*t).second;
+						km = (*t).first;
 
 						// each is a pair with kmer, <in kmer, out kmer, in dist, out dist>
 						// constructing 2 edges <in, out> and <out, in>  distance is sum of the 2.
@@ -1054,7 +1080,7 @@ namespace graph
 								// left is terminus.  send to right then
 								// update right.
 								updates.emplace_back(std::get<1>(md),
-										update_md((std::get<2>(md) == 0) ? t.first : std::get<0>(md),
+										update_md((std::get<2>(md) == 0) ? km : std::get<0>(md),
 												-dist,  // if md.3 <= 0, then finished, so use negative dist.
 												bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
 
@@ -1072,7 +1098,7 @@ namespace graph
 								// right is terminus.  send to left then
 								// update left
 								updates.emplace_back(std::get<0>(md),
-										update_md((std::get<3>(md) == 0) ? t.first : std::get<1>(md),
+										update_md((std::get<3>(md) == 0) ? km : std::get<1>(md),
 													-dist,     // if md.3 <= 0, then finished, so use negative dist.
 												bliss::debruijn::operation::OUT));		// update target (md.0)'s out edge
 								// handle type 3 here
@@ -1090,13 +1116,19 @@ namespace graph
 						// if ((std::get<2>(md) == 0) && (std::get<3>(md) == 0)) continue;  // singleton.   next.
 					}
 
-					comm.barrier();  // wait for all updates to be constructed.
+//					comm.barrier();  // wait for all updates to be constructed.
 
 					// now perform update
 					size_t count = map.update( updates, false, chain_updater );
 
 					// search unfinished.
-					unfinished = map.find(is_unfinished);
+					//map.find(is_unfinished).swap(unfinished);  // this is scanning the whole list every time...
+					auto new_end = ::std::partition(unfinished.begin(), unfinished.end(), is_unfinished);
+//							[&is_unfinished](typename std::iterator_traits<decltype(unfinished)>::value_type t){
+//						return is_unfinished(*t);
+//					});
+					unfinished.erase(new_end, unfinished.end());   // remove d the finished part.
+
 
 					// at this point, the new distances in lists are 2^(iterations + 1)
 					++iterations;
@@ -1113,14 +1145,15 @@ namespace graph
 						// print the remaining non-cycle nodes locally.
 						::bliss::debruijn::filter::chain::IsCycleNode check_cycle(iterations);
 						for (auto t : unfinished) {
-							if (check_cycle(t)) continue;
+							if (check_cycle(*t)) continue;
 
-							auto md = t.second;
+							auto md = (*t).second;
 
 							std::cout << "rank " << comm.rank() << " max iter " << iterations <<
 									"\tin dist " << std::get<2>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md)) <<
 									" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md).reverse_complement()) <<
-									"\tkmer: " << bliss::utils::KmerUtils::toASCIIString(t.first) << " rc: " << bliss::utils::KmerUtils::toASCIIString(t.first.reverse_complement()) <<
+									"\tkmer: " << bliss::utils::KmerUtils::toASCIIString((*t).first) <<
+									" rc: " << bliss::utils::KmerUtils::toASCIIString((*t).first.reverse_complement()) <<
 									"\tout dist " << std::get<3>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md)) <<
 									" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md).reverse_complement()) << std::endl;
 						}
@@ -1134,7 +1167,7 @@ namespace graph
 					}
 					all_compacted = ::mxx::all_of(all_compacted, comm);
 
-				}
+				} // while
 				BL_BENCH_COLLECTIVE_END(p_rank, "compact", cycle_node_count, comm);
 
 				BL_BENCH_REPORT_MPI_NAMED(p_rank, "list_rank", comm);
@@ -1191,6 +1224,84 @@ namespace graph
 
 			return compacted_chain;
 	   }
+
+
+	   std::vector<::std::string> to_compressed_chains() {
+	     // ========== construct new graph with compacted chains and junction nodes.
+	     BL_BENCH_INIT(compress_chain);
+
+	     if (comm.rank() == 0) printf("Compress Chain\n");
+
+	     auto compacted_chains = to_ranked_chain_nodes();
+
+	     int has_data = (compacted_chains.size() == 0) ? 0 : 1;
+	     int all_has_data = mxx::allreduce(has_data, comm);
+	     if (all_has_data == 0) {
+		     BL_BENCH_REPORT_MPI_NAMED(compress_chain, "compress_chain", comm);
+
+	    	 return std::vector<::std::string>();
+	     }
+
+	     if (comm.size() > 1) {
+			// reshuffle data
+			BL_BENCH_START(compress_chain);
+			::bliss::debruijn::operation::chain::chain_node_to_proc<::bliss::debruijn::CanonicalDeBruijnHashMapParams, KmerType> mapper(comm.size());
+			// distribute the data
+
+			std::vector<size_t> recv_counts	=
+					::dsc::assign_and_bucket(compacted_chains, mapper, this->comm.size());
+			BL_BENCH_END(compress_chain, "assign and bucket", compacted_chains.size());
+
+			// and distribute the data.
+			BL_BENCH_START(compress_chain);
+			::dsc::distribute_bucketed(compacted_chains, recv_counts, this->comm).swap(compacted_chains);
+			BL_BENCH_COLLECTIVE_END(compress_chain, "distribute nodes", compacted_chains.size(), comm);  // this is for output ordering.
+	     }
+
+	     // next local sort the data by terminus kmer and position
+	     BL_BENCH_START(compress_chain);
+	     ::std::sort(compacted_chains.begin(), compacted_chains.end(), ::bliss::debruijn::operation::chain::chain_rep_less<KmerType>());
+	     BL_BENCH_COLLECTIVE_END(compress_chain, "sort lmer nodes", compacted_chains.size(), comm);   // this is for constructing the chains
+
+
+	     BL_BENCH_START(compress_chain);
+	     std::vector<::std::string> compressed_chains;
+
+	     // compressing.
+	     std::stringstream ss;
+	     //=== approach is to scan for the end of a chain
+	     auto curr = compacted_chains.begin();
+	     auto next = curr;
+	     compressed_chains.clear();
+	     while (curr != compacted_chains.end()) {
+	       // scan forward for start of next chain, using adjacent find.
+	       next = ::std::adjacent_find(curr, compacted_chains.end(), [](
+	         ::bliss::debruijn::chain::listranked_chain_node<KmerType> const & x,
+	          ::bliss::debruijn::chain::listranked_chain_node<KmerType> const & y
+	       ){
+	         // adjacent_find returns first occurrence of 2 consecutive elements that the predicate evaluates to true.
+	         return std::get<1>(x) != std::get<1>(y);
+	       });
+
+	       if (next != compacted_chains.end()) ++next;  // get the second of the pair, == start of next.
+
+	       // now do something with the <curr, next> range.
+	       ss.clear();
+	       ss.str(std::string());
+	       std::for_each(curr, next, ::bliss::debruijn::operation::chain::print_chain_as_fasta<KmerType>(ss, true));  // chain_only
+	       compressed_chains.push_back(ss.str());
+
+	       // get ready for next segment.
+	       curr = next;
+
+	     }
+	     BL_BENCH_COLLECTIVE_END(compress_chain, "compress", compressed_chains.size(), comm);
+
+	     BL_BENCH_REPORT_MPI_NAMED(compress_chain, "compress_chain", comm);
+
+	     return compressed_chains;
+	   }
+
 
 	};
 
