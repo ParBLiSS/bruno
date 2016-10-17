@@ -69,12 +69,20 @@ target_link_libraries(compact_debruijn_graph_refactored_fasta ${EXTRA_LIBS})
 
 #no DNA5 - fails when searching for matching kmers.
 foreach(dna 4 16)
-foreach(k 15 21 31 63)
+
+# 51 added because hipmer uses that
+foreach(k 15 21 31 51 63)
 
 add_executable(compact_debruijn_graph_fastq_A${dna}_K${k} compact_debruijn_graph_refactor.cpp)
 SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A${dna}_K${k}
      PROPERTIES COMPILE_FLAGS "-DpDNA=${dna} -DpPARSER=FASTQ -DpK=${k}")
 target_link_libraries(compact_debruijn_graph_fastq_A${dna}_K${k} ${EXTRA_LIBS})
+
+add_executable(compact_debruijn_graph_fasta_A${dna}_K${k} compact_debruijn_graph_refactor.cpp)
+SET_TARGET_PROPERTIES(compact_debruijn_graph_fasta_A${dna}_K${k}
+     PROPERTIES COMPILE_FLAGS "-DpDNA=${dna} -DpPARSER=FASTA -DpK=${k}")
+target_link_libraries(compact_debruijn_graph_fasta_A${dna}_K${k} ${EXTRA_LIBS})
+
 
 endforeach(k)
 endforeach(dna)
