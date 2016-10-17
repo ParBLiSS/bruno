@@ -776,7 +776,7 @@ namespace graph
 					// at this point, the new distances in lists are 2^(iterations + 1)
 					++iterations;
 
-					std::cout << "rank " << comm.rank() << " iterations " << iterations << std::endl;
+					//std::cout << "rank " << comm.rank() << " iterations " << iterations << std::endl;
 					// find cycles
 					cycle_node_count = std::count_if(unfinished.begin(), unfinished.end(),
 							::bliss::debruijn::filter::chain::IsCycleNode(iterations));
@@ -1140,7 +1140,7 @@ namespace graph
 					// at this point, the new distances in lists are 2^(iterations + 1)
 					++iterations;
 
-					std::cout << "rank " << comm.rank() << " iterations " << iterations << std::endl;
+					//std::cout << "rank " << comm.rank() << " iterations " << iterations << std::endl;
 					// find cycles
 					cycle_node_count = std::count_if(unfinished.begin(), unfinished.end(),
 							::bliss::debruijn::filter::chain::IsCycleNode(iterations));

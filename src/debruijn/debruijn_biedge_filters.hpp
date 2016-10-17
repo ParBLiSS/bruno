@@ -119,7 +119,6 @@ namespace bliss {
           return results;
         }
 
-#define USE_MPI
 #if defined(USE_MPI)
 
         /// convenience function to generate k+1mer frequency map.
