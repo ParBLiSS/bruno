@@ -134,18 +134,27 @@ namespace bliss {
           BL_BENCH_INIT(compute_edge_frequency);
 
           // ========  count the k+1-mers.
-          BL_BENCH_START(compute_edge_frequency);
           {
+            BL_BENCH_LOOP_START(compute_edge_frequency, 0);
+            BL_BENCH_LOOP_START(compute_edge_frequency, 1);
+            size_t total = 0;
             ::std::vector<K1merType> temp;
             for (auto x : file_data) {
+              BL_BENCH_LOOP_RESUME(compute_edge_frequency, 0);
               temp.clear();
               // the parser needs to collectively parse the records.
               ::bliss::io::KmerFileHelper::template parse_file_data<K1merParser, SeqParser, SeqIterType>(x, temp, comm);
+              total += temp.size();
+              BL_BENCH_LOOP_PAUSE(compute_edge_frequency, 0);
+
+              BL_BENCH_LOOP_RESUME(compute_edge_frequency, 1);
               counter.insert(temp);  // this distributes the counts according to k-mer hash.
               // TODO: build from k+2 mer, so that overlap region does not become an issue for fasta files.
+              BL_BENCH_LOOP_PAUSE(compute_edge_frequency, 1);
             }
+            BL_BENCH_LOOP_END(compute_edge_frequency, 0, "parse_file", total);
+            BL_BENCH_LOOP_END(compute_edge_frequency, 1, "idx_insert", counter.local_size());
           }  // erase temp
-          BL_BENCH_COLLECTIVE_END(compute_edge_frequency, "count edge", counter.local_size(), comm);
 
 
           BL_BENCH_START(compute_edge_frequency);
@@ -157,7 +166,7 @@ namespace bliss {
             });
             counter.reserve(0);  // compact the counter.
           }
-          BL_BENCH_COLLECTIVE_END(compute_edge_frequency, "filter counter", counter.local_size(), comm);
+          BL_BENCH_END(compute_edge_frequency, "filter counter", counter.local_size());
 
           BL_BENCH_REPORT_MPI_NAMED(compute_edge_frequency, "compute_edge_frequency", comm);
         }
@@ -185,7 +194,7 @@ namespace bliss {
           static_assert(KmerType::size + 1 == Counter::key_type::size,
                         "counter kmer type should have length 1 less than the input kmer type to filter for implicit debruijn chain nodes");
 
-          BL_BENCH_INIT(filter_biedge_by_frequency);
+          //BL_BENCH_INIT(filter_biedge_by_frequency);
 
           if (comm.rank() == 0) {
         	  std::cout << "SIZES compact simple biedge size: " << sizeof(::bliss::debruijn::biedge::compact_simple_biedge) <<
@@ -199,7 +208,7 @@ namespace bliss {
           bool edge_changed = false;
 
           // create a mask.
-          BL_BENCH_START(filter_biedge_by_frequency);
+          // BL_BENCH_START(filter_biedge_by_frequency);
 
           // local storage of query results.
           ::std::vector<K1merType> query;
@@ -209,22 +218,22 @@ namespace bliss {
           ::std::vector<unsigned char> remote_exists;
           remote_exists.reserve(query.capacity());
 
-          BL_BENCH_COLLECTIVE_END(filter_biedge_by_frequency, "init", biedges.size(), comm);
+          //BL_BENCH_COLLECTIVE_END(filter_biedge_by_frequency, "init", biedges.size(), comm);
 
 
           // do left and right together, in batches of step_size.
-          BL_BENCH_START(filter_biedge_by_frequency);
+          //BL_BENCH_START(filter_biedge_by_frequency);
 
           K1merType k1;
           ::bliss::kmer::transform::lex_less<K1merType> canonical;
 
-			//===== add the very first left query (for reads that are split between partitions).
-			//  when read is split between partitions, the second half gets the first node at offset of 1 from the partition start.
-			//  we need to query for this edge.  this is at i == 0.
-			if (biedges.size() > 0) {
-				k1 = canonical(::bliss::debruijn::biedge::get_in_edge_k1mer(biedges[0]));
-				query.emplace_back(k1);
-			}
+          //===== add the very first left query (for reads that are split between partitions).
+          //  when read is split between partitions, the second half gets the first node at offset of 1 from the partition start.
+          //  we need to query for this edge.  this is at i == 0.
+          if (biedges.size() > 0) {
+            k1 = canonical(::bliss::debruijn::biedge::get_in_edge_k1mer(biedges[0]));
+            query.emplace_back(k1);
+          }
 
             //===== populate right query.  only right is needed since left edge of the next node is the same.
             // NOTE: do both and not checking local counts from prev iteration.
@@ -268,12 +277,12 @@ namespace bliss {
 
             } // end scan of current step to create the bit vector.
 
-          BL_BENCH_COLLECTIVE_END(filter_biedge_by_frequency, "query_filter", changed_count, comm);
+          //BL_BENCH_COLLECTIVE_END(filter_biedge_by_frequency, "query_filter", changed_count, comm);
 
 //          std::cout << "rank " << comm.rank() << " transformed " << changed_count << " by kmer frequency. " << std::endl;
 
 
-          BL_BENCH_REPORT_MPI_NAMED(filter_biedge_by_frequency, "filter_biedge_by_frequency", comm);
+          //BL_BENCH_REPORT_MPI_NAMED(filter_biedge_by_frequency, "filter_biedge_by_frequency", comm);
 
         }
 

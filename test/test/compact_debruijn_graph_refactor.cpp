@@ -425,41 +425,55 @@ build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data,
 
 
 	// ======= filter k+2-mers.  incremental by file
+  BL_BENCH_LOOP_START(build, 0);
+  BL_BENCH_LOOP_START(build, 1);
+  BL_BENCH_LOOP_START(build, 2);
+  BL_BENCH_LOOP_START(build, 3);
+
+  size_t s1 = 0, s2 = 0;
+
 	::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> > results;
 	{
 		::std::vector<std::pair<KmerType, ::bliss::debruijn::biedge::compact_simple_biedge> > nodes2;
 
 		for (auto x : file_data) {
 
-			BL_BENCH_START(build);
+			BL_BENCH_LOOP_RESUME(build, 0);
 			nodes2.clear();
 			// construct biedges (nodes)
 			::bliss::io::KmerFileHelper::template parse_file_data<
 			  ::bliss::debruijn::biedge::io::debruijn_kmer_simple_biedge_parser<KmerType>,
 			   FileParser, SplitSeqIterType>(x, nodes2, comm);
-			BL_BENCH_COLLECTIVE_END(build, "parse", nodes2.size(), comm);
+			s1 = nodes2.size();
+			BL_BENCH_LOOP_PAUSE(build, 0);
 
 			// remove low frequency edges
-			BL_BENCH_START(build);
+			BL_BENCH_LOOP_RESUME(build, 1);
 			::bliss::debruijn::biedge::filter::transform_biedges_by_frequency<KmerType, CountMap1Type>(nodes2, counter2, comm);
 
 			// extract the biedges. and save them
 			results.emplace_back(::bliss::debruijn::biedge::filter::extract_biedges<KmerType>(nodes2));
-			BL_BENCH_END(build, "transform_by_freq", nodes2.size());
+
+			BL_BENCH_LOOP_PAUSE(build, 1);
 
 			// now remove nodes with no edges.
-			BL_BENCH_START(build);
+			BL_BENCH_LOOP_RESUME(build, 2);
 			::bliss::debruijn::biedge::filter::filter_isolated_nodes<KmerType>(nodes2);
-			BL_BENCH_END(build, "filter", nodes2.size());
+			s2 = nodes2.size();
+			BL_BENCH_LOOP_PAUSE(build, 2);
 
 			// build the index
-			BL_BENCH_START(build);
+			BL_BENCH_LOOP_RESUME(build, 3);
 			idx.insert(nodes2);
-			BL_BENCH_COLLECTIVE_END(build, "insert", idx.local_size(), comm);
+			BL_BENCH_LOOP_PAUSE(build, 3);
 //			std::cout << "rank " << comm.rank() << " input size " << node_size << " idx size " << idx.local_size() << " buckets " << idx.get_map().get_local_container().bucket_count() << std::endl;
 
 		}
 	}
+  BL_BENCH_LOOP_END(build, 0, "parse", s1);
+  BL_BENCH_LOOP_END(build, 1, "transform_by_freq", s1);
+  BL_BENCH_LOOP_END(build, 2, "filter", s2);
+  BL_BENCH_LOOP_END(build, 3, "insert", idx.local_size());
 
 	size_t total = idx.size();
 	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT: total size after insert/rehash is %lu\n", total);
