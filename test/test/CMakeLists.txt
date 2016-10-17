@@ -67,47 +67,17 @@ target_link_libraries(compact_debruijn_graph_refactored_fasta ${EXTRA_LIBS})
 
 #benchmarkers
 
-add_executable(compact_debruijn_graph_fastq_A4_K15 compact_debruijn_graph_refactor.cpp)
-SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A4_K15
-     PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTQ -DpK=15")
-target_link_libraries(compact_debruijn_graph_fastq_A4_K15 ${EXTRA_LIBS})
+#no DNA5 - fails when searching for matching kmers.
+foreach(dna 4 16)
+foreach(k 15 21 31 63)
 
-add_executable(compact_debruijn_graph_fastq_A16_K15 compact_debruijn_graph_refactor.cpp)
-SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A16_K15
-     PROPERTIES COMPILE_FLAGS "-DpDNA=16 -DpPARSER=FASTQ -DpK=15")
-target_link_libraries(compact_debruijn_graph_fastq_A16_K15 ${EXTRA_LIBS})
+add_executable(compact_debruijn_graph_fastq_A${dna}_K${k} compact_debruijn_graph_refactor.cpp)
+SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A${dna}_K${k}
+     PROPERTIES COMPILE_FLAGS "-DpDNA=${dna} -DpPARSER=FASTQ -DpK=${k}")
+target_link_libraries(compact_debruijn_graph_fastq_A${dna}_K${k} ${EXTRA_LIBS})
 
-add_executable(compact_debruijn_graph_fastq_A4_K21 compact_debruijn_graph_refactor.cpp)
-SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A4_K21
-     PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTQ -DpK=21")
-target_link_libraries(compact_debruijn_graph_fastq_A4_K21 ${EXTRA_LIBS})
-
-add_executable(compact_debruijn_graph_fastq_A16_K21 compact_debruijn_graph_refactor.cpp)
-SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A16_K21
-     PROPERTIES COMPILE_FLAGS "-DpDNA=16 -DpPARSER=FASTQ -DpK=21")
-target_link_libraries(compact_debruijn_graph_fastq_A16_K21 ${EXTRA_LIBS})
-
-add_executable(compact_debruijn_graph_fastq_A4_K31 compact_debruijn_graph_refactor.cpp)
-SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A4_K31
-     PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTQ -DpK=31")
-target_link_libraries(compact_debruijn_graph_fastq_A4_K31 ${EXTRA_LIBS})
-
-add_executable(compact_debruijn_graph_fastq_A16_K31 compact_debruijn_graph_refactor.cpp)
-SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A16_K31
-     PROPERTIES COMPILE_FLAGS "-DpDNA=16 -DpPARSER=FASTQ -DpK=31")
-target_link_libraries(compact_debruijn_graph_fastq_A16_K31 ${EXTRA_LIBS})
-
-add_executable(compact_debruijn_graph_fastq_A4_K63 compact_debruijn_graph_refactor.cpp)
-SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A4_K63
-     PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTQ -DpK=63")
-target_link_libraries(compact_debruijn_graph_fastq_A4_K63 ${EXTRA_LIBS})
-
-add_executable(compact_debruijn_graph_fastq_A16_K63 compact_debruijn_graph_refactor.cpp)
-SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A16_K63
-     PROPERTIES COMPILE_FLAGS "-DpDNA=16 -DpPARSER=FASTQ -DpK=63")
-target_link_libraries(compact_debruijn_graph_fastq_A16_K63 ${EXTRA_LIBS})
-
-
+endforeach(k)
+endforeach(dna)
 
 add_executable(test_get_file_size test_get_file_size.cpp)
 target_link_libraries(test_get_file_size ${EXTRA_LIBS})
