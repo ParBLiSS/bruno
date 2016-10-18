@@ -29,6 +29,7 @@
 #include "io/kmer_parser.hpp"
 #include "utils/benchmark_utils.hpp"
 #include "utils/filter_utils.hpp"
+#include <mxx/reduction.hpp>
 
 namespace bliss {
   namespace debruijn {
@@ -118,7 +119,7 @@ namespace bliss {
           }
           return results;
         }
-
+#define USE_MPI
 #if defined(USE_MPI)
 
         /// convenience function to generate k+1mer frequency map.
@@ -170,6 +171,115 @@ namespace bliss {
 
           BL_BENCH_REPORT_MPI_NAMED(compute_edge_frequency, "compute_edge_frequency", comm);
         }
+
+
+        /// convenience function to generate k+1mer frequency map.
+        template <template <typename> class SeqParser, template <typename, template <typename> class> class SeqIter, typename CounterType>
+        void compute_edge_frequency_incremental(::std::vector<::bliss::io::file_data> const & file_data, CounterType & counter, mxx::comm const & comm,
+                                    typename CounterType::mapped_type const & lower_thresh = 0,
+                                    typename CounterType::mapped_type const & upper_thresh = ::std::numeric_limits<typename CounterType::mapped_type>::max()) {
+
+
+        	BL_BENCH_INIT(compute_edge_frequency);
+
+        	// ========  count the k+1-mers.
+        	if (comm.rank() == 0) printf("Compute Edge Frequency\n");
+
+        	// k+1-mer count map.  note that it should use the same hash function as Index.
+        	using K1merType = typename CounterType::key_type;
+
+        	using CharIterType = typename ::bliss::io::file_data::const_iterator;
+        	using SeqParserType = SeqParser<CharIterType>;
+        	using SeqIterType = SeqIter<CharIterType, SeqParser>;
+        	using KmerParser = ::bliss::index::kmer::KmerParser<K1merType>;
+        	using Iter = typename ::bliss::iterator::ContainerConcatenatingIterator<SeqIterType, KmerParser>;
+
+        	BL_BENCH_START(compute_edge_frequency);
+        	size_t block_size = 10000000;
+        	::std::vector<typename KmerParser::value_type> temp2;
+        	temp2.reserve(block_size);
+        	::fsc::back_emplace_iterator<std::vector<typename KmerParser::value_type> > emplace_iter(temp2);
+        	// TESTING END;
+        	BL_BENCH_END(compute_edge_frequency, "reserve", block_size);
+
+        	BL_BENCH_LOOP_START(compute_edge_frequency, 0);  // for init
+        	BL_BENCH_LOOP_START(compute_edge_frequency, 1);  // for parse
+        	BL_BENCH_LOOP_START(compute_edge_frequency, 2);  // for insert
+        	size_t count = 0, i;
+        	bool all_done = false;
+
+        	for (auto x : file_data) {
+
+        		// initialization
+        		BL_BENCH_LOOP_RESUME(compute_edge_frequency, 0);
+
+        		// not reusing the SeqParser in loader.  instead, reinitializing one.
+        		SeqParserType seq_parser;
+        		seq_parser.init_parser(x.in_mem_cbegin(), x.parent_range_bytes, x.in_mem_range_bytes, x.getRange());
+
+        		//==  and wrap the chunk inside an iterator that emits Reads.
+        		SeqIterType seqs_start(seq_parser, x.cbegin(), x.in_mem_cend(), x.getRange().start);
+        		SeqIterType seqs_end(x.in_mem_cend());
+
+        		//== sequence parser type
+        		KmerParser kmer_parser(x.valid_range_bytes);
+
+        		// now make the concatenated iterators
+        		Iter start(kmer_parser, seqs_start, seqs_end);
+        		Iter endd(kmer_parser, seqs_end);
+
+        		BL_BENCH_LOOP_PAUSE(compute_edge_frequency, 0);
+
+        		//=== copy into index incrementally
+        		while (! all_done) {
+            		temp2.clear();
+
+        			//== process the chunk of data
+        			BL_BENCH_LOOP_RESUME(compute_edge_frequency, 1);
+
+        			for (i = 0; (i < block_size) && (start != endd); ++i) {
+        				*emplace_iter = *start;
+        				++start;
+        				++emplace_iter;
+        			}
+        			count += i;
+
+        			BL_BENCH_LOOP_PAUSE(compute_edge_frequency, 1);
+
+
+        			BL_BENCH_LOOP_RESUME(compute_edge_frequency, 2);
+        			all_done = i == 0;
+        			all_done = mxx::all_of(all_done, comm);
+
+        			counter.insert(temp2);
+        			BL_BENCH_LOOP_PAUSE(compute_edge_frequency, 2);
+
+        		}
+        	}
+        	BL_BENCH_LOOP_END(compute_edge_frequency, 0, "setup", temp2.capacity());  // for init
+        	BL_BENCH_LOOP_END(compute_edge_frequency, 1, "parse", count);  // for parse
+        	BL_BENCH_LOOP_END(compute_edge_frequency, 2, "count", counter.local_size());  // for insert
+
+        	size_t total = counter.size();
+        	if (comm.rank() == 0) printf("KmerCounter DONE: total size after insert/rehash is %lu\n", total);
+
+
+			BL_BENCH_START(compute_edge_frequency);
+			if ((lower_thresh > 0) || (upper_thresh < ::std::numeric_limits<typename CounterType::mapped_type>::max())) {
+				// ======= filter k+1-mers
+				// now filter out the low frequency (and high frequency) ones.
+				counter.erase([&lower_thresh, &upper_thresh](typename CounterType::value_type const & x) {
+				  return ((x.second < lower_thresh) || (x.second >= upper_thresh));
+				});
+				counter.reserve(0);  // compact the counter.
+			}
+			BL_BENCH_COLLECTIVE_END(compute_edge_frequency, "filter", counter.local_size(), comm);
+
+			BL_BENCH_REPORT_MPI_NAMED(compute_edge_frequency, "compute_edge_frequency", comm);
+        }
+
+
+
 
 
         /**
@@ -285,6 +395,186 @@ namespace bliss {
           //BL_BENCH_REPORT_MPI_NAMED(filter_biedge_by_frequency, "filter_biedge_by_frequency", comm);
 
         }
+
+
+        // return the number of attempted insertion into the index
+        template <typename KmerType, typename InputIter, typename Counter, typename OutputIndex, typename EdgeOutputIter>
+        size_t freq_filter_insert_biedges(InputIter start, InputIter end,
+        		Counter const & k1mer_counter, const size_t block_size,
+        		OutputIndex & idx, EdgeOutputIter edge_start,
+        		mxx::comm const & comm) {
+
+        	// some verification
+          using NodeType = typename std::iterator_traits<InputIter>::value_type;
+          // define k1mer type
+          using K1merType = typename Counter::key_type;
+
+          static_assert(std::is_same<NodeType,
+        		  std::pair<KmerType, ::bliss::debruijn::biedge::compact_simple_biedge> >::value,
+        		  "ERROR: Input iterator DOES NOT have <KmerType,compact_simple_biedge> as value type.");
+          static_assert(K1merType::size > 0, "counter kmer type should not be zero-mers.  possible?");
+          static_assert(KmerType::size + 1 == K1merType::size,
+                        "counter kmer type should have length 1 less than the input kmer type to filter for implicit debruijn chain nodes");
+
+
+          static_assert(std::is_same<KmerType,
+        		  typename OutputIndex::key_type >::value,
+        		  "ERROR: Output index DOES NOT have KmerType as key type.");
+          static_assert(std::is_same<typename std::iterator_traits<EdgeOutputIter>::value_type,
+        		  ::bliss::debruijn::biedge::compact_simple_biedge >::value,
+        		  "ERROR: Edge Output iterator DOES NOT have compact_simple_biedge as value type.");
+
+          BL_BENCH_INIT(freq_filter_insert_biedges);
+
+          if (comm.rank() == 0) {
+        	  std::cout << "SIZES compact simple biedge size: " << sizeof(::bliss::debruijn::biedge::compact_simple_biedge) <<
+        			  " kmer size " << sizeof(KmerType) << " node size " << sizeof(NodeType) <<
+					  " k1mer size " << sizeof(K1merType) << std::endl;
+          }
+
+          size_t changed_count = 0;
+          bool edge_changed = false;
+
+          // create a mask.
+          BL_BENCH_START(freq_filter_insert_biedges);
+
+          // local storage of query results.
+          ::std::vector<K1merType> query;
+          query.reserve(block_size + 1);  // preallocate space
+
+          // no k1mertype here...
+          ::std::vector<unsigned char> remote_exists;
+          remote_exists.reserve(block_size + 1);
+
+          // storage for index insertion.
+          ::std::vector<NodeType> nodes;
+          nodes.reserve(block_size);  // preallocate space
+
+          // intermediate stuff.
+          ::bliss::kmer::transform::lex_less<K1merType> canonical;
+          bool all_done = false;
+          size_t i;
+          auto it1 = start, it2 = start;
+          K1merType k1;
+          NodeType node;
+          size_t query_size;
+
+          size_t total0 = 0, total1 = 0, total2 = 0, total3 = 0;
+          //size_t before = idx.local_size();
+          BL_BENCH_END(freq_filter_insert_biedges, "setup", block_size);
+
+
+          BL_BENCH_LOOP_START(freq_filter_insert_biedges, 0);  // for reset
+          BL_BENCH_LOOP_START(freq_filter_insert_biedges, 1);  // for parse
+		  BL_BENCH_LOOP_START(freq_filter_insert_biedges, 2);  // for query
+		  BL_BENCH_LOOP_START(freq_filter_insert_biedges, 3);  // for filter
+		  BL_BENCH_LOOP_START(freq_filter_insert_biedges, 4);  // for insert
+
+		  while (! all_done) {   // loop until all nodeds are done
+
+			  BL_BENCH_LOOP_RESUME(freq_filter_insert_biedges, 0);
+			  total0 += query.size();
+			  query.clear();
+			  remote_exists.clear();
+			  nodes.clear();
+			  BL_BENCH_LOOP_PAUSE(freq_filter_insert_biedges, 0);
+
+
+			  //=====  get the k1mers for query
+	          //===== add the very first left query (for reads that are split between partitions).
+	          //  when read is split between partitions, the second half gets the first node at offset of 1 from the partition start.
+	          //  we need to query for this edge.  this is at i == 0.
+			  BL_BENCH_LOOP_RESUME(freq_filter_insert_biedges, 1);
+	          if (it1 != end) {
+	            k1 = canonical(::bliss::debruijn::biedge::get_in_edge_k1mer(*it1));
+	            query.emplace_back(k1);
+	          }
+			    //===== populate right query.  only right is needed since left edge of the next node is the same.
+	            // NOTE: do both and not checking local counts from prev iteration.
+	            // next time, do check and update the bit vec here and later.
+			  for (i = 0; (i < block_size) && (it1 != end); ++i, ++it1) {
+	              // get left as canonical.
+	              k1 = canonical(::bliss::debruijn::biedge::get_out_edge_k1mer(*it1));  // if empty edge, would not be a valid k+1 mer in counter.
+
+	              // always insert.
+	              query.emplace_back(k1);
+			  }
+			  total1 += query.size();
+			  BL_BENCH_LOOP_PAUSE(freq_filter_insert_biedges, 1);
+
+              //===== query right and insert into local map.
+              // one to one because mxx::bucketing is stable.
+			  BL_BENCH_LOOP_RESUME(freq_filter_insert_biedges, 2);
+  			  query_size = query.size();
+  			  std::cout << "rank " << comm.rank() << " query size " << query_size << " i " << i << std::endl;
+  			  assert((query_size == 0) || (query_size == i + 1));
+  			  k1mer_counter.exists(query, false).swap(remote_exists);
+              assert(remote_exists.size() == query_size);
+			  total2 += remote_exists.size();
+			  BL_BENCH_LOOP_PAUSE(freq_filter_insert_biedges, 2);
+
+
+              //====== NOW go through k2mers again and modify the biedges based on frequency.
+              // we check left and right edges here so that all edges are consistent.
+			  // co-iterate between input and output.
+			  BL_BENCH_LOOP_RESUME(freq_filter_insert_biedges, 3);
+			  for (i = 0; (i < block_size) && (it2 != end); ++i, ++it2) {
+
+				  edge_changed = false;  // DEBUG ONLY
+
+				  node = *it2;
+
+				  //==== transform the node's edge based on existence (i.e by frequency)
+	              if (remote_exists[i] == 0) {
+	                // did not find, so clear the in edge (upper 4 bits of the byte).
+	                edge_changed = (node.second.getDataRef()[0] != (node.second.getDataRef()[0] & 0x0F));
+
+	                node.second.getDataRef()[0] &= 0x0F;
+	              }
+
+	              if (remote_exists[i+1]== 0) {
+	                // did not find, so clear the out edge (lower 4 bits of the byte).
+	                edge_changed = (node.second.getDataRef()[0] != (node.second.getDataRef()[0] & 0xF0));
+
+	                node.second.getDataRef()[0] &= 0xF0;
+	              }
+
+	              if (edge_changed) ++changed_count;
+
+				  //==== unconditionally insert biedge into EdgeOutputIter
+				  *edge_start = node.second;
+				  ++edge_start;
+
+				  //==== conditionally insert into nodes.
+	              if (node.second.getDataRef()[0] != 0)
+	            	  nodes.emplace_back(node);
+
+			  }
+			  total3 += nodes.size();
+			  BL_BENCH_LOOP_PAUSE(freq_filter_insert_biedges, 3);
+
+			  //==== index insert
+			  BL_BENCH_LOOP_RESUME(freq_filter_insert_biedges, 4);
+			  all_done = (i == 0);
+			  all_done = mxx::all_of(all_done, comm);
+
+			  idx.insert(nodes);
+			  BL_BENCH_LOOP_PAUSE(freq_filter_insert_biedges, 4);
+		  }
+
+          BL_BENCH_LOOP_END(freq_filter_insert_biedges, 0, "reset", total0);  // for reset  // amount cleared
+          BL_BENCH_LOOP_END(freq_filter_insert_biedges, 1, "parse", total1);  // for parse  // num queries
+		  BL_BENCH_LOOP_END(freq_filter_insert_biedges, 2, "query", total2);  // for query  // num query results
+		  BL_BENCH_LOOP_END(freq_filter_insert_biedges, 3, "filter", total3);  // for filter  // insert attempts
+		  BL_BENCH_LOOP_END(freq_filter_insert_biedges, 4, "insert", idx.local_size());  // for insert  // curr index size
+
+
+          BL_BENCH_REPORT_MPI_NAMED(freq_filter_insert_biedges, "filter_insert_biedges", comm);
+
+          return total3;
+
+        }
+
 
 //
 //
