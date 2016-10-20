@@ -506,7 +506,7 @@ namespace bliss {
               // one to one because mxx::bucketing is stable.
 			  BL_BENCH_LOOP_RESUME(freq_filter_insert_biedges, 2);
   			  query_size = query.size();
-  			  std::cout << "rank " << comm.rank() << " query size " << query_size << " i " << i << std::endl;
+  			  //std::cout << "rank " << comm.rank() << " query size " << query_size << " i " << i << std::endl;
   			  assert((query_size == 0) || (query_size == i + 1));
   			  k1mer_counter.exists(query, false).swap(remote_exists);
               assert(remote_exists.size() == query_size);

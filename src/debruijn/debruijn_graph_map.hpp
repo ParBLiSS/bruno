@@ -246,7 +246,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		}
 
 		BL_BENCH_START(insert);
-		this->c.resize(input.size() / 2);
+		// this->c.resize(input.size() / 2);
 
 		// local compute part.  called by the communicator.
 		size_t count = 0;
@@ -255,13 +255,15 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		else
 			count = this->local_insert(input.begin(), input.end());
 
-    std::cout << "rank " << this->comm.rank() <<
+		if (this->comm.rank() == 0)
+		std::cout << "rank " << this->comm.rank() <<
       " input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
 
-    this->c.resize(0);
+// this->c.resize(0);
 
-    std::cout << "rank " << this->comm.rank() <<
-      " input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
+//    if (this->comm.rank() == 0)
+//    std::cout << "rank " << this->comm.rank() <<
+//      " input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
 
 		BL_BENCH_END(insert, "local_insert", this->c.size());
 
