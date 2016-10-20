@@ -1207,7 +1207,7 @@ void print_chain_string(std::string const & filename,
 //
 //}
 
-void print_compressed_chains(std::string const & filename,
+size_t print_compressed_chains(std::string const & filename,
                              ::std::vector<::std::string> const & compressed_chain,
                               mxx::comm const & comm) {
 
@@ -1217,6 +1217,7 @@ void print_compressed_chains(std::string const & filename,
   BL_BENCH_INIT(print_compressed_chain);
 
   if (comm.rank() == 0) printf("PRINT COMPRESSED CHAIN String\n");
+  size_t pernode = 0;
 
   int has_data = (compressed_chain.size() == 0) ? 0 : 1;
   int all_has_data = mxx::allreduce(has_data, comm);
@@ -1230,13 +1231,15 @@ void print_compressed_chains(std::string const & filename,
         ss << x << std::endl;
       });
 
+      pernode = ss.str().length();
       write_mpiio(filename, ss.str().c_str(), ss.str().length(), subcomm);
     }
-    BL_BENCH_COLLECTIVE_END(print_compressed_chain, "print", compressed_chain.size(), comm);   // this is for constructing the chains
+    BL_BENCH_COLLECTIVE_END(print_compressed_chain, "print", pernode, comm);   // this is for constructing the chains
   }
 
   BL_BENCH_REPORT_MPI_NAMED(print_compressed_chain, "print compressed", comm);
 
+  return pernode;
 }
 
 void print_chain_nodes(std::string const & filename,
@@ -1838,11 +1841,9 @@ int main(int argc, char** argv) {
 		::std::vector<::std::string> compressed_chain = chainmap.to_compressed_chains();
 		BL_BENCH_COLLECTIVE_END(app, "compress_chains", compressed_chain.size(), comm);
 
-		if (!benchmark) {
-			BL_BENCH_START(app);
-			print_compressed_chains(compressed_chain_filename, compressed_chain, comm);
-			BL_BENCH_COLLECTIVE_END(app, "print_compress_chains", compressed_chain.size(), comm);
-		}
+    BL_BENCH_START(app);
+    size_t out_size = print_compressed_chains(compressed_chain_filename, compressed_chain, comm);
+    BL_BENCH_COLLECTIVE_END(app, "print_compress_chains", out_size, comm);
 	}
 
 	// =============================================================
