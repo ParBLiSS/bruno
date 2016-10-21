@@ -2192,7 +2192,10 @@ namespace dsc  // distributed std container
 
         BL_BENCH_START(insert);
         // local compute part.  called by the communicator.
-        this->c.resize(input.size() / 2);
+        //this->c.resize(input.size() / 2);
+        if (this->comm.rank() == 0)
+        std::cout << "rank " << this->comm.rank() <<
+          " BEFORE input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
 
         size_t count = 0;
         if (!::std::is_same<Predicate, ::bliss::filter::TruePredicate>::value)
@@ -2200,10 +2203,11 @@ namespace dsc  // distributed std container
         else
           count = this->Base::local_insert(input);
 
-//        std::cout << "rank " << this->comm.rank() <<
-//          " input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
+        if (this->comm.rank() == 0)
+        std::cout << "rank " << this->comm.rank() <<
+          " AFTER input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
 
-        this->c.resize(0);
+        //this->c.resize(0);
 //        std::cout << "rank " << this->comm.rank() <<
 //          " input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
 
@@ -2864,7 +2868,10 @@ namespace dsc  // distributed std container
 
         // local compute part.  called by the communicator.
         BL_BENCH_START(insert);
-        this->c.resize(input.size() / 2);
+//        this->c.resize(input.size() / 2);
+        if (this->comm.rank() == 0)
+        std::cout << "rank " << this->comm.rank() <<
+          " BEFORE input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
 
         size_t count = 0;
         if (!::std::is_same<Predicate, ::bliss::filter::TruePredicate>::value)
@@ -2872,10 +2879,11 @@ namespace dsc  // distributed std container
         else
           count = this->local_insert(input.begin(), input.end());
 
-//        std::cout << "rank " << this->comm.rank() <<
-//          " input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
+        if (this->comm.rank() == 0)
+        std::cout << "rank " << this->comm.rank() <<
+          " AFTER input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
 
-        this->c.resize(0);
+//        this->c.resize(0);
 
 //        std::cout << "rank " << this->comm.rank() <<
 //          " input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
@@ -3119,7 +3127,10 @@ namespace dsc  // distributed std container
 
           BL_BENCH_START(insert);
           // preallocate.  easy way out - estimate to be 1/2 of input.  then at the end, resize if significantly less.
-          this->c.resize(input.size() / 2);
+          //this->c.resize(input.size() / 2);
+          if (this->comm.rank() == 0)
+          std::cout << "rank " << this->comm.rank() <<
+            " BEFORE input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
 
           // then insert all the rest,
           auto local_start = ::bliss::iterator::make_transform_iterator(input.begin(), trans);
@@ -3130,11 +3141,12 @@ namespace dsc  // distributed std container
           else
             count += this->Base::local_insert(local_start, local_end);
 
-//          std::cout << "rank " << this->comm.rank() <<
-//            " input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
+          if (this->comm.rank() == 0)
+          std::cout << "rank " << this->comm.rank() <<
+            " AFTER input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
 
           // resize further.
-          this->c.resize(0);
+          //this->c.resize(0);
 
 //          std::cout << "rank " << this->comm.rank() <<
 //            " input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
@@ -3278,7 +3290,12 @@ namespace dsc  // distributed std container
 
           BL_BENCH_START(insert);
           // preallocate.  easy way out - estimate to be 1/2 of input.  then at the end, resize if significantly less.
-          this->c.resize(input.size() / 2);
+          // this->c.resize(input.size() / 2);
+
+          if (this->comm.rank() == 0)
+          std::cout << "rank " << this->comm.rank() <<
+            " BEFORE input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
+
 
           // then insert all the rest,
           auto local_start = ::bliss::iterator::make_transform_iterator(input.begin(), trans);
@@ -3289,8 +3306,13 @@ namespace dsc  // distributed std container
           else
             count += this->Base::local_insert(local_start, local_end);
 
+          if (this->comm.rank() == 0)
+          std::cout << "rank " << this->comm.rank() <<
+            " AFTER input=" << input.size() << " size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
+
+
           // resize further.
-          this->c.resize(0);
+          // this->c.resize(0);
 
           BL_BENCH_END(insert, "local_insert", this->local_size());
 
