@@ -4,7 +4,7 @@ include("${PROJECT_SOURCE_DIR}/cmake/ExtraWarnings.cmake")
 
 
 
-if (BUILD_EXAMPLE_APPLICATIONS)
+if (BUILD_TEST_APPLICATIONS)
 
 #----------------
 # COMMENTED OUT because the template parameters are not yet updated.
@@ -65,7 +65,11 @@ SET_TARGET_PROPERTIES(compact_debruijn_graph_refactored_fasta
      PROPERTIES COMPILE_FLAGS "-DpDNA=16 -DpPARSER=FASTA")
 target_link_libraries(compact_debruijn_graph_refactored_fasta ${EXTRA_LIBS})
 
+endif(BUILD_TEST_APPLICATIONS)
+
 #benchmarkers
+if (BUILD_EXAMPLE_APPLICATIONS)
+
 
 # 51 added because hipmer uses that
 foreach(k 15 21 31 51 63)

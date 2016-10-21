@@ -72,7 +72,7 @@ namespace graph
 
 	public:
 
-		debruijn_graph(mxx::comm const & _comm) : map(_comm), comm(std::move(_comm.copy())) {};
+		debruijn_graph(mxx::comm const & _comm) : map(_comm), comm(_comm.copy()) {};
 
 		virtual ~debruijn_graph() {};
 

@@ -1733,6 +1733,10 @@ void print_chain_frequencies(std::string const & filename,
 	// convert to tuple.
 	if (comm.rank() == 0) printf("CREATE CHAIN EDGE FREQUENCIES\n");
 
+  auto compact_edgeL = idx2.get_map().get_local_container().find(KmerType());
+  typename CountDBGMapType::local_container_type::iterator compact_edgeR;
+  typename FreqMapType::local_container_type::const_iterator fre;
+
 	BL_BENCH_START(print_chain_freq);
 	bliss::debruijn::lex_less<KmerType> canonical;
 	for (auto x : chain_reps) {
@@ -1762,41 +1766,41 @@ void print_chain_frequencies(std::string const & filename,
 
 		// next print the left and right edges.
 		cL = canonical(L);
-		auto compact_edge = idx2.get_map().get_local_container().find(cL);
-		assert(compact_edge != idx2.get_map().get_local_container().end());
+		compact_edgeL = idx2.get_map().get_local_container().find(cL);
+		assert(compact_edgeL != idx2.get_map().get_local_container().end());
 		if (cL == L) {  // already canonical.  can use in edge directly.
 			// get in edges of L
-			std::get<0>(std::get<2>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
-			std::get<1>(std::get<2>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
-			std::get<2>(std::get<2>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
-			std::get<3>(std::get<2>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
+			std::get<0>(std::get<2>(ef)) = compact_edgeL->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
+			std::get<1>(std::get<2>(ef)) = compact_edgeL->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
+			std::get<2>(std::get<2>(ef)) = compact_edgeL->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
+			std::get<3>(std::get<2>(ef)) = compact_edgeL->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
 		} else {   // not canonical
 			// get out edges of L, then complement each.  (reverse order)
-			std::get<0>(std::get<2>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
-			std::get<1>(std::get<2>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
-			std::get<2>(std::get<2>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
-			std::get<3>(std::get<2>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
+			std::get<0>(std::get<2>(ef)) = compact_edgeL->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
+			std::get<1>(std::get<2>(ef)) = compact_edgeL->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
+			std::get<2>(std::get<2>(ef)) = compact_edgeL->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
+			std::get<3>(std::get<2>(ef)) = compact_edgeL->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
 		}
 
 		cR = canonical(R);
-		compact_edge = R_freq_map.find(cR);  // previously retrieved from remote.
-		assert(compact_edge != R_freq_map.end());
+		compact_edgeR = R_freq_map.find(cR);  // previously retrieved from remote.
+		assert(compact_edgeR != R_freq_map.end());
 		// we now assume R is on same strand as L
 		if (cR == R) {  // already canonical
 			// get out edges of R
-			std::get<0>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
-			std::get<1>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
-			std::get<2>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
-			std::get<3>(std::get<3>(ef)) = compact_edge->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
+			std::get<0>(std::get<3>(ef)) = compact_edgeR->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
+			std::get<1>(std::get<3>(ef)) = compact_edgeR->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
+			std::get<2>(std::get<3>(ef)) = compact_edgeR->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
+			std::get<3>(std::get<3>(ef)) = compact_edgeR->second.get_out_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
 		} else {   // not canonical
 			// get in edges of R, then complement each.  (reverse order)
-			std::get<0>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
-			std::get<1>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
-			std::get<2>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
-			std::get<3>(std::get<3>(ef)) = compact_edge->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
+			std::get<0>(std::get<3>(ef)) = compact_edgeR->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['T']);
+			std::get<1>(std::get<3>(ef)) = compact_edgeR->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['G']);
+			std::get<2>(std::get<3>(ef)) = compact_edgeR->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['C']);
+			std::get<3>(std::get<3>(ef)) = compact_edgeR->second.get_in_edge_frequency(KmerType::KmerAlphabet::FROM_ASCII['A']);
 		}
 
-		auto fre = freq_map.get_local_container().find(cL);
+		fre = freq_map.get_local_container().find(cL);
 		assert(fre != freq_map.get_local_container().end());
 		std::get<0>(std::get<4>(ef)) = (static_cast<float>(std::get<1>(fre->second)) /  static_cast<float>(std::get<0>(fre->second)));
 		std::get<1>(std::get<4>(ef)) = std::get<2>(fre->second);
