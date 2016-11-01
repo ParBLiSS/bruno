@@ -520,7 +520,9 @@ namespace bliss
       		// since after that filtering it is one-to-one for kmers (except for the last k-1 characters),
       		// NOT NECESSARY TO CONSTRUCT THE KMERS EXPLICITLY.
 
-      		return std::make_pair(::std::distance(eolstart, eolend) - window_size + 1,
+      		size_t dist = ::std::distance(eolstart, eolend);
+
+      		return std::make_pair((dist < window_size) ? 0 : (dist - window_size + 1),
       							  (::std::find_if(
       									  read.seq_begin,
 										  read.seq_end,

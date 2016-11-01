@@ -1211,12 +1211,13 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 
 	BL_BENCH_START(valid_print);
 	std::vector<KmerType> kmers;
+
   ::bliss::debruijn::lex_less<KmerType> canonical;
 
 
 	// also get the read's starting positions in the output kmer vector.  first is the length of the sequence, second is whether it contains N or not.
   // true indicate that this is a valid read (without N).
-	std::vector<std::pair<size_t, bool> >  local_offsets;
+	std::vector<std::pair<size_t, bool> >  read_ends;
 
 	using LocalCountMapType = ::dsc::counting_densehash_map<KmerType, size_t,
 			FreqMapParams,
@@ -1226,11 +1227,13 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 	typename LocalCountMapType::local_container_type::const_iterator it;
 
 	std::stringstream ss;
+  std::stringstream ss2;
 
 	kmers.clear();
-	local_offsets.clear();
+	read_ends.clear();
 
 	ss.str(std::string());
+  ss2.str(std::string());
 	BL_BENCH_COLLECTIVE_END(valid_print, "init", fdata.getRange().size(), comm);
 
 	// note that we are not using a split sequence iterator here, or a filtering sequence iterator, sicne we NEED to identify the actual first entry.
@@ -1244,18 +1247,18 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 
 	BL_BENCH_START(valid_print);
 	// get the read lengths
-  ::bliss::io::KmerFileHelper::template parse_file_data_old<::bliss::debruijn::ReadLengthParser<KmerType>, FileParser, SeqIterType>(fdata, local_offsets, comm);
-	// prefix scan to get the offsets
-	for (size_t i = 1; i < local_offsets.size(); ++i) {
-		local_offsets[i].first += local_offsets[i-1].first;
+  ::bliss::io::KmerFileHelper::template parse_file_data_old<::bliss::debruijn::ReadLengthParser<KmerType>, FileParser, SeqIterType>(fdata, read_ends, comm);
+	// inclusive prefix scan to get the offset to the end of the reads.
+	for (size_t i = 1; i < read_ends.size(); ++i) {
+		read_ends[i].first += read_ends[i-1].first;
 	}
 	// global prefix scan.  only for procs that have data.
-//	::mxx::comm subcomm = comm.split(local_offsets.size() > 0);
+//	::mxx::comm subcomm = comm.split(read_ends.size() > 0);
 //	size_t global_offset = 0;
-//	if (local_offsets.size() > 0) {
-//		global_offset = ::mxx::exscan(local_offsets.back(), subcomm);
+//	if (read_ends.size() > 0) {
+//		global_offset = ::mxx::exscan(read_ends.back(), subcomm);
 //	}
-	BL_BENCH_COLLECTIVE_END(valid_print, "read size", local_offsets.size(), comm);
+	BL_BENCH_COLLECTIVE_END(valid_print, "read size", read_ends.size(), comm);
 
 
 	BL_BENCH_START(valid_print);
@@ -1280,7 +1283,7 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 	// get the kmers again - earlier kmer vector is scrambled by idx.count.  doing this instead of saving another copy because of space constraints.
 	kmers.clear();
   ::bliss::io::KmerFileHelper::template parse_file_data<::bliss::index::kmer::KmerParser<KmerType>, FileParser, SeqIterType>(fdata, kmers, comm);
-	std::transform(kmers.begin(), kmers.end(), kmers.begin(), canonical);
+	//std::transform(kmers.begin(), kmers.end(), kmers.begin(), canonical);
 	BL_BENCH_COLLECTIVE_END(valid_print, "reparse", kmers.size(), comm);
 
 
@@ -1288,20 +1291,34 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 	// linear scan to output the valid positions
 	int64_t rstart = 0;
 	int64_t rend, vstart, vend;
-	for (size_t i = 0; i < local_offsets.size(); ++i) {
-		rend = static_cast<int64_t>(local_offsets[i].first);
+	size_t len = 0;
+
+	// exclusive prefix scan to get correct read id.
+	size_t prev_i = read_ends.size();
+//	if (comm.rank() == comm.size() - 1) {
+//	  std::cerr << "rank " << comm.rank() << " size " << prev_i << " -> ";
+//	}
+	prev_i = mxx::exscan(prev_i, comm);
+//  if (comm.rank() == comm.size() - 1) {
+//    std::cerr << " exscan " << prev_i << std::endl;
+//  }
+
+	for (size_t i = 0; i < read_ends.size(); ++i) {
+		rend = static_cast<int64_t>(read_ends[i].first);
 
 		vstart = -1;
 		vend = -1;
+		len = (i == 0 ? read_ends[i].first : read_ends[i].first - read_ends[i-1].first);
+		ss2 << "read " << (i+1+prev_i) << " local endpos " << read_ends[i].first << " len " << len << std::flush;
 
-		if (local_offsets[i].second == true) {  // only compute if there is no N.
 
 		//std::cout << "global offset " << global_offset << " local offsets : " << rstart << " - " << rend << std::endl;
+    if ((read_ends[i].second == true) && (len > 0)) {  // only compute if there is no N.
 
       for (int64_t j = rstart; j < rend; ++j) {
 
 
-        it = counter.find(kmers[j]);
+        it = counter.find(canonical(kmers[j]));
 
         if (it != counter.end()) {
   //				std::cout << "rank " << comm.rank() << " pos " << j << " rstart " << rstart <<
@@ -1312,14 +1329,18 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
           if ((*it).second > 0) {
             //print the first pos.
             vstart = j - rstart;
+            ss2 << " local rstart: " << rstart << " pos " << vstart <<
+                " " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) <<
+                " " << bliss::utils::KmerUtils::toASCIIString((*it).first) << std::flush;
             break;
           }
         }
       }
+      ss2 << " <=> " << std::flush;
 
       if (vstart > -1) {
         for (int64_t j = rend - 1; j >= rstart; --j) {
-          it = counter.find(kmers[j]);
+          it = counter.find(canonical(kmers[j]));
 
           if (it != counter.end()) {
   //					std::cout << "rank " << comm.rank() << " pos " << j << " rstart " << rstart <<
@@ -1328,12 +1349,17 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
   //							" end count " << (*it).second << std::endl;
             if ((*it).second > 0) {
               vend = j - rstart;
+              ss2 << " local rstart: " << rstart << " pos " << vend <<
+                  " " << bliss::utils::KmerUtils::toASCIIString(kmers[j]) <<
+                  " " << bliss::utils::KmerUtils::toASCIIString((*it).first) << std::flush;
               break;
             }
           }
         }
       }
-		}  // only compute start and end if there is no N.
+
+    }  // only compute start and end if there is no N.
+    ss2 << std::endl;
 
 //		// DEBUG
 //		for (int64_t j = rstart; j < rend; ++j) {
@@ -1348,7 +1374,7 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 		// print start and end, and
 		ss << vstart << "\t" << vend << std::endl;
 	}
-	BL_BENCH_COLLECTIVE_END(valid_print, "find start-end", local_offsets.size(), comm);
+	BL_BENCH_COLLECTIVE_END(valid_print, "find start-end", read_ends.size(), comm);
 
 
 	// write out to file
@@ -1357,6 +1383,10 @@ void print_valid_kmer_pos_in_reads(std::string const & filename,
 
 	BL_BENCH_COLLECTIVE_END(valid_print, "print", ss.str().length(), comm);
 
+  BL_BENCH_START(valid_print);
+  write_mpiio(filename + ".debug", ss2.str().c_str(), ss2.str().length(), comm);
+
+  BL_BENCH_COLLECTIVE_END(valid_print, "debug print", ss2.str().length(), comm);
 
 	BL_BENCH_REPORT_MPI_NAMED(valid_print, "read_pos_print", comm);
 
