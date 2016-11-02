@@ -464,7 +464,6 @@ namespace dsc {
 	      return mxx::all2allv(vals, temp, _comm);
 	  }
 
-
   /**
    * @brief       distribute.  speed version.  no guarantee of output ordering, but actually is same.
    * @param[IN/OUT] vals    vals to distribute.  sortedness is NOT kept because of inplace bucketing.
