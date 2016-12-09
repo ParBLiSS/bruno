@@ -1,63 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>bliss-Source@bliss</name>
+	<name>brono-Source@bruno</name>
 	<comment></comment>
 	<projects>
 	</projects>
 	<buildSpec>
+		<buildCommand>
+			<name>de.walware.statet.r.builders.RSupport</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
 	</buildSpec>
 	<natures>
+		<nature>de.walware.statet.base.StatetNature</nature>
+		<nature>de.walware.statet.r.RNature</nature>
 	</natures>
-	<linkedResources>
-		<link>
-			<name>[Subprojects]</name>
-			<type>2</type>
-			<locationURI>virtual:/virtual</locationURI>
-		</link>
-		<link>
-			<name>[Subprojects]/bliss-common</name>
-			<type>2</type>
-			<location>/home/tpan/src/bliss/src/common</location>
-		</link>
-		<link>
-			<name>[Subprojects]/bliss-concurrent</name>
-			<type>2</type>
-			<location>/home/tpan/src/bliss/src/concurrent</location>
-		</link>
-		<link>
-			<name>[Subprojects]/bliss-index</name>
-			<type>2</type>
-			<location>/home/tpan/src/bliss/src/index</location>
-		</link>
-		<link>
-			<name>[Subprojects]/bliss-io</name>
-			<type>2</type>
-			<location>/home/tpan/src/bliss/src/io</location>
-		</link>
-		<link>
-			<name>[Subprojects]/bliss-iterators</name>
-			<type>2</type>
-			<location>/home/tpan/src/bliss/src/iterators</location>
-		</link>
-		<link>
-			<name>[Subprojects]/bliss-partition</name>
-			<type>2</type>
-			<location>/home/tpan/src/bliss/src/partition</location>
-		</link>
-		<link>
-			<name>[Subprojects]/bliss-utils</name>
-			<type>2</type>
-			<location>/home/tpan/src/bliss/src/utils</location>
-		</link>
-		<link>
-			<name>[Subprojects]/bliss_test_apps</name>
-			<type>2</type>
-			<location>/home/tpan/src/bliss/test</location>
-		</link>
-		<link>
-			<name>[Subprojects]/gtest</name>
-			<type>2</type>
-			<location>/home/tpan/src/bliss/ext/gtest</location>
-		</link>
-	</linkedResources>
 </projectDescription>

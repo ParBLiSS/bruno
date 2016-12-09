@@ -1,12 +1,12 @@
-# CMakeLists.txt for the BLISS
+# CMakeLists.txt for the Bruno
 
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 2.8)
 
 
 # project settings
-project(bliss)
-set (bliss_VERSION_MAJOR 0)
-set (bliss_VERSION_MINOR 1)
+project(bruno)
+set (bruno_VERSION_MAJOR 0)
+set (bruno_VERSION_MINOR 1)
 
 INCLUDE(CMakeDependentOption)
 
@@ -14,7 +14,6 @@ INCLUDE(CMakeDependentOption)
 
 ### REQUIRE C++11
 # Initialize CXXFLAGS.
-#add_definitions(-Wall -Wuninitialized -std=c++11 -fPIC)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wuninitialized --std=c++11 -fPIC")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG -funroll-loops")
@@ -22,8 +21,7 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3 -funro
 
 set(EXT_PROJECTS_DIR ${PROJECT_SOURCE_DIR}/ext)
 
-#set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH}) 
-
+#set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 # Compiler-specific C++11 activation.
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Intel")
@@ -628,7 +626,7 @@ set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin CACHE PATH "Output directory 
 
 
 if (ENABLE_TESTING)
-  function(bliss_add_test module_name module_link)
+  function(bruno_add_test module_name module_link)
     # set the name for the test target and executable
     set(test_target_name test-${module_name})
 
@@ -661,11 +659,11 @@ if (ENABLE_TESTING)
     # generate google test XML results, to be parsed by Jenkins
     # additionally to the CTest generated xml, the gtest xml is much more detailed (listing all single tests)
     add_test(NAME ${test_target_name} WORKING_DIRECTORY ${TEST_BINARY_OUTPUT_DIR} COMMAND ${test_target_name} ARGS "--gtest_output=xml:${TEST_XML_OUTPUT_DIR}/gtest/${test_target_name}.xml")
-  endfunction(bliss_add_test)
+  endfunction(bruno_add_test)
 
 if (BL_BENCHMARK)
 
-  function(bliss_add_benchmark module_name module_link)
+  function(bruno_add_benchmark module_name module_link)
     # set the name for the test target and executable
     set(test_target_name benchmark-${module_name})
     # add all give files
@@ -702,13 +700,13 @@ if (BL_BENCHMARK)
     # generate google test XML results, to be parsed by Jenkins
     # additionally to the CTest generated xml, the gtest xml is much more detailed (listing all single tests)
     add_test(NAME ${test_target_name} WORKING_DIRECTORY ${TEST_BINARY_OUTPUT_DIR} COMMAND ${test_target_name} ARGS "--gtest_output=xml:${TEST_XML_OUTPUT_DIR}/gtest/${test_target_name}.xml")
-  endfunction(bliss_add_benchmark)
+  endfunction(bruno_add_benchmark)
 
 endif(BL_BENCHMARK)
 
 
 
-  function(bliss_add_mpi_test module_name module_link)
+  function(bruno_add_mpi_test module_name module_link)
       message(STATUS "adding gtest mpi tests ${module_name} with files ${ARGN}") 
 
     # set the name for the test target and executable
@@ -767,9 +765,9 @@ endif(BL_BENCHMARK)
 #      add_test(NAME ${test_target_name}_7 WORKING_DIRECTORY ${TEST_BINARY_OUTPUT_DIR} COMMAND mpirun ${mpi_params_7}  )
 #      add_test(NAME ${test_target_name}_8 WORKING_DIRECTORY ${TEST_BINARY_OUTPUT_DIR} COMMAND mpirun ${mpi_params_8}  )
     endforeach()
-  endfunction(bliss_add_mpi_test)
+  endfunction(bruno_add_mpi_test)
 
-  function(bliss_add_non_google_test module_names module_link)
+  function(bruno_add_non_google_test module_names module_link)
         message(STATUS "adding non google test ${module_names} with files ${ARGN}") 
 
       foreach(f ${ARGN})
@@ -804,9 +802,9 @@ endif(BL_BENCHMARK)
         add_test(NAME ${test_target_name} WORKING_DIRECTORY ${TEST_BINARY_OUTPUT_DIR} COMMAND ${test_target_name})
       endforeach(f)
   
-  endfunction(bliss_add_non_google_test)
+  endfunction(bruno_add_non_google_test)
 
-    function(bliss_add_metaprog_test module_names module_link filename)
+    function(bruno_add_metaprog_test module_names module_link filename)
       get_filename_component(test_name ${filename} NAME_WE)
       
       message(STATUS "adding metaprog gtest ${test_name} for file ${filename} and definitions ${ARGN}") 
@@ -844,9 +842,8 @@ endif(BL_BENCHMARK)
         add_test(NAME ${test_target_name} WORKING_DIRECTORY ${TEST_BINARY_OUTPUT_DIR} COMMAND ${test_target_name})
       endforeach(metadef)
   
-  endfunction(bliss_add_metaprog_test)
+  endfunction(bruno_add_metaprog_test)
   
-
 
 endif (ENABLE_TESTING)
 
@@ -870,12 +867,13 @@ configure_file(
 include_directories("${CMAKE_BINARY_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/src")
 # this below gets the smhasher (murmur hash)
-include_directories("${EXT_PROJECTS_DIR}")
-include_directories("${EXT_PROJECTS_DIR}/Nadeau")
-include_directories("${EXT_PROJECTS_DIR}/mxx/include")
-include_directories("${EXT_PROJECTS_DIR}/mxx/ext")
-include_directories("${EXT_PROJECTS_DIR}/tclap-1.2.1/include")
-include_directories("${EXT_PROJECTS_DIR}/sparsehash/src")
+include_directories("${EXT_PROJECTS_DIR}/kmerind/src")
+include_directories("${EXT_PROJECTS_DIR}/kmerind/ext/Nadeau")
+include_directories("${EXT_PROJECTS_DIR}/kmerind/ext/mxx/include")
+include_directories("${EXT_PROJECTS_DIR}/kmerind/ext/mxx/ext")
+include_directories("${EXT_PROJECTS_DIR}/kmerind/ext/tclap-1.2.1/include")
+
+include_directories("${EXT_PROJECTS_DIR}/kmerind/ext/sparsehash-c11")
 
 
 
@@ -885,22 +883,8 @@ include_directories("${EXT_PROJECTS_DIR}/sparsehash/src")
 #SET( CMAKE_STATIC_LINKER_FLAGS  "${CMAKE_STATIC_LINKER_FLAGS} -lrt" )
 #SET( CMAKE_SHARED_LINKER_FLAGS  "${CMAKE_SHARED_LINKER_FLAGS} -lrt" )
 
-
-add_subdirectory(src/utils)
-if (LOG_ENGINE STREQUAL "BOOST_TRIVIAL" OR
-                LOG_ENGINE STREQUAL "BOOST_CUSTOM")
-	set(EXTRA_LIBS ${EXTRA_LIBS} bliss-utils)
-endif()
-
-add_subdirectory(src/containers)
-add_subdirectory(src/partition)
-add_subdirectory(src/common)
-add_subdirectory(src/iterators)
-add_subdirectory(src/io)
-add_subdirectory(src/index)
 #add_subdirectory(src/debruijn)
 add_subdirectory(test/test)
-add_subdirectory(test/compiler_tests)
 add_subdirectory(test/benchmark)
 add_subdirectory(utils)
 

@@ -10,3 +10,6 @@
 [submodule "ext/tommyds"]
 	path = ext/tommyds
 	url = https://github.com/amadvance/tommyds.git
+[submodule "ext/kmerind"]
+	path = ext/kmerind
+	url = https://github.com/ParBLiSS/kmerind.git
