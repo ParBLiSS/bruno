@@ -356,12 +356,10 @@ namespace bliss {
               query.emplace_back(k1);
             }
 
-            size_t query_size = query.size();
-
             //===== query right and insert into local map.
             // one to one because mxx::bucketing is stable.
             k1mer_counter.exists(query, false).swap(remote_exists);
-            assert(remote_exists.size() == query_size);
+            assert(remote_exists.size() == query.size());
 
             //====== NOW go through k2mers again and modify the biedges based on frequency.
             // we check left and right edges here so that all edges are consistent.
@@ -457,7 +455,6 @@ namespace bliss {
           auto it1 = start, it2 = start;
           K1merType k1;
           NodeType node;
-          size_t query_size;
 
           size_t total0 = 0, total1 = 0, total2 = 0, total3 = 0;
           //size_t before = idx.local_size();
@@ -505,11 +502,10 @@ namespace bliss {
               //===== query right and insert into local map.
               // one to one because mxx::bucketing is stable.
 			  BL_BENCH_LOOP_RESUME(freq_filter_insert_biedges, 2);
-  			  query_size = query.size();
   			  //std::cout << "rank " << comm.rank() << " query size " << query_size << " i " << i << std::endl;
-  			  assert((query_size == 0) || (query_size == i + 1));
+  			  assert((query.size() == 0) || (query.size() == i + 1));
   			  k1mer_counter.exists(query, false).swap(remote_exists);
-              assert(remote_exists.size() == query_size);
+              assert(remote_exists.size() == query.size());
 			  total2 += remote_exists.size();
 			  BL_BENCH_LOOP_PAUSE(freq_filter_insert_biedges, 2);
 

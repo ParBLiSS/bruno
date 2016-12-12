@@ -565,8 +565,8 @@ if (ENABLE_TESTING)
   # include/load the Google Test framework
 #  set_property(DIRECTORY ${EXT_PROJECTS_DIR}/gtest APPEND PROPERTY CMAKE_CXX_FLAGS -fPIC)
 #  set_property(DIRECTORY ${EXT_PROJECTS_DIR}/gtest APPEND PROPERTY CMAKE_C_FLAGS -fPIC)
-  add_subdirectory(${EXT_PROJECTS_DIR}/gtest)
-  include_directories(${EXT_PROJECTS_DIR}/gtest/include)
+  add_subdirectory(${EXT_PROJECTS_DIR}/kmerind/ext/gtest)
+  include_directories(${EXT_PROJECTS_DIR}/kmerind/ext/gtest/include)
 
   # enable the CMAKE testing framework
   enable_testing()
@@ -851,13 +851,13 @@ endif (ENABLE_TESTING)
 
 # configure a header file to pass some of the CMake settings to the source code
 configure_file(
-    "${PROJECT_SOURCE_DIR}/src/config/config.hpp.in"
-    "${CMAKE_BINARY_DIR}/${PROJECT_NAME}-config.hpp"
+    "${PROJECT_SOURCE_DIR}/ext/kmerind/src/config/config.hpp.in"
+    "${CMAKE_BINARY_DIR}/bliss-config.hpp"
     @ONLY
     )
 configure_file(
-    "${PROJECT_SOURCE_DIR}/src/config/logger_config.hpp.in"
-    "${CMAKE_BINARY_DIR}/${PROJECT_NAME}-logger_config.hpp"
+    "${PROJECT_SOURCE_DIR}/ext/kmerind/src/config/logger_config.hpp.in"
+    "${CMAKE_BINARY_DIR}/bliss-logger_config.hpp"
     @ONLY
     )
 
@@ -868,6 +868,7 @@ include_directories("${CMAKE_BINARY_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/src")
 # this below gets the smhasher (murmur hash)
 include_directories("${EXT_PROJECTS_DIR}/kmerind/src")
+include_directories("${EXT_PROJECTS_DIR}/kmerind/ext")
 include_directories("${EXT_PROJECTS_DIR}/kmerind/ext/Nadeau")
 include_directories("${EXT_PROJECTS_DIR}/kmerind/ext/mxx/include")
 include_directories("${EXT_PROJECTS_DIR}/kmerind/ext/mxx/ext")

@@ -6,24 +6,6 @@ include("${PROJECT_SOURCE_DIR}/cmake/ExtraWarnings.cmake")
 
 if (BUILD_TEST_APPLICATIONS)
 
-#----------------
-# COMMENTED OUT because the template parameters are not yet updated.
-# also BenchmarkKmerIndex is serving the same purpose.
-#add_executable(testKmerIndex_ST2 TestKmerIndexAndQuerySingleThread_DistMap.cpp)
-#target_link_libraries(testKmerIndex_ST2 ${EXTRA_LIBS})
-
-#add_executable(testKmerIndex_read TestKmerIndex_ParseOnly.cpp)
-#target_link_libraries(testKmerIndex_read ${EXTRA_LIBS})
-
-#add_executable(testKmerIndex_read_fasta TestKmerIndex_FASTAParseOnly.cpp)
-#target_link_libraries(testKmerIndex_read_fasta ${EXTRA_LIBS})
-#-----------------
-
-#add_executable(test_de_bruijn_graph_DNA4 test_de_bruijn_graph_construction.cpp)
-#SET_TARGET_PROPERTIES(test_de_bruijn_graph_DNA4
-#     PROPERTIES COMPILE_FLAGS "-DpDNA=4")
-#target_link_libraries(test_de_bruijn_graph_DNA4 ${EXTRA_LIBS})
-
 add_executable(test_de_bruijn_graph_DNA5 test_de_bruijn_graph_construction.cpp)
 SET_TARGET_PROPERTIES(test_de_bruijn_graph_DNA5
      PROPERTIES COMPILE_FLAGS "-DpDNA=5")
@@ -103,11 +85,6 @@ target_link_libraries(compact_debruijn_graph_fasta_A4_K${k}_minmem ${EXTRA_LIBS}
 
 endforeach(k)
 
-
-
-
-add_executable(test_get_file_size test_get_file_size.cpp)
-target_link_libraries(test_get_file_size ${EXTRA_LIBS})
 
 endif(BUILD_EXAMPLE_APPLICATIONS)
 
