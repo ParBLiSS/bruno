@@ -104,9 +104,9 @@ using Alphabet = bliss::common::DNA;
 
 
 #if defined(pK)
-using KmerType = bliss::common::Kmer<pK, Alphabet, uint8_t>;
+using KmerType = bliss::common::Kmer<pK, Alphabet, uint16_t>;
 #else
-using KmerType = bliss::common::Kmer<31, Alphabet, uint8_t>;
+using KmerType = bliss::common::Kmer<31, Alphabet, uint16_t>;
 #endif
 
 
