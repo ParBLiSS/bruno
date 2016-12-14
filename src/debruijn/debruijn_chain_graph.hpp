@@ -1222,7 +1222,7 @@ namespace graph
 
 		   using chain_vec = std::vector<::bliss::debruijn::chain::listranked_chain_node<KmerType> >;
 		   chain_vec compacted_chain;
-		   compacted_chain.reserve(map.size());
+		   compacted_chain.reserve(map.local_size());
 		   ::fsc::back_emplace_iterator<chain_vec > back_emplacer(compacted_chain);
 
 			//== first transform nodes so that we are pointing to canonical terminus k-mers.
