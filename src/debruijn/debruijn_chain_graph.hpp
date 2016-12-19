@@ -1249,19 +1249,23 @@ namespace graph
 	    	 return std::vector<::std::string>();
 	     }
 
+
 	     if (comm.size() > 1) {
 			// reshuffle data
 			BL_BENCH_START(compress_chain);
 			::bliss::debruijn::operation::chain::chain_node_to_proc<::bliss::debruijn::CanonicalDeBruijnHashMapParams, KmerType> mapper(comm.size());
 			// distribute the data
 
-			std::vector<size_t> recv_counts	=
-					::dsc::assign_and_bucket(compacted_chains, mapper, this->comm.size());
-			BL_BENCH_END(compress_chain, "assign and bucket", compacted_chains.size());
-
-			// and distribute the data.
-			BL_BENCH_START(compress_chain);
-			::dsc::distribute_bucketed(compacted_chains, recv_counts, this->comm).swap(compacted_chains);
+			std::vector<size_t> recv_counts;
+      std::vector<::bliss::debruijn::chain::listranked_chain_node<KmerType> > distributed_chains;
+//					::dsc::assign_and_bucket(compacted_chains, mapper, this->comm.size());
+//			BL_BENCH_END(compress_chain, "assign and bucket", compacted_chains.size());
+//
+//			// and distribute the data.
+//			BL_BENCH_START(compress_chain);
+//			::dsc::distribute_bucketed(compacted_chains, recv_counts, this->comm).swap(compacted_chains);
+			::imxx::distribute(compacted_chains, mapper, recv_counts, distributed_chains, comm);
+      distributed_chains.swap(compacted_chains);
 			BL_BENCH_COLLECTIVE_END(compress_chain, "distribute nodes", compacted_chains.size(), comm);  // this is for output ordering.
 	     }
 

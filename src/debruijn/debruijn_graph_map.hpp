@@ -239,10 +239,13 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		// communication part
 		if (this->comm.size() > 1) {
 			BL_BENCH_START(insert);
-			::std::vector<size_t> recv_counts =
-					::dsc::distribute(input, this->key_to_rank, sorted_input, this->comm);
-			BLISS_UNUSED(recv_counts);
-			BL_BENCH_END(insert, "dist_data", input.size());
+
+			::std::vector<size_t> recv_counts;
+	    std::vector<InputElemType > output;
+
+			::imxx::distribute(input, this->key_to_rank, recv_counts, output, this->comm);
+      output.swap(input);
+			BL_BENCH_END(insert, "dist_data", output.size());
 		}
 
 		BL_BENCH_START(insert);
