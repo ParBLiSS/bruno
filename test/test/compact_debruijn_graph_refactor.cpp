@@ -1928,6 +1928,8 @@ int main(int argc, char** argv) {
 	bool thresholding = false;
 	bool benchmark = false;
 	bool LRoptimized = false;
+	bool compress = false;
+
 
 	//  std::string queryname(filename);
 	//  int sample_ratio = 100;
@@ -1966,6 +1968,8 @@ int main(int argc, char** argv) {
 		//    TCLAP::ValueArg<std::string> fileArg("F", "file", "FASTQ file path", false, filename, "string", cmd);
 		TCLAP::UnlabeledMultiArg<std::string> fileArg("filenames", "FASTA or FASTQ file names", false, "string", cmd);
 
+    TCLAP::SwitchArg compressArg("C", "in mem compressed", "on/off for in mem compressed chains", cmd, false);
+
 
 		// Parse the argv array.
 		cmd.parse( argc, argv );
@@ -1981,6 +1985,7 @@ int main(int argc, char** argv) {
 		thresholding = threshArg.getValue();
 		benchmark = benchmarkArg.getValue();
 		LRoptimized = lrOptimizeArg.getValue();
+    compress = compressArg.getValue();
 
 
 	} catch (TCLAP::ArgException &e)  // catch any exceptions
@@ -2148,16 +2153,26 @@ int main(int argc, char** argv) {
 	// == DONE == parallel list ranking for chain compaction
 
 	{
-		// === and compress.
-		BL_BENCH_START(app);
-		::std::vector<::std::string> compressed_chain = chainmap.to_compressed_chains();
-		BL_BENCH_COLLECTIVE_END(app, "compress_chains", compressed_chain.size(), comm);
+    // now print chain string - order is destroyed via psort.
+    if (!compress) {
+      // prepare
+      BL_BENCH_START(app);
+      ListRankedChainNodeVecType compacted_chain = chainmap.to_ranked_chain_nodes();
+      BL_BENCH_COLLECTIVE_END(app, "compact_chain", compacted_chain.size(), comm);
 
-		if (!benchmark) {
-			BL_BENCH_START(app);
-			print_compressed_chains(compressed_chain_filename, compressed_chain, comm);
-			BL_BENCH_COLLECTIVE_END(app, "print_compress_chains", compressed_chain.size(), comm);
-		}
+      BL_BENCH_START(app);
+      print_chain_string(compacted_chain_str_filename, compacted_chain, comm);
+      BL_BENCH_COLLECTIVE_END(app, "chain_str", compacted_chain.size(), comm);
+    } else {
+      // === and compress.
+      BL_BENCH_START(app);
+      ::std::vector<::std::string> compressed_chain = chainmap.to_compressed_chains();
+      BL_BENCH_COLLECTIVE_END(app, "compress_chains", compressed_chain.size(), comm);
+
+      BL_BENCH_START(app);
+      size_t out_size = print_compressed_chains(compressed_chain_filename, compressed_chain, comm);
+      BL_BENCH_COLLECTIVE_END(app, "chain_str", out_size, comm);
+    }
 	}
 
 	// =============================================================

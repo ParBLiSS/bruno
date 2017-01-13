@@ -54,10 +54,10 @@ if (BUILD_EXAMPLE_APPLICATIONS)
 
 
 # 51 added because hipmer uses that
-foreach(k 15 21 31 51 63 65)
+foreach(k 21 31 51)
 
 #no DNA5 - fails when searching for matching kmers.
-foreach(dna 4 16)
+foreach(dna 4)
 
 
 add_executable(compact_debruijn_graph_fastq_A${dna}_K${k} compact_debruijn_graph_refactor.cpp)
