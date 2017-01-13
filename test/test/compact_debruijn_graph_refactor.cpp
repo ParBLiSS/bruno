@@ -1518,7 +1518,7 @@ void print_chain_string(std::string const & filename,
 //
 //}
 
-void print_compressed_chains(std::string const & filename,
+size_t print_compressed_chains(std::string const & filename,
                              ::std::vector<::std::string> const & compressed_chain,
                               mxx::comm const & comm) {
 
@@ -1528,6 +1528,7 @@ void print_compressed_chains(std::string const & filename,
   BL_BENCH_INIT(print_compressed_chain);
 
   if (comm.rank() == 0) printf("PRINT COMPRESSED CHAIN String\n");
+  size_t pernode = 0;
 
   int has_data = (compressed_chain.size() == 0) ? 0 : 1;
   int all_has_data = mxx::allreduce(has_data, comm);
@@ -1541,12 +1542,15 @@ void print_compressed_chains(std::string const & filename,
         ss << x << std::endl;
       });
 
+      pernode = ss.str().length();
       write_mpiio(filename, ss.str().c_str(), ss.str().length(), subcomm);
     }
-    BL_BENCH_COLLECTIVE_END(print_compressed_chain, "print", compressed_chain.size(), comm);   // this is for constructing the chains
+    BL_BENCH_COLLECTIVE_END(print_compressed_chain, "print", pernode, comm);   // this is for constructing the chains
   }
 
   BL_BENCH_REPORT_MPI_NAMED(print_compressed_chain, "print compressed", comm);
+
+  return pernode;
 
 }
 
