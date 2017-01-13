@@ -1655,7 +1655,7 @@ int main(int argc, char** argv) {
 
 		TCLAP::SwitchArg lrOptimizeArg("R", "list_rank_opt", "on/off for list ranking optimization", cmd, false);
 
-    TCLAP::SwitchArg compressArg("C", "in mem compressed", "on/off for in mem compressed chains", cmd, false);
+    TCLAP::SwitchArg compressArg("C", "compress", "on/off for in-mem compressed chains", cmd, false);
 
 
 

@@ -1972,7 +1972,7 @@ int main(int argc, char** argv) {
 		//    TCLAP::ValueArg<std::string> fileArg("F", "file", "FASTQ file path", false, filename, "string", cmd);
 		TCLAP::UnlabeledMultiArg<std::string> fileArg("filenames", "FASTA or FASTQ file names", false, "string", cmd);
 
-    TCLAP::SwitchArg compressArg("C", "in mem compressed", "on/off for in mem compressed chains", cmd, false);
+    TCLAP::SwitchArg compressArg("C", "compress", "on/off for in-mem compressed chains", cmd, false);
 
 
 		// Parse the argv array.
