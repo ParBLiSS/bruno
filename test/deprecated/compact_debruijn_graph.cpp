@@ -305,6 +305,8 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
+  std::cout << "compact_debruijn_graph v0.1" << std::endl;
+
   if (filenames.size() == 0) {
 	  filename.assign(PROJ_SRC_DIR);
 

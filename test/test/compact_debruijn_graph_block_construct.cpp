@@ -1643,7 +1643,7 @@ int main(int argc, char** argv) {
 		// delimiter (usually space) and the last one is the version number.
 		// The CmdLine object parses the argv array based on the Arg objects
 		// that it contains.
-		TCLAP::CmdLine cmd("Parallel de bruijn graph compaction", ' ', "0.1");
+		TCLAP::CmdLine cmd("Parallel de bruijn graph compaction", ' ', "0.4");
 
 		// MPI friendly commandline output.
 		::bliss::utils::tclap::MPIOutput cmd_output(comm);
@@ -1695,6 +1695,9 @@ int main(int argc, char** argv) {
 		std::cerr << "error: " << e.error() << " for arg " << e.argId() << std::endl;
 		exit(-1);
 	}
+
+	  std::cout << "compact_debruijn_graph_block_construct v0.4a" << std::endl;
+
 
 //#if (pPARSER == FASTA)
 //    if (thresholding)
