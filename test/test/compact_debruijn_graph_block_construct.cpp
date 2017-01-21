@@ -1696,7 +1696,7 @@ int main(int argc, char** argv) {
 		exit(-1);
 	}
 
-	  std::cout << "compact_debruijn_graph_block_construct v0.4a" << std::endl;
+	if (comm.rank() == 0)  std::cout << "compact_debruijn_graph_block_construct v0.4a" << std::endl;
 
 
 //#if (pPARSER == FASTA)

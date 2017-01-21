@@ -2313,7 +2313,7 @@ int main(int argc, char** argv) {
 		exit(-1);
 	}
 
-	  std::cout << "compact_debruijn_graph_lowmem v0.2" << std::endl;
+	if (comm.rank() == 0) std::cout << "compact_debruijn_graph_lowmem v0.2" << std::endl;
 
 
 #if (pPARSER == FASTA)

@@ -2007,7 +2007,7 @@ int main(int argc, char** argv) {
 		exit(-1);
 	}
 
-	  std::cout << "compact_debruijn_graph_refactored v0.3a" << std::endl;
+	if (comm.rank() == 0)  std::cout << "compact_debruijn_graph_refactored v0.3a" << std::endl;
 
 
 //#if (pPARSER == FASTA)
