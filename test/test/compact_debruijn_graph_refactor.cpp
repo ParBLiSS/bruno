@@ -267,7 +267,7 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 	MPI_File_close(&fh);
 }
 
-::std::vector<::bliss::io::file_data> open_files(std::vector<std::string> const & filenames, mxx::comm const & comm) {
+::std::vector<::bliss::io::file_data> open_files(std::vector<std::string> const & filenames, mxx::comm const & comm, bool mpiio = false) {
 	::std::vector<::bliss::io::file_data> file_data;
 
 	BL_BENCH_INIT(open);
@@ -277,10 +277,17 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 	for (auto fn : filenames) {
 		if (comm.rank() == 0) printf("READING %s via posix\n", fn.c_str());
 
-		FileReaderType fobj(fn, KmerType::size + 1, comm);
+    if (mpiio) {
+      ::bliss::io::parallel::mpiio_file<FileParser> fobj(fn, KmerType::size + 1, comm);
 
-		file_data.push_back(fobj.read_file());
-		total += file_data.back().getRange().size();
+      file_data.push_back(fobj.read_file());
+    } else {
+      FileReaderType fobj(fn, KmerType::size + 1, comm);
+
+      file_data.push_back(fobj.read_file());
+    }
+
+    total += file_data.back().getRange().size();
 	}
 	BL_BENCH_COLLECTIVE_END(open, "read", total, comm);
 
@@ -1933,6 +1940,7 @@ int main(int argc, char** argv) {
 	bool benchmark = false;
 	bool LRoptimized = false;
 	bool compress = false;
+	bool mpiio = false;
 
 
 	//  std::string queryname(filename);
@@ -1974,6 +1982,7 @@ int main(int argc, char** argv) {
 
     TCLAP::SwitchArg compressArg("C", "compress", "on/off for in-mem compressed chains", cmd, false);
 
+    TCLAP::SwitchArg mpiioArg("M", "mpiio", "on - use mpiio for input.  off - use posix io", cmd, false);
 
 		// Parse the argv array.
 		cmd.parse( argc, argv );
@@ -1990,7 +1999,7 @@ int main(int argc, char** argv) {
 		benchmark = benchmarkArg.getValue();
 		LRoptimized = lrOptimizeArg.getValue();
     compress = compressArg.getValue();
-
+    mpiio = mpiioArg.getValue();
 
 	} catch (TCLAP::ArgException &e)  // catch any exceptions
 	{
@@ -2057,14 +2066,17 @@ int main(int argc, char** argv) {
   std::string branch_fasta_filename(out_prefix);
   branch_fasta_filename.append("_branch.fasta");
 
-
-	// ================  read and get file
-	::std::vector<::bliss::io::file_data> file_data = open_files(filenames, comm);
-	::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> > selected_edges;
-	// == DONE == reading
-
 	BL_BENCH_INIT(app);
 
+  // ================  read and get file
+  BL_BENCH_START(app);
+  ::std::vector<::bliss::io::file_data> file_data = open_files(filenames, comm, mpiio);
+  BL_BENCH_COLLECTIVE_END(app, "read_file", file_data.size(), comm);
+
+  // == DONE == reading
+
+
+  ::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> > selected_edges;
 	ChainMapType chainmap(comm);
   DBGType idx(comm);
 
