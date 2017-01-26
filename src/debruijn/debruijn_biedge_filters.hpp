@@ -29,6 +29,8 @@
 #include "io/kmer_parser.hpp"
 #include "utils/benchmark_utils.hpp"
 #include "utils/filter_utils.hpp"
+#include "utils/sys_utils.hpp"
+
 #include <mxx/reduction.hpp>
 
 namespace bliss {
@@ -195,7 +197,16 @@ namespace bliss {
         	using Iter = typename ::bliss::iterator::ContainerConcatenatingIterator<SeqIterType, KmerParser>;
 
         	BL_BENCH_START(compute_edge_frequency);
-        	size_t block_size = 10000000;
+
+        	// estimate the largest amount of memory to use.
+        	unsigned long free_mem = ::utils::get_free_mem_per_proc(comm);
+
+        	// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
+        	size_t block_size = (free_mem / (8 * sizeof(typename KmerParser::value_type)));  // number of elements that can be held in freemem
+
+        	if (comm.rank() == 0) std::cout << "estimate num elements=" << block_size << ", value_type size=" <<
+        			sizeof(typename KmerParser::value_type) << " bytes" << std::endl;
+
         	::std::vector<typename KmerParser::value_type> temp2;
         	temp2.reserve(block_size);
         	::fsc::back_emplace_iterator<std::vector<typename KmerParser::value_type> > emplace_iter(temp2);

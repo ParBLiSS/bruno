@@ -90,6 +90,7 @@
 
 #include "tclap/CmdLine.h"
 #include "utils/tclap_utils.hpp"
+#include "utils/sys_utils.hpp"
 
 #include "mxx/env.hpp"
 #include "mxx/comm.hpp"
@@ -346,7 +347,17 @@ void build_index_incremental(::std::vector<::bliss::io::file_data> const & file_
 
 	// TESTING
     BL_BENCH_START(build);
-	size_t block_size = 10000000;
+
+	// estimate the largest amount of memory to use.
+	unsigned long free_mem = ::utils::get_free_mem_per_proc(comm);
+
+	// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
+	size_t block_size = (free_mem / (8 * sizeof(typename KmerParser::value_type)));  // number of elements that can be held in freemem
+
+	if (comm.rank() == 0) std::cout << "estimate num elements=" << block_size << ", value_type size=" <<
+			sizeof(typename KmerParser::value_type) << " bytes" << std::endl;
+
+
 	::std::vector<typename KmerParser::value_type> temp2;
 	 // ::bliss::debruijn::biedge::compact_simple_biedge_kmer_node<KmerType>
 	temp2.reserve(block_size);
@@ -599,7 +610,16 @@ build_index_thresholded_incremental(::std::vector<::bliss::io::file_data> const 
 	//using NodeType = std::pair<KmerType, EdgeType>;
 
 	::std::vector< ::std::vector<EdgeType> > results;  // each inner vector corresponds to one of the data objects.
-	size_t block_size = 10000000;
+
+	// estimate the largest amount of memory to use.
+	unsigned long free_mem = ::utils::get_free_mem_per_proc(comm);
+
+	// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
+	size_t block_size = (free_mem / (8 * sizeof(typename CountMap1Type::key_type)));  // number of elements that can be held in freemem
+
+	if (comm.rank() == 0) std::cout << "estimate num elements=" << block_size << ", value_type size=" <<
+			sizeof(typename CountMap1Type::key_type) << " bytes" << std::endl;
+
 	size_t total0 = 0;
 	size_t total1 = 0;
 	size_t total2 = 0;
@@ -1371,7 +1391,16 @@ void compute_freq_map(ListRankedChainNodeVecType const & compacted_chain,
 	// ==  first compute frequency summary, and store into a reduction map
 	// allocate input
 	std::vector< std::pair<KmerType, FreqSummaryType > > freqs;
-	size_t step = 1000000;
+
+	// estimate the largest amount of memory to use.
+	unsigned long free_mem = ::utils::get_free_mem_per_proc(comm);
+
+	// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
+	size_t step = (free_mem / (8 * sizeof(std::pair<KmerType, FreqSummaryType >)));  // number of elements that can be held in freemem
+
+	if (comm.rank() == 0) std::cout << "estimate num elements=" << step << ", value_type size=" <<
+			sizeof(std::pair<KmerType, FreqSummaryType >) << " bytes" << std::endl;
+
 	freqs.reserve(step);   // do in steps of 1000000
 	size_t nsteps = (compacted_chain.size() + step - 1) / step;
 	nsteps = mxx::allreduce(nsteps, [](size_t const & x, size_t const & y){
