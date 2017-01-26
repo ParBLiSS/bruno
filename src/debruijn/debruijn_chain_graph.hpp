@@ -519,9 +519,19 @@ namespace graph
 				//==  BATCHED version
 				std::vector<std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > > all_neighbors;
 
+				// estimate the largest amount of memory to use.
+				unsigned long free_mem = ::utils::get_free_mem_per_proc(comm);
+
+				// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
+				size_t step = (free_mem / (8 * sizeof(std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > )));  // number of elements that can be held in freemem
+
+				if (comm.rank() == 0) std::cout << "estimate num chain terminal updates=" << step << ", value_type size=" <<
+						sizeof(std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > ) << " bytes" << std::endl;
+
+
 				// 8 possible edges, so split the thing into 8 parts to bound the memory usage to about N.  lower in practice
-				size_t step = idx.size() / this->comm.size() / 8;
-				if (step == 0) step = this->comm.size();
+				//size_t step = idx.size() / this->comm.size() / 8;
+				//if (step == 0) step = this->comm.size();
 				// size_t step = 1000000;
 				all_neighbors.reserve(step);   // do in steps of 1000000
 				size_t nsteps = (idx.local_size() + step - 1) / step;
