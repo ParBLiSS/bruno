@@ -1691,10 +1691,10 @@ void compute_freq_map(ListRankedChainNodeVecType const & compacted_chain,
 
 	// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
 	size_t step = (free_mem / (8 * sizeof(std::pair<KmerType, FreqSummaryType >)));  // number of elements that can be held in freemem
+	step = std::min(step, compacted_chain.size());
 
 	if (comm.rank() == 0) std::cout << "estimate num elements=" << step << ", value_type size=" <<
 			sizeof(std::pair<KmerType, FreqSummaryType >) << " bytes" << std::endl;
-
 
 	freqs.reserve(step);   // do in steps of 1000000
 	size_t nsteps = (compacted_chain.size() + step - 1) / step;
