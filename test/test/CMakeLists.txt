@@ -54,7 +54,7 @@ if (BUILD_EXAMPLE_APPLICATIONS)
 
 
 # 51 added because hipmer uses that
-foreach(k 21 31 51)
+foreach(k 21 31 51 55 63)
 
 #no DNA5 - fails when searching for matching kmers.
 foreach(dna 4)

@@ -521,7 +521,7 @@ namespace graph
 				unsigned long free_mem = ::utils::get_free_mem_per_proc(comm);
 
 				// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
-				size_t step = (free_mem / (8 * sizeof(std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > )));  // number of elements that can be held in freemem
+				size_t step = (free_mem / (16 * sizeof(std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > )));  // number of elements that can be held in freemem
 				step = std::min(step, idx.local_size());
 
 				if (comm.rank() == 0) std::cout << "estimate num chain terminal updates=" << step << ", value_type size=" <<
