@@ -198,10 +198,22 @@ namespace bliss {
 
         	BL_BENCH_START(compute_edge_frequency);
 
+
+//        	// estimate the largest amount of memory to use.
+//        	unsigned long free_mem = ::utils::get_free_mem_per_proc(comm);
+//
+//        	// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
+//        	size_t block_size = (free_mem / (8 * sizeof(typename KmerParser::value_type)));  // number of elements that can be held in freemem
+//
+//        	if (comm.rank() == 0) std::cout << "estimate num elements=" << block_size << ", value_type size=" <<
+//        			sizeof(typename KmerParser::value_type) << " bytes" << std::endl;
+
+
         	::std::vector<typename KmerParser::value_type> temp2;
         	::fsc::back_emplace_iterator<std::vector<typename KmerParser::value_type> > emplace_iter(temp2);
         	// TESTING END;
         	BL_BENCH_END(compute_edge_frequency, "reserve", temp2.capacity());
+
 
         	BL_BENCH_LOOP_START(compute_edge_frequency, 0);  // for init
         	BL_BENCH_LOOP_START(compute_edge_frequency, 1);  // for parse

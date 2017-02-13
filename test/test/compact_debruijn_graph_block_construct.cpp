@@ -348,8 +348,21 @@ void build_index_incremental(::std::vector<::bliss::io::file_data> const & file_
 	// TESTING
     BL_BENCH_START(build);
 
+
+//	// estimate the largest amount of memory to use.
+//	unsigned long free_mem = ::utils::get_free_mem_per_proc(comm);
+//	// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
+//	size_t block_size = (free_mem / (8 * sizeof(typename KmerParser::value_type)));  // number of elements that can be held in freemem
+//
+//	if (comm.rank() == 0) std::cout << "estimate num elements=" << block_size << ", value_type size=" <<
+//			sizeof(typename KmerParser::value_type) << " bytes" << std::endl;
+
+
 	::std::vector<typename KmerParser::value_type> temp2;
 	 // ::bliss::debruijn::biedge::compact_simple_biedge_kmer_node<KmerType>
+
+//	temp2.reserve(block_size);
+
     ::fsc::back_emplace_iterator<std::vector<typename KmerParser::value_type> > emplace_iter(temp2);
     // TESTING END;
     BL_BENCH_END(build, "reserve", temp2.capacity());
@@ -614,14 +627,6 @@ build_index_thresholded_incremental(::std::vector<::bliss::io::file_data> const 
 
 	::std::vector< ::std::vector<EdgeType> > results;  // each inner vector corresponds to one of the data objects.
 
-	// estimate the largest amount of memory to use.
-	unsigned long free_mem = ::utils::get_free_mem_per_proc(comm);
-
-	// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
-	size_t block_size = (free_mem / (8 * sizeof(typename CountMap1Type::key_type)));  // number of elements that can be held in freemem
-
-	if (comm.rank() == 0) std::cout << "estimate num elements=" << block_size << ", value_type size=" <<
-			sizeof(typename CountMap1Type::key_type) << " bytes" << std::endl;
 
 	size_t total0 = 0;
 	size_t total1 = 0;
@@ -654,7 +659,7 @@ build_index_thresholded_incremental(::std::vector<::bliss::io::file_data> const 
     	Iter endd(kmer_parser, seqs_end);
 
     	total0 += x.getRange().size();
-		BL_BENCH_LOOP_PAUSE(build, 0);
+    BL_BENCH_LOOP_PAUSE(build, 0);
 
 
         //== process the chunk of data, and filter insert into index.
@@ -667,6 +672,17 @@ build_index_thresholded_incremental(::std::vector<::bliss::io::file_data> const 
 		BL_BENCH_LOOP_PAUSE(build, 1);
 
 		BL_BENCH_LOOP_RESUME(build, 2);
+	  // estimate the largest amount of memory to use.
+	  unsigned long free_mem = ::utils::get_free_mem_per_proc(comm);
+	  // use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
+	  size_t block_size = (free_mem / (8 * sizeof(typename CountMap1Type::key_type)));  // number of elements that can be held in freemem
+	  block_size = std::min(block_size, x.getRange().size());
+
+	  if (comm.rank() == 0) std::cout << "estimate num elements=" << block_size << ", value_type size=" <<
+	      sizeof(typename CountMap1Type::key_type) << " bytes" << std::endl;
+
+
+
 		// filter and insert
 		total2 += ::bliss::debruijn::biedge::filter::freq_filter_insert_biedges<
 				KmerType, Iter, CountMap1Type, Index,
@@ -1400,7 +1416,7 @@ void compute_freq_map(ListRankedChainNodeVecType const & compacted_chain,
 
 	// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
 	size_t step = (free_mem / (8 * sizeof(std::pair<KmerType, FreqSummaryType >)));  // number of elements that can be held in freemem
-	step = std::min(step, compacted_chain.size());
+  step = std::min(step, compacted_chain.size());
 
 	if (comm.rank() == 0) std::cout << "estimate num elements=" << step << ", value_type size=" <<
 			sizeof(std::pair<KmerType, FreqSummaryType >) << " bytes" << std::endl;

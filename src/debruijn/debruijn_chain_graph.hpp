@@ -522,7 +522,12 @@ namespace graph
 
 				// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
 				size_t step = (free_mem / (8 * sizeof(std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > )));  // number of elements that can be held in freemem
+<<<<<<< Updated upstream
 				step = std::min(step, idx.local_size());
+||||||| merged common ancestors
+=======
+				step = std::min(step, idx.size() * 8);
+>>>>>>> Stashed changes
 
 				if (comm.rank() == 0) std::cout << "estimate num chain terminal updates=" << step << ", value_type size=" <<
 						sizeof(std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > ) << " bytes" << std::endl;
@@ -959,7 +964,7 @@ namespace graph
 	    * 			this function would be inefficient for recompacting after some change.
 	    *
 	    * 			this is the version that implements optimization 3 below.
-	    * 				for this there are 4 types of edges:
+	    * 				for this there are 5 types of edges:
 	    * 					1. neither edges are finished. so update both sides.  this has work 2 * (N - 2 * 2^iter), excluding half finished nodes and 1 for each edge.
 	    * 						both > 0
 	    * 					2. sending local or non-local terminal to non-terminal.  should always do this.  - this has work 2 * 2^iter and double the number of nodes with 1 side terminal.
@@ -974,6 +979,8 @@ namespace graph
 	    * 						there should be 1 where the left and right distances are equal, or 2 with left and right distances differ by 1.
 	    * 						so in this iteration we will have at most 2 messages.
 	    * 						both sides < 0.  send to both sides (left dist == right dist, or left dist == right dist + 1)  (middle of chain, so not going to be == 0)
+	    *
+	    * 						THIS IS NEVER SATISFIED BECAUSE WE AE WORKING ON UNFINISHED ONLY.
 	    * 					5. both sides 0.  isolated node. do nothing since already done.
 	    *
 	    * 				first 2 types are normal.
@@ -996,7 +1003,12 @@ namespace graph
 			//		2. end node label is propagated to other end via 2^iter nodes in each iteration
 			//		3. time: logarithmic in length of longest chain
 			//		4. work: more complicated as chains drop out - upperbound is longest chain.
-
+			// NOTE:    it takes an extra iteration for an edge to get negative distance after pointer to terminal
+			//      target of terminal edge is + 2^iter away.
+			//      in next iteration, terminal is responsible to negate that edge.
+			//      between [0, 2^iter), distances are 0, updated by nodes [0, 2^(iter-1) ).
+			//      so checking for one side being negative and the total being 2^(iter+1) is not correct.
+			//        the node at 2^(iter) will update terminal, either to 2^(iter+1) if it does not point to other terminal, else a half completed node would send out only, and that'd be okay too.
 			// TODO: modify so that if left and right are not the same distance (shorter distance implies pointing to terminus
 			//       we only send to both ends if left and right are the same distance.
 			//		 we send to the longer end only if the distances are not the same.
@@ -1073,25 +1085,28 @@ namespace graph
 											bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
 
 						} else if ((ldist < 0) && (rdist < 0)) {
-							// type 4
-							if ((ldist == rdist) || (ldist == (rdist - 1))) {
-								// update left
-								updates.emplace_back(std::get<0>(md),
-										update_md(std::get<1>(md),
-													-dist,     // if md.3 <= 0, then finished, so use negative dist.
-												bliss::debruijn::operation::OUT));		// update target (md.0)'s out edge
-								// update right.
-								updates.emplace_back(std::get<1>(md),
-										update_md(std::get<0>(md),
-													-dist,  // if md.3 <= 0, then finished, so use negative dist.
-												bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
+//							// type 4.  because of filter, this would never be called.
+//							if ((ldist == rdist) || (ldist == (rdist - 1))) {
+//								// update left
+//								updates.emplace_back(std::get<0>(md),
+//										update_md(std::get<1>(md),
+//													-dist,     // if md.3 <= 0, then finished, so use negative dist.
+//												bliss::debruijn::operation::OUT));		// update target (md.0)'s out edge
+//								// update right.
+//								updates.emplace_back(std::get<1>(md),
+//										update_md(std::get<0>(md),
+//													-dist,  // if md.3 <= 0, then finished, so use negative dist.
+//												bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
+//
+//							}
+              throw std::logic_error("both distances are negative. should be filtered already and not get here");
 
-							}
-						} else if ((ldist == 0) && (rdist == 0)){  // types 5. do nothing
+						} else if ((ldist == 0) && (rdist == 0)){  // types 5. do nothing.  never be called either.
 						} else {  // types 2 and 3.  one of 2 edges points to terminus but not the other.
 							// ((ldist <= 0) && (rdist > 0)) || ((ldist < 0) && (rdist >= 0)) ||
 							// ((ldist > 0) && (rdist <= 0)) || ((ldist >= 0) && (rdist < 0))
 							// handle type 2 here
+						  // should only happen for nodes that are less than 2^iter away from terminal.
 							if (ldist <= 0) {  // and rdist > 0
 								// left is terminus.  send to right then
 								// update right.
@@ -1100,14 +1115,14 @@ namespace graph
 												-dist,  // if md.3 <= 0, then finished, so use negative dist.
 												bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
 
-								// handle type 3 here
+								// handle type 3 here - these are never satistfied.
 								if (dist == (2 << iterations)) { // iter i updates a node at max of 2^(i+1) distance away.
-									// update left
-									updates.emplace_back(std::get<0>(md),
-											update_md(std::get<1>(md),  // this cannot be a terminus
-													dist,     // if md.3 <= 0, then finished, so use negative dist.
-													bliss::debruijn::operation::OUT));		// update target (md.0)'s out edge
-
+//									// update left
+//									updates.emplace_back(std::get<0>(md),
+//											update_md(std::get<1>(md),  // this cannot be a terminus
+//													dist,     // if md.3 <= 0, then finished, so use negative dist.
+//													bliss::debruijn::operation::OUT));		// update target (md.0)'s out edge
+								  throw std::logic_error("total distance at 2^t and trying to update terminal. should not get here");
 								}
 
 							} else {  // ldist > 0 and rdist <= 0
@@ -1119,11 +1134,12 @@ namespace graph
 												bliss::debruijn::operation::OUT));		// update target (md.0)'s out edge
 								// handle type 3 here
 								if (dist == (2 << iterations)) { // iter i updates a node at max of 2^(i+1) distance away.
-									// update right.
-									updates.emplace_back(std::get<1>(md),
-											update_md(std::get<0>(md),
-													dist,  // if md.3 <= 0, then finished, so use negative dist.
-													bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
+//									// update right.
+//									updates.emplace_back(std::get<1>(md),
+//											update_md(std::get<0>(md),
+//													dist,  // if md.3 <= 0, then finished, so use negative dist.
+//													bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
+                  throw std::logic_error("total distance at 2^t and trying to update terminal. should not get here");
 								}
 							}
 						}
