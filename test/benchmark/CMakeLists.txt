@@ -18,5 +18,9 @@ if (Boost_FOUND)
 	target_link_libraries(cust_alloc ${EXTRA_LIBS})
 endif(Boost_FOUND)
 
+add_executable(test_prealloc test_prealloc.cpp) 
+target_link_libraries(test_prealloc ${EXTRA_LIBS})
+
+
 endif(BUILD_EXAMPLE_APPLICATIONS)
 
