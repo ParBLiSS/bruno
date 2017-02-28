@@ -1834,6 +1834,9 @@ int main(int argc, char** argv) {
 //			// TODO: VERIFY FASTA is working. THIS IS WORKING.  FASTA does not support thresholded index build because fasta reader is not yet handling overlaps correctly when dealing with k+2-mers.
 //			if (comm.rank() == 0) printf("ERROR: FASTA files does not yet support pre-filter by frequency.\n");
 //#endif
+
+			::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> >().swap(selected_edges);
+
 		} else {
 			build_index_incremental(file_data, idx, comm);
 		}
@@ -1897,7 +1900,6 @@ int main(int argc, char** argv) {
 	} // enforce delete idx.
 
 	if (benchmark) {
-
 		idx.get_map().clear();
 		idx.get_map().reserve(0);
 	}
