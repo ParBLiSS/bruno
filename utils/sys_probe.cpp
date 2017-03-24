@@ -30,33 +30,35 @@
 #include <sys/stat.h> // for stat
 
 #include "utils/logging.h"
+#include "utils/sys_utils.hpp"
+
 
 int checkNProcs()
 {
   long nprocs = -1;
   long nprocs_max = -1;
 
-  BL_INFOF("Does not yet compute the number of CPUs\n");
+  printf("Does not yet compute the number of CPUs\n");
 
 #ifdef _SC_NPROCESSORS_ONLN
   nprocs = sysconf(_SC_NPROCESSORS_ONLN);
   if (nprocs < 1)
   {
-    BL_INFOF("Could not determine number of Cores online:\n%s\n",
+    printf("Could not determine number of Cores online:\n%s\n",
             strerror(errno));
     return EXIT_FAILURE;
   }
   nprocs_max = sysconf(_SC_NPROCESSORS_CONF);
   if (nprocs_max < 1)
   {
-    BL_INFOF("Could not determine number of Cores configured:\n%s\n",
+    printf("Could not determine number of Cores configured:\n%s\n",
             strerror(errno));
     return EXIT_FAILURE;
   }
-  BL_INFOF("%ld of %ld processors online\n", nprocs, nprocs_max);
+  printf("%ld of %ld processors online\n", nprocs, nprocs_max);
   return EXIT_SUCCESS;
 #else
-  BL_INFOF("Could not determine number of Cores\n");
+  printf("Could not determine number of Cores\n");
   return EXIT_FAILURE;
 #endif
   return 0;
@@ -67,7 +69,7 @@ int checkMainMem()
   long pages = sysconf(_SC_PHYS_PAGES);
   long page_size = sysconf(_SC_PAGE_SIZE);
 
-  BL_INFOF("%ld pages at %ld bytes per page, total %ld bytes\n", pages,
+  printf("%ld pages at %ld bytes per page, total %ld bytes\n", pages,
           page_size, pages * page_size);
 
   USED_BY_LOGGER_ONLY(pages);
@@ -78,19 +80,19 @@ int checkMainMem()
 
 int checkMPIBuffer()
 {
-  BL_INFOF("MPI tests not yet implemented\n");
+  printf("MPI tests not yet implemented\n");
   return 0;
 }
 
 int checkFileSystem()
 {
-  BL_INFOF("%d buffer size\n", BUFSIZ);
+  printf("%d buffer size\n", BUFSIZ);
 
   struct stat fileStat;
   if (stat(".", &fileStat) < 0)
     return EXIT_FAILURE;
 
-  BL_INFOF("on disk file block size: %ld\n", fileStat.st_size);
+  printf("on disk file block size: %ld\n", fileStat.st_size);
 
   return EXIT_SUCCESS;
 }
@@ -115,19 +117,19 @@ void cpu_features()
   eax = 1; // cpu features
 
   cpuid(1, &eax, &ebx, &ecx, &edx);  // get cpu features
-  bool mmx =         (edx & (1 << 23)) != 0;    BL_INFOF("mmx: %s\n", (mmx ? "true" : "false"));                         USED_BY_LOGGER_ONLY(mmx);
-  bool sse =         (edx & (1 << 25)) != 0;    BL_INFOF("sse: %s\n", (sse ? "true" : "false"));                         USED_BY_LOGGER_ONLY(sse);
-  bool sse2 =        (edx & (1 << 26)) != 0;    BL_INFOF("sse2: %s\n", (sse2 ? "true" : "false"));                       USED_BY_LOGGER_ONLY(sse2);
-  bool sse3 =        (ecx & (1)      ) != 0;    BL_INFOF("sse3: %s\n", (sse3 ? "true" : "false"));                       USED_BY_LOGGER_ONLY(sse3);
-  bool ssse3 =       (ecx & (1 << 9) ) != 0;    BL_INFOF("ssse3: %s\n", (ssse3 ? "true" : "false"));                     USED_BY_LOGGER_ONLY(ssse3);
-  bool sse41 =       (ecx & (1 << 19)) != 0;    BL_INFOF("sse41: %s\n", (sse41 ? "true" : "false"));                     USED_BY_LOGGER_ONLY(sse41);
-  bool sse42 =       (ecx & (1 << 20)) != 0;    BL_INFOF("sse42: %s\n", (sse42 ? "true" : "false"));                     USED_BY_LOGGER_ONLY(sse42);
-  bool avx =         (ecx & (1 << 28)) != 0;    BL_INFOF("avx: %s\n", (avx ? "true" : "false"));                         USED_BY_LOGGER_ONLY(avx);
-  bool ia64 =        (edx & (1 << 30)) != 0;    BL_INFOF("ia64: %s\n", (ia64 ? "true" : "false"));                       USED_BY_LOGGER_ONLY(ia64);
-  bool hyperthread = (edx & (1 << 28)) != 0;    BL_INFOF("hyperthread: %s\n", (hyperthread ? "true" : "false"));         USED_BY_LOGGER_ONLY(hyperthread);
-  bool fma =         (ecx & (1 << 12)) != 0;    BL_INFOF("fma: %s\n", (fma ? "true" : "false"));                         USED_BY_LOGGER_ONLY(fma);
-  bool cx16 =        (ecx & (1 << 13)) != 0;    BL_INFOF("cx16: %s\n", (cx16 ? "true" : "false"));                       USED_BY_LOGGER_ONLY(cx16);
-  bool popcnt =      (ecx & (1 << 23)) != 0;    BL_INFOF("popcnt: %s\n", (popcnt ? "true" : "false"));                   USED_BY_LOGGER_ONLY(popcnt);
+  bool mmx =         (edx & (1 << 23)) != 0;    printf("mmx: %s\n", (mmx ? "true" : "false"));                         USED_BY_LOGGER_ONLY(mmx);
+  bool sse =         (edx & (1 << 25)) != 0;    printf("sse: %s\n", (sse ? "true" : "false"));                         USED_BY_LOGGER_ONLY(sse);
+  bool sse2 =        (edx & (1 << 26)) != 0;    printf("sse2: %s\n", (sse2 ? "true" : "false"));                       USED_BY_LOGGER_ONLY(sse2);
+  bool sse3 =        (ecx & (1)      ) != 0;    printf("sse3: %s\n", (sse3 ? "true" : "false"));                       USED_BY_LOGGER_ONLY(sse3);
+  bool ssse3 =       (ecx & (1 << 9) ) != 0;    printf("ssse3: %s\n", (ssse3 ? "true" : "false"));                     USED_BY_LOGGER_ONLY(ssse3);
+  bool sse41 =       (ecx & (1 << 19)) != 0;    printf("sse41: %s\n", (sse41 ? "true" : "false"));                     USED_BY_LOGGER_ONLY(sse41);
+  bool sse42 =       (ecx & (1 << 20)) != 0;    printf("sse42: %s\n", (sse42 ? "true" : "false"));                     USED_BY_LOGGER_ONLY(sse42);
+  bool avx =         (ecx & (1 << 28)) != 0;    printf("avx: %s\n", (avx ? "true" : "false"));                         USED_BY_LOGGER_ONLY(avx);
+  bool ia64 =        (edx & (1 << 30)) != 0;    printf("ia64: %s\n", (ia64 ? "true" : "false"));                       USED_BY_LOGGER_ONLY(ia64);
+  bool hyperthread = (edx & (1 << 28)) != 0;    printf("hyperthread: %s\n", (hyperthread ? "true" : "false"));         USED_BY_LOGGER_ONLY(hyperthread);
+  bool fma =         (ecx & (1 << 12)) != 0;    printf("fma: %s\n", (fma ? "true" : "false"));                         USED_BY_LOGGER_ONLY(fma);
+  bool cx16 =        (ecx & (1 << 13)) != 0;    printf("cx16: %s\n", (cx16 ? "true" : "false"));                       USED_BY_LOGGER_ONLY(cx16);
+  bool popcnt =      (ecx & (1 << 23)) != 0;    printf("popcnt: %s\n", (popcnt ? "true" : "false"));                   USED_BY_LOGGER_ONLY(popcnt);
 
 }
 
@@ -192,7 +194,7 @@ void i386_cpuid_caches()
         * cache_physical_line_partitions * cache_coherency_line_size
         * cache_sets;
 
-    BL_INFOF("Cache ID %d:\n"
+    printf("Cache ID %d:\n"
            "- Level: %d\n"
            "- Type: %s\n"
            "- Sets: %d\n"
@@ -232,6 +234,15 @@ int main(int argc, char* argv[])
   checkMPIBuffer();
   cpu_features();
   i386_cpuid_caches();
+
+  auto freemem = utils::get_free_mem();
+  printf("    free mem total:\t%ld\n", freemem);
+
+  auto fm_proc = utils::get_free_mem_per_proc();
+  printf(" free mem per proc:\t%ld\n", fm_proc);
+
+  auto total = utils::get_free_mem_total();
+  printf(" free + cached mem:\t%ld\n", total);
 
   return 0;
 }

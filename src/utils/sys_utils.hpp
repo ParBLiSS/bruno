@@ -27,12 +27,38 @@
 #include <sys/types.h>
 #include <sys/sysinfo.h>
 #include <unistd.h> // for sysconf
+#include <fstream>  //fopen
+#include <string>
 
 #include <mxx/comm.hpp>
 #include <mxx/reduction.hpp>
 
 namespace utils
 {
+
+unsigned long get_free_mem_total() {
+    std::string token;
+    std::ifstream file("/proc/meminfo");
+    unsigned long total = 0;
+    unsigned long mem = 0;
+    int count = 0;
+    while(file >> token) {
+        if((token == "MemFree:") || (token == "Cached:")) {
+            if(file >> mem) {
+                total += mem;
+		++count;
+            } else {
+                throw std::logic_error("failed to parse meminfo");       
+            }
+	}
+	if (count == 2) break;
+	
+        // ignore rest of the line
+       	file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    return total << 10; // nothing found
+}
+
 
 inline unsigned long get_free_mem() {
 	struct sysinfo memInfo;
@@ -47,7 +73,7 @@ inline long get_num_cpus() {
 
 
 inline unsigned long get_free_mem_per_proc(const mxx::comm & comm) {
-	unsigned long free_mem = utils::get_free_mem();
+	unsigned long free_mem = utils::get_free_mem_total();
 	int local_procs = 1;
 	{
 		mxx::comm shared_comm = comm.split_shared();
@@ -67,7 +93,7 @@ inline unsigned long get_free_mem_per_proc(const mxx::comm & comm) {
 }
 
 inline unsigned long get_free_mem_per_proc() {
-	unsigned long free_mem = utils::get_free_mem();
+	unsigned long free_mem = utils::get_free_mem_total();
 	int local_procs = utils::get_num_cpus();
 
 	if (local_procs < 1) throw std::logic_error("evaluated number of local processes on same node to be 0 or less.");
