@@ -401,11 +401,13 @@ else (USE_OPENMP)
 endif (USE_OPENMP)
 
 #### native hardware architecture
-OPTION(USE_SIMD_IF_AVAILABLE "Enable SIMD instructions, if available on hardware. (-march=native)" ON)
+# eventually switch to using Vc's OptimizeForArchitecture.cmake https://github.com/VcDevel/Vc/blob/master/cmake/OptimizeForArchitecture.cmake
+OPTION(USE_SIMD_IF_AVAILABLE "Enable SIMD instructions with -march. (native)" ON)
 if (USE_SIMD_IF_AVAILABLE)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
     
+    # version 0 is for gcc 5.x  1 is gcc 4.?
     if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 	    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fabi-version=0")
 	    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fabi-version=0")    

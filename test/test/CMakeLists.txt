@@ -37,12 +37,12 @@ target_link_libraries(test_de_bruijn_graph_DNA16 ${EXTRA_LIBS})
 #     PROPERTIES COMPILE_FLAGS "-DpDNA=16 -DpPARSER=FASTA")
 #target_link_libraries(compact_debruijn_graph_low_mem_fasta ${EXTRA_LIBS})
 
-add_executable(compact_debruijn_graph_refactored_fastq compact_debruijn_graph_refactor.cpp)
+add_executable(compact_debruijn_graph_refactored_fastq compact_debruijn_graph_block_construct.cpp)
 SET_TARGET_PROPERTIES(compact_debruijn_graph_refactored_fastq
      PROPERTIES COMPILE_FLAGS "-DpDNA=16 -DpPARSER=FASTQ")
 target_link_libraries(compact_debruijn_graph_refactored_fastq ${EXTRA_LIBS})
 
-add_executable(compact_debruijn_graph_refactored_fasta compact_debruijn_graph_refactor.cpp)
+add_executable(compact_debruijn_graph_refactored_fasta compact_debruijn_graph_block_construct.cpp)
 SET_TARGET_PROPERTIES(compact_debruijn_graph_refactored_fasta
      PROPERTIES COMPILE_FLAGS "-DpDNA=16 -DpPARSER=FASTA")
 target_link_libraries(compact_debruijn_graph_refactored_fasta ${EXTRA_LIBS})
@@ -56,31 +56,31 @@ if (BUILD_EXAMPLE_APPLICATIONS)
 # 51 added because hipmer uses that
 foreach(k 21 31 51 55 63)
 
-#no DNA5 - fails when searching for matching kmers.
-foreach(dna 4)
+    #no DNA5 - fails when searching for matching kmers.
+    foreach(dna 4)
 
 
-add_executable(compact_debruijn_graph_fastq_A${dna}_K${k} compact_debruijn_graph_refactor.cpp)
-SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A${dna}_K${k}
-     PROPERTIES COMPILE_FLAGS "-DpDNA=${dna} -DpPARSER=FASTQ -DpK=${k}")
-target_link_libraries(compact_debruijn_graph_fastq_A${dna}_K${k} ${EXTRA_LIBS})
+        add_executable(compact_debruijn_graph_fastq_A${dna}_K${k} compact_debruijn_graph_block_construct.cpp)
+        SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A${dna}_K${k}
+            PROPERTIES COMPILE_FLAGS "-DpDNA=${dna} -DpPARSER=FASTQ -DpK=${k}")
+        target_link_libraries(compact_debruijn_graph_fastq_A${dna}_K${k} ${EXTRA_LIBS})
 
-add_executable(compact_debruijn_graph_fasta_A${dna}_K${k} compact_debruijn_graph_refactor.cpp)
-SET_TARGET_PROPERTIES(compact_debruijn_graph_fasta_A${dna}_K${k}
-     PROPERTIES COMPILE_FLAGS "-DpDNA=${dna} -DpPARSER=FASTA -DpK=${k}")
-target_link_libraries(compact_debruijn_graph_fasta_A${dna}_K${k} ${EXTRA_LIBS})
+        add_executable(compact_debruijn_graph_fasta_A${dna}_K${k} compact_debruijn_graph_block_construct.cpp)
+        SET_TARGET_PROPERTIES(compact_debruijn_graph_fasta_A${dna}_K${k}
+            PROPERTIES COMPILE_FLAGS "-DpDNA=${dna} -DpPARSER=FASTA -DpK=${k}")
+        target_link_libraries(compact_debruijn_graph_fasta_A${dna}_K${k} ${EXTRA_LIBS})
 
-endforeach(dna)
+    endforeach(dna)
 
-add_executable(compact_debruijn_graph_fastq_A4_K${k}_minmem compact_debruijn_graph_block_construct.cpp)
-SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A4_K${k}_minmem
-     PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTQ -DpK=${k}")
-target_link_libraries(compact_debruijn_graph_fastq_A4_K${k}_minmem ${EXTRA_LIBS})
+    add_executable(compact_debruijn_graph_fastq_A4_K${k}_minmem compact_debruijn_graph_block_construct.cpp)
+    SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A4_K${k}_minmem
+        PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTQ -DpK=${k} -DMIN_MEM")
+    target_link_libraries(compact_debruijn_graph_fastq_A4_K${k}_minmem ${EXTRA_LIBS})
 
-add_executable(compact_debruijn_graph_fasta_A4_K${k}_minmem compact_debruijn_graph_block_construct.cpp)
-SET_TARGET_PROPERTIES(compact_debruijn_graph_fasta_A4_K${k}_minmem
-     PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTA -DpK=${k}")
-target_link_libraries(compact_debruijn_graph_fasta_A4_K${k}_minmem ${EXTRA_LIBS})
+    add_executable(compact_debruijn_graph_fasta_A4_K${k}_minmem compact_debruijn_graph_block_construct.cpp)
+    SET_TARGET_PROPERTIES(compact_debruijn_graph_fasta_A4_K${k}_minmem
+        PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTA -DpK=${k} -DMIN_MEM")
+    target_link_libraries(compact_debruijn_graph_fasta_A4_K${k}_minmem ${EXTRA_LIBS})
 
 
 endforeach(k)
