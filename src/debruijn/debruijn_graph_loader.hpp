@@ -30,24 +30,24 @@
 #include <utility>      // pair and utility functions.
 #include <type_traits>
 
-#include "utils/logging.h"
+// #include "utils/logging.h"
 
-#include "common/alphabets.hpp"
-#include "common/sequence.hpp"
+// #include "common/alphabets.hpp"
+// #include "common/sequence.hpp"
 
-#include "utils/kmer_utils.hpp"
+// #include "utils/kmer_utils.hpp"
 
-#include "iterators/transform_iterator.hpp"
-#include "iterators/zip_iterator.hpp"
-#include "iterators/filter_iterator.hpp"
+// #include "iterators/transform_iterator.hpp"
+// #include "iterators/zip_iterator.hpp"
+// #include "iterators/filter_iterator.hpp"
 
 
-#include "io/sequence_iterator.hpp"
-#include "common/kmer_iterators.hpp"
-#include "index/quality_score_iterator.hpp"
-#include "utils/file_utils.hpp"
+// #include "io/sequence_iterator.hpp"
+// #include "common/kmer_iterators.hpp"
+// #include "index/quality_score_iterator.hpp"
+// #include "utils/file_utils.hpp"
 
-#include "utils/benchmark_utils.hpp"
+// #include "utils/benchmark_utils.hpp"
 
 namespace bliss
 {

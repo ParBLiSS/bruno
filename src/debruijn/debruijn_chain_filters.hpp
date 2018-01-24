@@ -26,7 +26,7 @@
 
 #include <vector>
 
-#include "debruijn/debruijn_chain_node.hpp"
+//#include "debruijn/debruijn_chain_node.hpp"
 
 namespace bliss {
   namespace debruijn {

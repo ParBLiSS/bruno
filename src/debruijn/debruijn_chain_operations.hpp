@@ -27,7 +27,7 @@
 #include <tuple>
 #include <utility>
 #include "debruijn/debruijn_chain_node.hpp"
-#include "utils/kmer_utils.hpp"
+//#include "utils/kmer_utils.hpp"
 
 namespace bliss {
   namespace debruijn {

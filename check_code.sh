@@ -1,0 +1,3 @@
+#!/bin/sh
+cppclean --include-path=ext/kmerind/src --include-path=ext/kmerind/ext --include-path=/ext/kmerind/ext/farmhash/src --include-path=ext/kmerind/ext/mxx/include --include-path=ext/kmerind/ext/sparsehash-c11 --include-path=ext/kmerind/ext/tclap-1.2.1/include --include-path=src --include-path=../../builds-linux/bruno src
+cppclean --include-path=ext/kmerind/src --include-path=ext/kmerind/ext --include-path=/ext/kmerind/ext/farmhash/src --include-path=ext/kmerind/ext/mxx/include --include-path=ext/kmerind/ext/sparsehash-c11 --include-path=ext/kmerind/ext/tclap-1.2.1/include --include-path=src --include-path=../../builds-linux/bruno test

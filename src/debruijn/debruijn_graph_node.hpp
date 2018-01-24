@@ -34,11 +34,12 @@
 #include <utility>      // pair and utility functions.
 #include <type_traits>
 
-#include "utils/logging.h"
+// #include "utils/logging.h"
 
-#include "common/alphabets.hpp"
+// #include "common/alphabets.hpp"
 #include "utils/bit_ops.hpp"
 
+#include "common/kmer.hpp"
 #include "debruijn/debruijn_biedge_loader.hpp"
 
 // forward declares

@@ -29,7 +29,7 @@
 
 #include <tuple>        // tuple and utility functions
 
-#include "common/alphabets.hpp"
+//#include "common/alphabets.hpp"
 #include "common/kmer.hpp"
 #include "debruijn/debruijn_graph_node.hpp"
 

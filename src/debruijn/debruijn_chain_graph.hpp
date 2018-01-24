@@ -24,16 +24,16 @@
 #ifndef DEBRUIJN_CHAIN_GRAPH_HPP_
 #define DEBRUIJN_CHAIN_GRAPH_HPP_
 
-#include "index/kmer_index.hpp"
+//#include "index/kmer_index.hpp"
 #include "utils/function_traits.hpp"
 
 #include "iterators/algorithm.hpp"
 
 
 #include "debruijn/debruijn_chain_node.hpp"
-#include "debruijn/debruijn_chain_filters.hpp"
+//#include "debruijn/debruijn_chain_filters.hpp"
+#include "debruijn/debruijn_chain_operations.hpp"
 #include "debruijn/debruijn_graph.hpp"
-
 
 
 namespace bliss

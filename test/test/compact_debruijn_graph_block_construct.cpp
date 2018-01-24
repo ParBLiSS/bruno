@@ -585,9 +585,9 @@ build_index_thresholded_incremental(::std::vector<::bliss::io::file_data> const 
 
 #endif
 
-#include "compact_dbg_io.cpp"
+#include "../common/compact_dbg_io.hpp"
 
-#include "compact_dbg_stats.cpp"
+#include "../common/compact_dbg_stats.hpp"
 
 
 /**

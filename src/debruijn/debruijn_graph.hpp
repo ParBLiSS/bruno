@@ -24,7 +24,7 @@
 #ifndef DEBRUIJN_GRAPH_HPP_
 #define DEBRUIJN_GRAPH_HPP_
 
-#include "index/kmer_index.hpp"
+// #include "index/kmer_index.hpp"
 #include "utils/function_traits.hpp"
 
 #include "debruijn/debruijn_graph_map.hpp"

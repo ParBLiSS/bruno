@@ -27,8 +27,8 @@
 
 #include "bliss-config.hpp"
 
-#include "utils/logging.h"
-#include "utils/transform_utils.hpp"
+// #include "utils/logging.h"
+// #include "utils/transform_utils.hpp"
 
 #include "debruijn/debruijn_biedge_loader.hpp"
 #include "debruijn/debruijn_chain_operations.hpp"
