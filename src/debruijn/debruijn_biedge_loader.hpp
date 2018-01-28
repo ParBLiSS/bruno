@@ -442,10 +442,12 @@ namespace bliss
 
           debruijn_kmer_simple_biedge_parser& operator=(debruijn_kmer_simple_biedge_parser const & other) {
         	  valid_range = other.valid_range;
+            return *this;
           }
 
           debruijn_kmer_simple_biedge_parser& operator=(debruijn_kmer_simple_biedge_parser && other) {
         	  valid_range = std::move(other.valid_range);
+            return *this;
           }
 
 
