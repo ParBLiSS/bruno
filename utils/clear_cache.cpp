@@ -46,7 +46,7 @@
  *
  */
 void clear_cache() {
-  size_t avail = MemUsage::get_usable_mem();
+  size_t avail = ::plog::MemUsage::get_usable_mem();
   size_t rem = avail;
 
   size_t minchunk = 1UL << 24;    // 16MB chunks
