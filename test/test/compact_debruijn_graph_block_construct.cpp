@@ -876,28 +876,28 @@ int main(int argc, char** argv) {
 	BL_BENCH_COLLECTIVE_END(app, "list_rank", iterations, comm);
 	// == DONE == parallel list ranking for chain compaction
 
-	{
+	if (benchmark) {
 
-    // now print chain string - order is destroyed via psort.
-    if (!compress) {
-      // prepare
-      BL_BENCH_START(app);
-      ListRankedChainNodeVecType compacted_chain = chainmap.to_ranked_chain_nodes();
-      BL_BENCH_COLLECTIVE_END(app, "compact_chain", compacted_chain.size(), comm);
+		// now print chain string - order is destroyed via psort.
+		if (!compress) {
+			// prepare
+			BL_BENCH_START(app);
+			ListRankedChainNodeVecType compacted_chain = chainmap.to_ranked_chain_nodes();
+			BL_BENCH_COLLECTIVE_END(app, "compact_chain", compacted_chain.size(), comm);
 
-      BL_BENCH_START(app);
-      print_chain_string(compacted_chain_str_filename, compacted_chain, comm);
-      BL_BENCH_COLLECTIVE_END(app, "chain_str", compacted_chain.size(), comm);
-    } else {
-      // === and compress.
-      BL_BENCH_START(app);
-      ::std::vector<::std::string> compressed_chain = chainmap.to_compressed_chains();
-      BL_BENCH_COLLECTIVE_END(app, "compress_chains", compressed_chain.size(), comm);
+			BL_BENCH_START(app);
+			print_chain_string(compacted_chain_str_filename, compacted_chain, comm);
+			BL_BENCH_COLLECTIVE_END(app, "chain_str", compacted_chain.size(), comm);
+		} else {
+			// === and compress.
+			BL_BENCH_START(app);
+			::std::vector<::std::string> compressed_chain = chainmap.to_compressed_chains();
+			BL_BENCH_COLLECTIVE_END(app, "compress_chains", compressed_chain.size(), comm);
 
-      BL_BENCH_START(app);
-      size_t out_size = print_compressed_chains(compressed_chain_filename, compressed_chain, comm);
-      BL_BENCH_COLLECTIVE_END(app, "chain_str", out_size, comm);
-    }
+			BL_BENCH_START(app);
+			size_t out_size = print_compressed_chains(compressed_chain_filename, compressed_chain, comm);
+			BL_BENCH_COLLECTIVE_END(app, "chain_str", out_size, comm);
+		}
 	}
 
 	// =============================================================

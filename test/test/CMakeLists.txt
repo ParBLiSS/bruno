@@ -47,6 +47,29 @@ SET_TARGET_PROPERTIES(compact_debruijn_graph_refactored_fasta
      PROPERTIES COMPILE_FLAGS "-DpDNA=16 -DpPARSER=FASTA")
 target_link_libraries(compact_debruijn_graph_refactored_fasta ${EXTRA_LIBS})
 
+
+add_executable(compact_debruijn_graph_fastq_A4_K31_freq_incr compact_dbg_countIndex_construct.cpp)
+SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A4_K31_freq_incr
+    PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTQ -DpK=31 -DMIN_MEM")
+target_link_libraries(compact_debruijn_graph_fastq_A4_K31_freq_incr ${EXTRA_LIBS})
+
+add_executable(compact_debruijn_graph_fasta_A4_K31_freq_incr compact_dbg_countIndex_construct.cpp)
+SET_TARGET_PROPERTIES(compact_debruijn_graph_fasta_A4_K31_freq_incr
+    PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTA -DpK=31 -DMIN_MEM")
+target_link_libraries(compact_debruijn_graph_fasta_A4_K31_freq_incr ${EXTRA_LIBS})
+
+add_executable(compact_debruijn_graph_fastq_A4_K31_freq compact_dbg_countIndex_construct.cpp)
+SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A4_K31_freq
+    PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTQ -DpK=31")
+target_link_libraries(compact_debruijn_graph_fastq_A4_K31_freq ${EXTRA_LIBS})
+
+add_executable(compact_debruijn_graph_fasta_A4_K31_freq compact_dbg_countIndex_construct.cpp)
+SET_TARGET_PROPERTIES(compact_debruijn_graph_fasta_A4_K31_freq
+    PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTA -DpK=31")
+target_link_libraries(compact_debruijn_graph_fasta_A4_K31_freq ${EXTRA_LIBS})
+
+
+
 endif(BUILD_TEST_APPLICATIONS)
 
 #benchmarkers

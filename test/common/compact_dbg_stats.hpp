@@ -471,7 +471,7 @@ void count_kmers(::std::vector<::bliss::io::file_data> const & file_data,
 		temp.clear();
 		size_t counter = 0;
 		std::transform(temp1.begin(), temp1.end(), back_emplacer,
-				[&comm, &counter](::bliss::debruijn::biedge::compact_simple_biedge_kmer_node<KmerType> const & y){
+				[&counter](::bliss::debruijn::biedge::compact_simple_biedge_kmer_node<KmerType> const & y){
 //			std::cout << "kmer counting: rank " << comm.rank() << " counter " << counter << " "<< y.first << std::endl;
 			++counter;
 			return y.first;
@@ -514,7 +514,6 @@ void compute_freq_map(ListRankedChainNodeVecType const & compacted_chain,
 	BL_BENCH_COLLECTIVE_END(chain_freq, "reduce_freq", chain_freq_map.local_size(), comm);
 
 	BL_BENCH_REPORT_MPI_NAMED(chain_freq, "chain counts", comm);
-
 }
 
 void compute_freq_map_incremental(ListRankedChainNodeVecType const & compacted_chain,
@@ -573,6 +572,98 @@ mxx::comm const & comm) {
 
 	BL_BENCH_REPORT_MPI_NAMED(chain_freq, "chain freqs", comm);
 }
+
+/// compute frequency of chains.  compacted chain should have same distribution as would be for count index.
+void compute_freq_map(ListRankedChainNodeVecType const & compacted_chain,
+		CountDBGType const & count_idx,
+		FreqMapType & chain_freq_map,
+		mxx::comm const & comm) {
+
+	BL_BENCH_INIT(chain_freq);
+
+	// ==  first compute frequency summary, and store into a reduction map
+	// allocate input
+	std::vector< std::pair<KmerType, FreqSummaryType > > freqs;
+
+	BL_BENCH_START(chain_freq);
+	typename CountDBGType::map_type::mapped_type e;
+	CountType c = 0;
+	// extract frequencies.
+	for (auto x : compacted_chain) {
+		// compute the chain rep
+		c = count_idx.get_map().get_local_container().find(std::get<0>(x))->second.get_self_frequency();
+
+		// new key is the chain rep.
+		freqs.emplace_back(std::get<1>(x), FreqSummaryType(1, c, c, c));
+	}
+	BL_BENCH_COLLECTIVE_END(chain_freq, "get_node_freqs", freqs.size(), comm);
+
+	// create a reduction map
+	BL_BENCH_START(chain_freq);
+	chain_freq_map.insert(freqs);   // collective comm.
+	BL_BENCH_COLLECTIVE_END(chain_freq, "reduce_freq", chain_freq_map.local_size(), comm);
+
+	BL_BENCH_REPORT_MPI_NAMED(chain_freq, "chain counts", comm);
+}
+
+void compute_freq_map_incremental(ListRankedChainNodeVecType const & compacted_chain,
+CountDBGType const & count_idx,
+FreqMapType & chain_freq_map,
+mxx::comm const & comm) {
+
+
+	BL_BENCH_INIT(chain_freq);
+
+	// ==  first compute frequency summary, and store into a reduction map
+	// allocate input
+	std::vector< std::pair<KmerType, FreqSummaryType > > freqs;
+
+	// estimate the largest amount of memory to use.
+	unsigned long free_mem = ::utils::get_free_mem_per_proc(comm);
+
+	// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
+	size_t step = (free_mem / (8 * sizeof(std::pair<KmerType, FreqSummaryType >)));  // number of elements that can be held in freemem
+	step = std::min(step, compacted_chain.size());
+
+	if (comm.rank() == 0) std::cout << "estimate num elements=" << step << ", value_type size=" <<
+			sizeof(std::pair<KmerType, FreqSummaryType >) << " bytes" << std::endl;
+
+	freqs.reserve(step);   // do in steps of 1000000
+	size_t nsteps = (compacted_chain.size() + step - 1) / step;
+	nsteps = mxx::allreduce(nsteps, [](size_t const & x, size_t const & y){
+		return std::max(x, y);
+	}, comm);
+
+	BL_BENCH_START(chain_freq);
+	auto iter = compacted_chain.begin();
+	auto end = compacted_chain.end();
+	CountType c = 0;
+
+	::bliss::debruijn::lex_less<KmerType> canonical;
+
+	for (size_t s = 0; s < nsteps; ++s) {
+
+		freqs.clear();
+
+		// extract frequencies.
+		for (size_t i = 0; (i < step) && (iter != end); ++i, ++iter) {
+			// compute the chain rep
+			c = count_idx.get_map().get_local_container().find(canonical(std::get<0>(*iter)))->second.get_self_frequency();
+
+			// new key is the chain rep.
+			freqs.emplace_back(std::get<1>(*iter), FreqSummaryType(1, c, c, c));
+			//std::cout << "rank " << comm.rank() << " kmer " << std::get<0>(*iter) << " freq " << c << std::endl;
+		}
+
+		// create a reduction map
+		chain_freq_map.insert(freqs);   // collective comm.
+	}
+	BL_BENCH_COLLECTIVE_END(chain_freq, "compute_freq", chain_freq_map.local_size(), comm);
+
+	BL_BENCH_REPORT_MPI_NAMED(chain_freq, "chain freqs", comm);
+}
+
+
 
 
 /// compute frequency of chains.  chain_rep should have same distribution as would be for count index.

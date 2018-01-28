@@ -181,7 +181,7 @@ namespace bliss
            * @brief increments the edge counts.  does not perform flipping.
            * @param exts   input edges, should be at most 1 for in and out.
            */
-          inline void update(EdgeInputType edges)
+          inline void update(EdgeInputType const & edges)
           {
             // take care of out
             uint8_t out = edges.getData()[0] & 0xF;
@@ -193,6 +193,20 @@ namespace bliss
 
             sat_incr(counts[2 * maxEdgeCount]);
           }
+
+          inline void update(EdgeInputType const & edges, CountType const & cnt)
+          {
+            // take care of out
+            uint8_t out = edges.getData()[0] & 0xF;
+            if (FROM_DNA16[out] < maxEdgeCount) sat_add(counts[FROM_DNA16[out]], cnt);
+
+            // take care of in.
+            uint8_t in = edges.getData()[0] >> 4;
+            if (FROM_DNA16[in] < maxEdgeCount) sat_add(counts[FROM_DNA16[in] + maxEdgeCount], cnt);
+
+            sat_add(counts[2 * maxEdgeCount], cnt);
+          }
+
 
 
           inline void merge(compact_multi_biedge const & other) {
@@ -267,6 +281,41 @@ namespace bliss
               }
             }
           }
+
+                    // construct a new kmer from a known edge, if that edge's count is non-zero
+          template <typename Kmer>
+          void get_out_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) const {
+            static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
+                          "kmer and edge should use the same alphabet.");
+            neighbors.clear();
+
+            CountType count;
+            for (unsigned char i = 0; i < maxEdgeCount; ++i) {   // no gap character
+              count = counts[i];
+              if (count > 0) {
+                neighbors.emplace_back(kmer);
+                neighbors.back().nextFromChar(INDEX_TO_CHAR[i]);
+              }
+            }
+          }
+
+          // construct a new kmer from a known edge, if that edge's count is non-zero
+          template <typename Kmer>
+          void get_in_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) const {
+            static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
+                          "kmer and edge should use the same alphabet.");
+            neighbors.clear();
+
+            CountType count;
+            for (unsigned char i = 0; i < maxEdgeCount; ++i) {  // no gap character
+              count = counts[i + maxEdgeCount];
+              if (count > 0) {
+                neighbors.emplace_back(kmer);
+                neighbors.back().nextReverseFromChar(INDEX_TO_CHAR[i]);
+              }
+            }
+          }
+
       };
 
 
@@ -380,7 +429,7 @@ namespace bliss
            * @brief increments the edge counts.  does not perform flipping.
            * @param exts   input edges, should be at most 1 for in and out.
            */
-          inline void update(EdgeInputType edges)
+          inline void update(EdgeInputType const & edges)
           {
             // take care of out
             uint8_t out = edges.getData()[0] & 0xF;
@@ -391,6 +440,19 @@ namespace bliss
             if (FROM_DNA16[in] < maxEdgeCount) sat_incr(counts[FROM_DNA16[in] + maxEdgeCount]);
 
             sat_incr(counts[2 * maxEdgeCount]);
+          }
+
+          inline void update(EdgeInputType const & edges, CountType const & cnt)
+          {
+            // take care of out
+            uint8_t out = edges.getData()[0] & 0xF;
+            if (FROM_DNA16[out] < maxEdgeCount) sat_add(counts[FROM_DNA16[out]], cnt);
+
+            // take care of in.
+            uint8_t in = edges.getData()[0] >> 4;
+            if (FROM_DNA16[in] < maxEdgeCount) sat_add(counts[FROM_DNA16[in] + maxEdgeCount], cnt);
+
+            sat_add(counts[2 * maxEdgeCount], cnt);
           }
 
 
@@ -461,6 +523,39 @@ namespace bliss
               if (count > 0) {
                 neighbors.emplace_back(kmer, count);
                 neighbors.back().first.nextReverseFromChar(INDEX_TO_CHAR[i]);
+              }
+            }
+          }
+          // construct a new kmer from a known edge, if that edge's count is non-zero
+          template <typename Kmer>
+          void get_out_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) const {
+            static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
+                          "kmer and edge should use the same alphabet.");
+            neighbors.clear();
+
+            CountType count;
+            for (unsigned char i = 0; i < maxEdgeCount; ++i) {   // no gap character
+              count = counts[i];
+              if (count > 0) {
+                neighbors.emplace_back(kmer);
+                neighbors.back().nextFromChar(INDEX_TO_CHAR[i]);
+              }
+            }
+          }
+
+          // construct a new kmer from a known edge, if that edge's count is non-zero
+          template <typename Kmer>
+          void get_in_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) const {
+            static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
+                          "kmer and edge should use the same alphabet.");
+            neighbors.clear();
+
+            CountType count;
+            for (unsigned char i = 0; i < maxEdgeCount; ++i) {  // no gap character
+              count = counts[i + maxEdgeCount];
+              if (count > 0) {
+                neighbors.emplace_back(kmer);
+                neighbors.back().nextReverseFromChar(INDEX_TO_CHAR[i]);
               }
             }
           }
@@ -583,7 +678,7 @@ namespace bliss
            * @brief increments the edge counts.  does not perform flipping.
            * @param exts   input edges, should be at most 1 for in and out.
            */
-          inline void update(EdgeInputType edges)
+          inline void update(EdgeInputType const & edges)
           {
             // take care of out
             uint8_t out = edges.getData()[0] & 0xF;
@@ -594,6 +689,19 @@ namespace bliss
             if (FROM_DNA16[in] < maxEdgeCount) sat_incr(counts[FROM_DNA16[in] + maxEdgeCount]);
 
             sat_incr(counts[2 * maxEdgeCount]);
+          }
+
+          inline void update(EdgeInputType const & edges, CountType const & cnt)
+          {
+            // take care of out
+            uint8_t out = edges.getData()[0] & 0xF;
+            if (FROM_DNA16[out] < maxEdgeCount) sat_add(counts[FROM_DNA16[out]], cnt);
+
+            // take care of in.
+            uint8_t in = edges.getData()[0] >> 4;
+            if (FROM_DNA16[in] < maxEdgeCount) sat_add(counts[FROM_DNA16[in] + maxEdgeCount], cnt);
+
+            sat_add(counts[2 * maxEdgeCount], cnt);
           }
 
 
@@ -669,6 +777,39 @@ namespace bliss
               }
             }
           }
+          // construct a new kmer from a known edge, if that edge's count is non-zero
+          template <typename Kmer>
+          void get_out_neighbors(Kmer const & kmer, std::vector<Kmer > & neighbors) const {
+            static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
+                          "kmer and edge should use the same alphabet.");
+            neighbors.clear();
+
+            CountType count;
+            for (unsigned char i = 0; i < maxEdgeCount; ++i) {   // no gap character
+              count = counts[i];
+              if (count > 0) {
+                neighbors.emplace_back(kmer);
+                neighbors.back().nextFromChar(INDEX_TO_CHAR[i]);
+              }
+            }
+          }
+
+          // construct a new kmer from a known edge, if that edge's count is non-zero
+          template <typename Kmer>
+          void get_in_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) const {
+            static_assert(std::is_same<typename Kmer::KmerAlphabet, Alphabet>::value,
+                          "kmer and edge should use the same alphabet.");
+            neighbors.clear();
+
+            CountType count;
+            for (unsigned char i = 0; i < maxEdgeCount; ++i) {  // no gap character
+              count = counts[i + maxEdgeCount];
+              if (count > 0) {
+                neighbors.emplace_back(kmer);
+                neighbors.back().nextReverseFromChar(INDEX_TO_CHAR[i]);
+              }
+            }
+          }
       };
 
       template <typename COUNT_TYPE, typename DUMMY>
@@ -721,7 +862,7 @@ namespace bliss
         public:
           using EdgeEncoding = bliss::common::DNA;
           using Alphabet = EdgeEncoding;
-          using CountType = uint8_t;
+          using CountType = bool;
           using EdgeInputType = bliss::debruijn::biedge::compact_simple_biedge;
 
           static constexpr size_t maxEdgeCount = EdgeEncoding::SIZE;
@@ -892,7 +1033,7 @@ namespace bliss
         public:
           using EdgeEncoding = ::bliss::common::DNA6;
           using Alphabet = EdgeEncoding;
-          using CountType = uint8_t;
+          using CountType = bool;
           using EdgeInputType = bliss::debruijn::biedge::compact_simple_biedge;
 
           static constexpr size_t maxEdgeCount = EdgeEncoding::SIZE;
@@ -1045,7 +1186,7 @@ namespace bliss
         public:
           using EdgeEncoding = ::bliss::common::DNA16;
           using Alphabet = EdgeEncoding;
-          using CountType = uint16_t;
+          using CountType = bool;
           using EdgeInputType = bliss::debruijn::biedge::compact_simple_biedge;
 
           static constexpr size_t maxEdgeCount = EdgeEncoding::SIZE;

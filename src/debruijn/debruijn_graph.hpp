@@ -120,10 +120,60 @@ namespace graph
 			if (all_local) {
 				return map.local_insert(nodes.begin(), nodes.end(), pred);
 			} else {
-				return map.insert(nodes, pred);  // includes distribution.
+				return map.insert(nodes, false, pred);  // includes distribution.
 			}
 		}
 
+
+		/// insert kmers with edges.
+		template <typename IT>
+		size_t insert_incremental(IT start, IT endd, 
+				size_t block_size = std::numeric_limits<size_t>::max(),
+				bool is_local = false) {
+			// insert into underlying map
+			static_assert(std::is_convertible<typename ::std::iterator_traits<IT>::value_type, KmerType>::value ||
+					std::is_convertible<typename ::std::iterator_traits<IT>::value_type, ::bliss::debruijn::biedge::compact_simple_biedge_kmer_node<KmerType> >::value,
+					"only support input type of Kmers, or Kmer+biedge pairs");
+
+			// do not local reserve since repeats may be high and the map is a reduction map.
+			//map.local_reserve(node.size());
+			// take the realloc hit.
+
+			bool all_local = mxx::all_of(is_local, comm);
+			if (all_local) {
+				return map.local_insert(start, endd);
+			} else {
+				return map.insert_incremental(start, endd, block_size);  // includes distribution.
+			}
+		}
+
+		/**
+		 * @brief	insert the selected node into index.  predicate returns true means the element should be inserted.
+		 * @details	example of predicate:  using another index along with a subpredicate, evaluate 1. if the element is in that index, and 2. is the subpredicate satisfied.
+		 * 					we can insert e.g. just branch nodes that are in the graph, into the node.
+		 */
+		template <typename IT, typename Predicate>
+		size_t insert_incremental(IT start, IT endd,
+				Predicate const & pred,
+				size_t block_size = std::numeric_limits<size_t>::max(),
+				bool is_local = false) {
+
+			static_assert(std::is_convertible<typename ::std::iterator_traits<IT>::value_type, KmerType>::value ||
+					std::is_convertible<typename ::std::iterator_traits<IT>::value_type, ::bliss::debruijn::biedge::compact_simple_biedge_kmer_node<KmerType> >::value,
+					"only support input type of Kmers, or Kmer+biedge pairs");
+
+			// doing it this way to ensure that we get the intersection and not a complement
+			bool all_local = mxx::all_of(is_local, comm);
+			if (all_local) {
+				return map.local_insert(start, endd, pred);
+			} else {
+				return map.insert_incremental(start, endd, block_size, false, pred);  // includes distribution.
+			}
+		}
+
+		//==========
+		//  new threshold version:  use the underlying map directly please.  2 calls:  compute_biedge_frequencies followed by local_insert_by_frequencies
+		//==========
 
 		// use the a2a collective find since this is not a multimap.
 		std::vector<mutable_value_type> find(std::vector<KmerType> &query) const {
