@@ -31,7 +31,6 @@
 #define COMPACT_DBG_STATS_CPP
 
 
-
 // ==========  choices:
 //  1. no filtering:  parse simple nodes directly, insert
 //  2. de novo filtering:  parse simple nodes, parse edge k1mers, transform edges, copy edges, filter and erase, insert
@@ -497,11 +496,13 @@ void compute_freq_map(ListRankedChainNodeVecType const & compacted_chain,
 	// allocate input
 	std::vector< std::pair<KmerType, FreqSummaryType > > freqs;
 
+  ::bliss::debruijn::lex_less<KmerType> canonical;   // count_idx is distributed same way as the DBG, which is canonical here.  so to query via local container, need to canoncialize the compacted_chain content.
+
 	BL_BENCH_START(chain_freq);
 	// extract frequencies.
 	for (auto x : compacted_chain) {
 		// compute the chain rep
-		CountType c = count_idx.get_map().get_local_container().find(std::get<0>(x))->second;
+		CountType c = count_idx.get_map().get_local_container().find(canonical(std::get<0>(x)))->second;
 
 		// new key is the chain rep.
 		freqs.emplace_back(std::get<1>(x), FreqSummaryType(1, c, c, c));
@@ -533,7 +534,7 @@ mxx::comm const & comm) {
 
 	// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
 	size_t step = (free_mem / (8 * sizeof(std::pair<KmerType, FreqSummaryType >)));  // number of elements that can be held in freemem
-  step = std::min(step, compacted_chain.size());
+  step = std::max(std::min(step, compacted_chain.size()), static_cast<size_t>(1));
 
 	if (comm.rank() == 0) std::cout << "estimate num elements=" << step << ", value_type size=" <<
 			sizeof(std::pair<KmerType, FreqSummaryType >) << " bytes" << std::endl;
@@ -585,13 +586,16 @@ void compute_freq_map(ListRankedChainNodeVecType const & compacted_chain,
 	// allocate input
 	std::vector< std::pair<KmerType, FreqSummaryType > > freqs;
 
+  ::bliss::debruijn::lex_less<KmerType> canonical;   // count_idx is distributed same way as the DBG, which is canonical here.  so to query via local container, need to canoncialize the compacted_chain content.
+
+
 	BL_BENCH_START(chain_freq);
 	typename CountDBGType::map_type::mapped_type e;
 	CountType c = 0;
 	// extract frequencies.
 	for (auto x : compacted_chain) {
 		// compute the chain rep
-		c = count_idx.get_map().get_local_container().find(std::get<0>(x))->second.get_self_frequency();
+		c = count_idx.get_map().get_local_container().find(canonical(std::get<0>(x)))->second.get_self_frequency();
 
 		// new key is the chain rep.
 		freqs.emplace_back(std::get<1>(x), FreqSummaryType(1, c, c, c));
@@ -623,7 +627,7 @@ mxx::comm const & comm) {
 
 	// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
 	size_t step = (free_mem / (8 * sizeof(std::pair<KmerType, FreqSummaryType >)));  // number of elements that can be held in freemem
-	step = std::min(step, compacted_chain.size());
+	step = std::max(std::min(step, compacted_chain.size()), static_cast<size_t>(1));
 
 	if (comm.rank() == 0) std::cout << "estimate num elements=" << step << ", value_type size=" <<
 			sizeof(std::pair<KmerType, FreqSummaryType >) << " bytes" << std::endl;
@@ -822,17 +826,17 @@ void print_chain_frequencies(std::string const & filename,
 		for (auto x : edge_freqs) {
 			ss << bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) << "\t" <<
 					bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << "\t" <<
-					std::get<0>(std::get<2>(x)) << "\t" <<
-					std::get<1>(std::get<2>(x)) << "\t" <<
-					std::get<2>(std::get<2>(x)) << "\t" <<
-					std::get<3>(std::get<2>(x)) << "\t" <<
-					std::get<0>(std::get<3>(x)) << "\t" <<
-					std::get<1>(std::get<3>(x)) << "\t" <<
-					std::get<2>(std::get<3>(x)) << "\t" <<
-					std::get<3>(std::get<3>(x)) << "\t" <<
-					std::get<0>(std::get<4>(x)) << "\t" <<
-					std::get<1>(std::get<4>(x)) << "\t" <<
-					std::get<2>(std::get<4>(x)) << "\t" << std::endl;
+					static_cast<size_t>(std::get<0>(std::get<2>(x))) << "\t" <<
+					static_cast<size_t>(std::get<1>(std::get<2>(x))) << "\t" <<
+					static_cast<size_t>(std::get<2>(std::get<2>(x))) << "\t" <<
+					static_cast<size_t>(std::get<3>(std::get<2>(x))) << "\t" <<
+					static_cast<size_t>(std::get<0>(std::get<3>(x))) << "\t" <<
+					static_cast<size_t>(std::get<1>(std::get<3>(x))) << "\t" <<
+					static_cast<size_t>(std::get<2>(std::get<3>(x))) << "\t" <<
+					static_cast<size_t>(std::get<3>(std::get<3>(x))) << "\t" <<
+					static_cast<size_t>(std::get<0>(std::get<4>(x))) << "\t" <<
+					static_cast<size_t>(std::get<1>(std::get<4>(x))) << "\t" <<
+					static_cast<size_t>(std::get<2>(std::get<4>(x))) << "\t" << std::endl;
 
 		}
 		write_mpiio(filename, ss.str().c_str(), ss.str().length(), comm);

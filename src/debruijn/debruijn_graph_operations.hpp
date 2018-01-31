@@ -65,16 +65,15 @@ namespace bliss {
             	os << bliss::utils::KmerUtils::toASCIIString(x.first) << "\t";
 
             	// N is not counted....
-        		os << x.second.get_in_edge_frequency(Alphabet::FROM_ASCII['A']) << "\t";
-        		os << x.second.get_in_edge_frequency(Alphabet::FROM_ASCII['C']) << "\t";
-        		os << x.second.get_in_edge_frequency(Alphabet::FROM_ASCII['G']) << "\t";
-        		os << x.second.get_in_edge_frequency(Alphabet::FROM_ASCII['T']) << "\t";
-        		os << x.second.get_out_edge_frequency(Alphabet::FROM_ASCII['A']) << "\t";
-        		os << x.second.get_out_edge_frequency(Alphabet::FROM_ASCII['C']) << "\t";
-        		os << x.second.get_out_edge_frequency(Alphabet::FROM_ASCII['G']) << "\t";
-        		os << x.second.get_out_edge_frequency(Alphabet::FROM_ASCII['T']) << "\t";
-            	os << x.second.get_self_frequency() << std::endl;
-
+        		os << static_cast<size_t>(x.second.get_in_edge_frequency(Alphabet::FROM_ASCII['A'])) << "\t";
+        		os << static_cast<size_t>(x.second.get_in_edge_frequency(Alphabet::FROM_ASCII['C'])) << "\t";
+        		os << static_cast<size_t>(x.second.get_in_edge_frequency(Alphabet::FROM_ASCII['G'])) << "\t";
+        		os << static_cast<size_t>(x.second.get_in_edge_frequency(Alphabet::FROM_ASCII['T'])) << "\t";
+        		os << static_cast<size_t>(x.second.get_out_edge_frequency(Alphabet::FROM_ASCII['A'])) << "\t";
+        		os << static_cast<size_t>(x.second.get_out_edge_frequency(Alphabet::FROM_ASCII['C'])) << "\t";
+        		os << static_cast<size_t>(x.second.get_out_edge_frequency(Alphabet::FROM_ASCII['G'])) << "\t";
+        		os << static_cast<size_t>(x.second.get_out_edge_frequency(Alphabet::FROM_ASCII['T'])) << "\t";
+            	os << static_cast<size_t>(x.second.get_self_frequency()) << std::endl;
             }
         };
 

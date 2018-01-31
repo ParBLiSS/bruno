@@ -136,7 +136,7 @@
 		using KmerType = bliss::common::Kmer<31, Alphabet, KmerWordType>;
 	#endif
 
-	using CountType = uint8_t;
+	using CountType = uint8_t;  // don't want it to become a character.
 
 #else   // MIN_MEM not defined.  use uint64_t.  this is same as compact_debruijn_graph_refactor.cpp
 
@@ -655,9 +655,10 @@ int main(int argc, char** argv) {
 		// such as "-n Bishop".
 		TCLAP::ValueArg<std::string> outputArg("O", "output_prefix", "Prefix for output files, including directory", false, "", "string", cmd);
 
+		// value type is uint16_t - to ensure that the values are parsed as integer instead of being treated as unsigned chars.
 		TCLAP::SwitchArg threshArg("T", "thresholding", "on/off for thresholding", cmd, false);
-		TCLAP::ValueArg<CountType> lowerThreshArg("L", "lower_thresh", "Lower Threshold for Kmer and Edge frequency", false, 0, "uint16", cmd);
-		TCLAP::ValueArg<CountType> upperThreshArg("U", "upper_thresh", "Upper Threshold for Kmer and Edge frequency", false,
+		TCLAP::ValueArg<int64_t> lowerThreshArg("L", "lower_thresh", "Lower Threshold for Kmer and Edge frequency", false, 0, "uint16", cmd);
+		TCLAP::ValueArg<int64_t> upperThreshArg("U", "upper_thresh", "Upper Threshold for Kmer and Edge frequency", false,
 				std::numeric_limits<CountType>::max(), "uint16", cmd);
 
 		TCLAP::SwitchArg benchmarkArg("B", "benchmark", "on/off for benchmarking (no file output)", cmd, false);
@@ -680,8 +681,10 @@ int main(int argc, char** argv) {
 		out_prefix = outputArg.getValue();
 
 //#if (pPARSER == FASTQ)
-    lower = lowerThreshArg.getValue();
-    upper = upperThreshArg.getValue();
+    lower = ::std::min(static_cast<size_t>(lowerThreshArg.getValue()),
+			static_cast<size_t>(::std::numeric_limits<CountType>::max()));
+    upper = ::std::min(static_cast<size_t>(upperThreshArg.getValue()),
+			static_cast<size_t>(::std::numeric_limits<CountType>::max()));
 //#endif
 
 		thresholding = threshArg.getValue();
@@ -788,7 +791,7 @@ int main(int argc, char** argv) {
 //			if (comm.rank() == 0) printf("ERROR: FASTA files does not yet support pre-filter by frequency.\n");
 //#endif
 
-			::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> >().swap(selected_edges);
+			if (benchmark) ::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> >().swap(selected_edges);
 			
 
 		} else {
@@ -797,7 +800,7 @@ int main(int argc, char** argv) {
 #else
 		if (thresholding) {
 			selected_edges = build_index_thresholded(file_data, idx, lower, upper, comm);
-			::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> >().swap(selected_edges);
+			if (benchmark) ::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> >().swap(selected_edges);
 		} else {
 			build_index(file_data, idx, comm);
 		}
@@ -961,11 +964,16 @@ int main(int argc, char** argv) {
 			BL_BENCH_COLLECTIVE_END(app, "compacted_chain", compacted_chain.size(), comm);
 
 
-			// release chainmap
-			BL_BENCH_START(app);
-			chainmap.get_map().get_local_container().reset();
-			BL_BENCH_COLLECTIVE_END(app, "chainmap_reset", chainmap.local_size(), comm);
+			if (compress) {
+				// === and compress.
+				BL_BENCH_START(app);
+				::std::vector<::std::string> compressed_chain = chainmap.to_compressed_chains();
+				BL_BENCH_COLLECTIVE_END(app, "compress_chains", compressed_chain.size(), comm);
 
+				BL_BENCH_START(app);
+				size_t out_size = print_compressed_chains(compressed_chain_filename, compressed_chain, comm);
+				BL_BENCH_COLLECTIVE_END(app, "chain_str", out_size, comm);
+			}
 
 			// do this first because we need the order of compacted chain to be same as hashed distribution.
 			{
@@ -983,7 +991,8 @@ int main(int argc, char** argv) {
 				compute_freq_map(compacted_chain, count_idx, freq_map, comm);
 #endif			
 				BL_BENCH_COLLECTIVE_END(app, "chain_freqs", freq_map.local_size(), comm);
-			} // ensure delet count_index
+
+		} // ensure delet count_index
 
 
 
@@ -995,6 +1004,8 @@ int main(int argc, char** argv) {
 			BL_BENCH_START(app);
 			print_chain_nodes(compacted_chain_kmers_filename, compacted_chain, comm);
 			BL_BENCH_COLLECTIVE_END(app, "chain_node", compacted_chain.size(), comm);
+
+
 
 		} // ensure release compacted chain
 
@@ -1021,6 +1032,12 @@ int main(int argc, char** argv) {
 		BL_BENCH_START(app);
 		print_chain_frequencies(compacted_chain_ends_filename, chain_rep, idx2, freq_map, comm);
 		BL_BENCH_COLLECTIVE_END(app, "print_chain_freq", chain_rep.size(), comm);
+
+					// release chainmap
+			BL_BENCH_START(app);
+			chainmap.get_map().get_local_container().reset();
+			BL_BENCH_COLLECTIVE_END(app, "chainmap_reset", chainmap.local_size(), comm);
+
 	}
 
 	BL_BENCH_REPORT_MPI_NAMED(app, "app", comm);

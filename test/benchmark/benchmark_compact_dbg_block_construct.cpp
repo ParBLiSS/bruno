@@ -510,8 +510,8 @@ int main(int argc, char** argv) {
 		TCLAP::ValueArg<std::string> outputArg("O", "output_prefix", "Prefix for output files, including directory", false, "", "string", cmd);
 
 		TCLAP::SwitchArg threshArg("T", "thresholding", "on/off for thresholding", cmd, false);
-		TCLAP::ValueArg<CountType> lowerThreshArg("L", "lower_thresh", "Lower Threshold for Kmer and Edge frequency", false, 0, "uint16", cmd);
-		TCLAP::ValueArg<CountType> upperThreshArg("U", "upper_thresh", "Upper Threshold for Kmer and Edge frequency", false,
+		TCLAP::ValueArg<int64_t> lowerThreshArg("L", "lower_thresh", "Lower Threshold for Kmer and Edge frequency", false, 0, "uint16", cmd);
+		TCLAP::ValueArg<int64_t> upperThreshArg("U", "upper_thresh", "Upper Threshold for Kmer and Edge frequency", false,
 				std::numeric_limits<CountType>::max(), "uint16", cmd);
 
 		TCLAP::SwitchArg benchmarkArg("B", "benchmark", "on/off for benchmarking (no file output)", cmd, false);
@@ -534,8 +534,10 @@ int main(int argc, char** argv) {
 		out_prefix = outputArg.getValue();
 
 //#if (pPARSER == FASTQ)
-    lower = lowerThreshArg.getValue();
-    upper = upperThreshArg.getValue();
+    lower = ::std::min(static_cast<size_t>(lowerThreshArg.getValue()),
+		static_cast<size_t>(::std::numeric_limits<CountType>::max()));
+    upper = ::std::min(static_cast<size_t>(upperThreshArg.getValue()),
+		static_cast<size_t>(::std::numeric_limits<CountType>::max()));
 //#endif
 
 		thresholding = threshArg.getValue();

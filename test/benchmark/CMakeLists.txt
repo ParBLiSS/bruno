@@ -13,15 +13,15 @@ if (ENABLE_BENCHMARKING)
 # 51 added because hipmer uses that
 foreach(k 21 31 51 55 63)
 
-    add_executable(benchmark_compact_dbg_fastq_A4_K${k}_minmem benchmark_compact_dbg_block_construct.cpp)
-    SET_TARGET_PROPERTIES(benchmark_compact_dbg_fastq_A4_K${k}_minmem
+    add_executable(benchmark_compact_dbg_fastq_A4_K${k}_incr benchmark_compact_dbg_block_construct.cpp)
+    SET_TARGET_PROPERTIES(benchmark_compact_dbg_fastq_A4_K${k}_incr
         PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTQ -DpK=${k} -DMIN_MEM")
-    target_link_libraries(benchmark_compact_dbg_fastq_A4_K${k}_minmem ${EXTRA_LIBS})
+    target_link_libraries(benchmark_compact_dbg_fastq_A4_K${k}_incr ${EXTRA_LIBS})
 
-    add_executable(benchmark_compact_dbg_fasta_A4_K${k}_minmem benchmark_compact_dbg_block_construct.cpp)
-    SET_TARGET_PROPERTIES(benchmark_compact_dbg_fasta_A4_K${k}_minmem
+    add_executable(benchmark_compact_dbg_fasta_A4_K${k}_incr benchmark_compact_dbg_block_construct.cpp)
+    SET_TARGET_PROPERTIES(benchmark_compact_dbg_fasta_A4_K${k}_incr
         PROPERTIES COMPILE_FLAGS "-DpDNA=4 -DpPARSER=FASTA -DpK=${k} -DMIN_MEM")
-    target_link_libraries(benchmark_compact_dbg_fasta_A4_K${k}_minmem ${EXTRA_LIBS})
+    target_link_libraries(benchmark_compact_dbg_fasta_A4_K${k}_incr ${EXTRA_LIBS})
 
 
 endforeach(k)

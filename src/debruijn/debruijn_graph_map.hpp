@@ -651,7 +651,6 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 					result.first->second = k2_sat_add(result.first->second, 1);
 				}
 			}
-
 		} // automatically cleans up.
 		BL_BENCH_END(k2freq, "count_k2mers", k2_counter.size());
 
@@ -763,7 +762,6 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 			BL_BENCH_LOOP_END(k2freq, 1, "dist_data", dest_count);  // for parse
 			BL_BENCH_LOOP_END(k2freq, 2, "count_k2mer", k2_counter.size());  // for insert
 			BL_BENCH_LOOP_END(k2freq, 3, "cleanup", block_size);  // for insert
-
 		} // automatically cleans up.
 
 
@@ -782,7 +780,6 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		Predicate const & pred = Predicate()) {
 
 		BL_BENCH_INIT(local_insert);
-
 
 		// step 2: get the content of the k2 count map.
 		BL_BENCH_START(local_insert);
@@ -829,14 +826,14 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 						// accumulation for block complete. filter and record results now.
 						for (; block_it != it; ++block_it, ++flag_it) {
 							// step 5: do per block threshold
-							c = it->second;
+							c = block_it->second;
 							
 							// step 5a: filter k2mer 
 							if ((c < t2_lo) || (c >= t2_hi)) *flag_it |= 4;
 							// step 5b: filter kmer
 							if ((k_f < t0_lo) || (k_f >= t0_hi)) *flag_it |= 8;
 							// step 5c: filter k1mer
-							edges = it->first.second.getData()[0];
+							edges = block_it->first.second.getData()[0];
 
 							switch (edges & 0xF0) {
 								case 0x10: k1cnt = k1in_f[0]; break;
@@ -856,11 +853,10 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 							}
 							if ((k1cnt < t1_lo) || (k1cnt >= t1_hi)) *flag_it |= 1;  // out
 
-
 						}
 						
 						// reinitialize for next block
-						k = it->first.first;
+						k = block_it->first.first;
 						k_f = 0;
 						memset(k1in_f, 0, sizeof(size_t) << 2);
 						memset(k1out_f, 0, sizeof(size_t) << 2);
@@ -894,14 +890,14 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 				// do the final block
 				for (; block_it != it; ++block_it, ++flag_it) {
 					// step 5: do per block threshold
-					c = it->second;
+					c = block_it->second;
 					
 					// step 5a: filter k2mer 
 					if ((c < t2_lo) || (c >= t2_hi)) *flag_it |= 4;
 					// step 5b: filter kmer
 					if ((k_f < t0_lo) || (k_f >= t0_hi)) *flag_it |= 8;
 					// step 5c: filter k1mer
-					edges = it->first.second.getData()[0];
+					edges = block_it->first.second.getData()[0];
 
 					switch (edges & 0xF0) {
 						case 0x10: k1cnt = k1in_f[0]; break;

@@ -162,10 +162,10 @@ namespace bliss
           {
             // friend keyword signals that this overrides an externally declared function
             ost << " dBGr node: counts in = [";
-            for (size_t i = maxEdgeCount; i < 2*maxEdgeCount; ++i) ost << node.counts[i] << ",";
+            for (size_t i = maxEdgeCount; i < 2*maxEdgeCount; ++i) ost << static_cast<uint64_t>(node.counts[i]) << ",";
             ost << "], out = [";
-            for (size_t i = 0; i < maxEdgeCount; ++i) ost << node.counts[i] << ",";
-            ost << "], self = " << node.counts[2 * maxEdgeCount];
+            for (size_t i = 0; i < maxEdgeCount; ++i) ost << static_cast<uint64_t>(node.counts[i]) << ",";
+            ost << "], self = " << static_cast<uint64_t>(node.counts[2 * maxEdgeCount]);
             return ost;
           }
 
@@ -198,16 +198,14 @@ namespace bliss
           {
             // take care of out
             uint8_t out = edges.getData()[0] & 0xF;
-            if (FROM_DNA16[out] < maxEdgeCount) sat_add(counts[FROM_DNA16[out]], cnt);
+            if (FROM_DNA16[out] < maxEdgeCount) counts[FROM_DNA16[out]] = sat_add(counts[FROM_DNA16[out]], cnt);
 
             // take care of in.
             uint8_t in = edges.getData()[0] >> 4;
-            if (FROM_DNA16[in] < maxEdgeCount) sat_add(counts[FROM_DNA16[in] + maxEdgeCount], cnt);
+            if (FROM_DNA16[in] < maxEdgeCount) counts[FROM_DNA16[in] + maxEdgeCount] = sat_add(counts[FROM_DNA16[in] + maxEdgeCount], cnt);
 
-            sat_add(counts[2 * maxEdgeCount], cnt);
+            counts[2 * maxEdgeCount] = sat_add(counts[2 * maxEdgeCount], cnt);
           }
-
-
 
           inline void merge(compact_multi_biedge const & other) {
             for (int i = 0; i <= 2 * maxEdgeCount; ++i) {
@@ -410,10 +408,10 @@ namespace bliss
           {
             // friend keyword signals that this overrides an externally declared function
             ost << " dBGr node: counts in = [";
-            for (size_t i = maxEdgeCount; i < 2*maxEdgeCount; ++i) ost << node.counts[i] << ",";
+            for (size_t i = maxEdgeCount; i < 2*maxEdgeCount; ++i) ost << static_cast<uint64_t>(node.counts[i]) << ",";
             ost << "], out = [";
-            for (size_t i = 0; i < maxEdgeCount; ++i) ost << node.counts[i] << ",";
-            ost << "], self = " << node.counts[2 * maxEdgeCount];
+            for (size_t i = 0; i < maxEdgeCount; ++i) ost << static_cast<uint64_t>(node.counts[i]) << ",";
+            ost << "], self = " << static_cast<uint64_t>(node.counts[2 * maxEdgeCount]);
             return ost;
           }
 
@@ -446,13 +444,13 @@ namespace bliss
           {
             // take care of out
             uint8_t out = edges.getData()[0] & 0xF;
-            if (FROM_DNA16[out] < maxEdgeCount) sat_add(counts[FROM_DNA16[out]], cnt);
+            if (FROM_DNA16[out] < maxEdgeCount) counts[FROM_DNA16[out]] = sat_add(counts[FROM_DNA16[out]], cnt);
 
             // take care of in.
             uint8_t in = edges.getData()[0] >> 4;
-            if (FROM_DNA16[in] < maxEdgeCount) sat_add(counts[FROM_DNA16[in] + maxEdgeCount], cnt);
+            if (FROM_DNA16[in] < maxEdgeCount) counts[FROM_DNA16[in] + maxEdgeCount] = sat_add(counts[FROM_DNA16[in] + maxEdgeCount], cnt);
 
-            sat_add(counts[2 * maxEdgeCount], cnt);
+            counts[2 * maxEdgeCount] = sat_add(counts[2 * maxEdgeCount], cnt);
           }
 
 
@@ -659,10 +657,10 @@ namespace bliss
           {
             // friend keyword signals that this overrides an externally declared function
             ost << " dBGr node: counts in = [";
-            for (size_t i = maxEdgeCount; i < 2*maxEdgeCount; ++i) ost << node.counts[i] << ",";
+            for (size_t i = maxEdgeCount; i < 2*maxEdgeCount; ++i) ost << static_cast<uint64_t>(node.counts[i]) << ",";
             ost << "], out = [";
-            for (size_t i = 0; i < maxEdgeCount; ++i) ost << node.counts[i] << ",";
-            ost << "], self = " << node.counts[2 * maxEdgeCount];
+            for (size_t i = 0; i < maxEdgeCount; ++i) ost << static_cast<uint64_t>(node.counts[i]) << ",";
+            ost << "], self = " << static_cast<uint64_t>(node.counts[2 * maxEdgeCount]);
             return ost;
           }
 
@@ -695,13 +693,13 @@ namespace bliss
           {
             // take care of out
             uint8_t out = edges.getData()[0] & 0xF;
-            if (FROM_DNA16[out] < maxEdgeCount) sat_add(counts[FROM_DNA16[out]], cnt);
+            if (FROM_DNA16[out] < maxEdgeCount) counts[FROM_DNA16[out]] = sat_add(counts[FROM_DNA16[out]], cnt);
 
             // take care of in.
             uint8_t in = edges.getData()[0] >> 4;
-            if (FROM_DNA16[in] < maxEdgeCount) sat_add(counts[FROM_DNA16[in] + maxEdgeCount], cnt);
+            if (FROM_DNA16[in] < maxEdgeCount) counts[FROM_DNA16[in] + maxEdgeCount] = sat_add(counts[FROM_DNA16[in] + maxEdgeCount], cnt);
 
-            sat_add(counts[2 * maxEdgeCount], cnt);
+            counts[2 * maxEdgeCount] = sat_add(counts[2 * maxEdgeCount], cnt);
           }
 
 
@@ -871,9 +869,9 @@ namespace bliss
           {
             // friend keyword signals that this overrides an externally declared function
             ost << " dBGr node: in = [";
-            for (size_t i = maxEdgeCount; i < 2*maxEdgeCount; ++i) ost << (((node.counts >> i) & 0x1) == 1 ? 1 : 0) << ",";
+            for (size_t i = maxEdgeCount; i < 2*maxEdgeCount; ++i) ost << (((node.counts >> i) & 0x1) == 1 ? 1UL : 0UL) << ",";
             ost << "], out = [";
-            for (size_t i = 0; i < maxEdgeCount; ++i) ost << (((node.counts >> i) & 0x1) == 1 ? 1 : 0) << ",";
+            for (size_t i = 0; i < maxEdgeCount; ++i) ost << (((node.counts >> i) & 0x1) == 1 ? 1UL : 0UL) << ",";
             ost << "]";
             return ost;
           }
@@ -887,7 +885,7 @@ namespace bliss
 
           inline void update(EdgeInputType edges)
           {
-            counts |= edges.getDataRef()[0];
+            counts |= edges.getData()[0];
 
             //std::cout << "DNA exist update" << std::endl;
 //		  uint8_t in = edges.getDataRef()[0] >> 4;
@@ -1043,9 +1041,9 @@ namespace bliss
           {
             // friend keyword signals that this overrides an externally declared function
             ost << " dBGr node: in = [";
-            for (size_t i = 0; i < maxEdgeCount; ++i) ost << (((node.counts[1] >> i) & 0x1) == 1 ? 1 : 0) << ",";
+            for (size_t i = 0; i < maxEdgeCount; ++i) ost << (((node.counts[1] >> i) & 0x1) == 1 ? 1UL : 0UL) << ",";
             ost << "], out = [";
-            for (size_t i = 0; i < maxEdgeCount; ++i) ost << (((node.counts[0] >> i) & 0x1) == 1 ? 1 : 0) << ",";
+            for (size_t i = 0; i < maxEdgeCount; ++i) ost << (((node.counts[0] >> i) & 0x1) == 1 ? 1UL : 0UL) << ",";
             ost << "]";
             return ost;
           }
@@ -1195,9 +1193,9 @@ namespace bliss
           {
             // friend keyword signals that this overrides an externally declared function
             ost << " dBGr node: in = [";
-            for (size_t i = 0; i < maxEdgeCount; ++i) ost << (((node.counts[1] >> i) & 0x1) == 1 ? 1 : 0);
+            for (size_t i = 0; i < maxEdgeCount; ++i) ost << (((node.counts[1] >> i) & 0x1) == 1 ? 1UL : 0UL);
             ost << "], out = [";
-            for (size_t i = 0; i < maxEdgeCount; ++i) ost << (((node.counts[0] >> i) & 0x1) == 1 ? 1 : 0);
+            for (size_t i = 0; i < maxEdgeCount; ++i) ost << (((node.counts[0] >> i) & 0x1) == 1 ? 1UL : 0UL);
             ost << "]";
             return ost;
           }
