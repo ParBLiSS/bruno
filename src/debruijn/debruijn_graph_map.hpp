@@ -776,7 +776,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 	template <typename Predicate = ::bliss::filter::TruePredicate>
 	size_t local_insert_by_freqencies(
 		LocalK2CountMapType & k2_counter,
-		std::vector<FreqType> const & threshes,  // order is k_low, k_hi, k1_low, k1_hi, k2_low, k2_hi
+		std::vector<size_t> const & threshes,  // order is k_low, k_hi, k1_low, k1_hi, k2_low, k2_hi
 		Predicate const & pred = Predicate()) {
 
 		BL_BENCH_INIT(local_insert);
@@ -813,7 +813,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 				uint8_t edges;
 				auto block_it = k2counts.begin();
 				auto it = k2counts.begin();
-				FreqType t0_lo = threshes[0],
+				size_t t0_lo = threshes[0],
 					t0_hi = threshes[1],
 					t1_lo = threshes[2],
 					t1_hi = threshes[3],

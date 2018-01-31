@@ -286,7 +286,7 @@ using ChainVecType = ::std::vector<std::pair<KmerType, ChainNodeType> >;
 template <typename Index>
 size_t
 build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data, Index & idx,
-		std::vector<CountType> const & threshes,  mxx::comm const & comm) {
+		std::vector<size_t> const & threshes,  mxx::comm const & comm) {
 	BL_BENCH_INIT(build);
 
 	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT\n");
@@ -322,7 +322,7 @@ build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data,
 
 	// then filter the k2mers and insert into dbg (no need to touch files again)
 	BL_BENCH_START(build);
-	std::vector<typename Index::map_type::FreqType> lthreshes(threshes.begin(), threshes.end());
+	std::vector<size_t> lthreshes(threshes.begin(), threshes.end());
 	idx.get_map().local_insert_by_freqencies(k2_counter, lthreshes);
 	BL_BENCH_END(build, "insert", idx.local_size());
 
@@ -339,7 +339,7 @@ build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data,
 					  
 template <typename Index>
 size_t build_index_thresholded_incremental(::std::vector<::bliss::io::file_data> const & file_data, Index & idx, 
-	std::vector<CountType> const & threshes, mxx::comm const & comm) {
+	std::vector<size_t> const & threshes, mxx::comm const & comm) {
 	BL_BENCH_INIT(build);
 
 	if (comm.rank() == 0) printf("PARSING and INSERT incrementally\n");
@@ -398,7 +398,7 @@ size_t build_index_thresholded_incremental(::std::vector<::bliss::io::file_data>
 
 	// then filter the k2mers and insert into dbg (no need to touch files again)
 	BL_BENCH_START(build);
-	std::vector<typename Index::map_type::FreqType> lthreshes(threshes.begin(), threshes.end());
+	std::vector<size_t> lthreshes(threshes.begin(), threshes.end());
 	idx.get_map().local_insert_by_freqencies(k2_counter, lthreshes);
 	BL_BENCH_END(build, "insert", idx.local_size());
 
@@ -421,7 +421,7 @@ size_t build_index_thresholded_incremental(::std::vector<::bliss::io::file_data>
 
 void do_benchmark(::std::vector<::bliss::io::file_data> const & file_data, std::string const & out_prefix,
 	bool thresholding, bool benchmark, bool LRoptimized, bool compress, bool mpiio, 
-	std::vector<CountType> const & threshes, 
+	std::vector<size_t> const & threshes, 
 	 mxx::comm const & comm) {
 	// filename for compacted chain strings
 	// string starts with smaller end.  (first K and rev_comp of last K compared)
@@ -517,7 +517,7 @@ void do_benchmark(::std::vector<::bliss::io::file_data> const & file_data, std::
 
 void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::string const & out_prefix,
 	bool thresholding, bool benchmark, bool LRoptimized, bool compress, bool mpiio, 
-	std::vector<CountType> const & threshes, 
+	std::vector<size_t> const & threshes, 
 	mxx::comm const & comm) {
 	// filename for compacted chain strings
 	// string starts with smaller end.  (first K and rev_comp of last K compared)
@@ -811,8 +811,8 @@ int main(int argc, char** argv) {
 	std::string out_prefix;
 	out_prefix.assign("./output");
 
-	std::vector<CountType> threshes(6, 0);
-	threshes[1] = threshes[3] = threshes[5] = std::numeric_limits<CountType>::max();
+	std::vector<size_t> threshes(6, 0);
+	threshes[1] = threshes[3] = threshes[5] = std::numeric_limits<size_t>::max();
 
 	bool thresholding = false;
 	bool benchmark = false;
@@ -879,25 +879,25 @@ int main(int argc, char** argv) {
 
 		if (lower.size() == 1) {
 			threshes[2] = ::std::min(static_cast<size_t>(lower[0]),
-                        static_cast<size_t>(::std::numeric_limits<CountType>::max()));
+                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
 		} else if (lower.size() == 3) {
 			threshes[0] = ::std::min(static_cast<size_t>(lower[0]),
-                        static_cast<size_t>(::std::numeric_limits<CountType>::max()));
+                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
 			threshes[2] = ::std::min(static_cast<size_t>(lower[1]),
-                        static_cast<size_t>(::std::numeric_limits<CountType>::max()));
+                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
 			threshes[4] = ::std::min(static_cast<size_t>(lower[2]),
-                        static_cast<size_t>(::std::numeric_limits<CountType>::max()));
+                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
 		}
 		if (upper.size() == 1) {
 			threshes[3] = ::std::min(static_cast<size_t>(upper[0]),
-                        static_cast<size_t>(::std::numeric_limits<CountType>::max()));
+                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
 		} else if (upper.size() == 3) {
 			threshes[1] = ::std::min(static_cast<size_t>(upper[0]),
-                        static_cast<size_t>(::std::numeric_limits<CountType>::max()));
+                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
 			threshes[3] = ::std::min(static_cast<size_t>(upper[1]),
-                        static_cast<size_t>(::std::numeric_limits<CountType>::max()));
+                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
 			threshes[5] = ::std::min(static_cast<size_t>(upper[2]),
-                        static_cast<size_t>(::std::numeric_limits<CountType>::max()));
+                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
 		}
 
 		// ====
