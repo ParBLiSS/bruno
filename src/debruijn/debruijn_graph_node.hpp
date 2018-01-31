@@ -78,6 +78,18 @@ namespace bliss
     namespace graph
     {
 
+      template <typename COUNT>
+      inline COUNT sat_add(COUNT const & a, COUNT const & b) {
+        COUNT c = a + b;
+        return (c < a) ? -1 : c;
+      }
+
+      // cap at max.  Threshold need to make sense under this...
+      template <typename COUNT>
+      inline void sat_incr(COUNT & target) {
+        target += (target < std::numeric_limits<COUNT>::max());
+      }
+
       /**
        * @brief kmer metadata holding the incoming and outgoing edge counts in a de bruijn graph.
        * @details lower 4 integers are out edge counts, upper 4 integers are in edge counts.
@@ -100,15 +112,6 @@ namespace bliss
           static constexpr size_t maxEdgeCount = 4;
 
         protected:
-          inline COUNT sat_add(COUNT const & a, COUNT const & b) {
-            COUNT c = a + b;
-            return (c < a) ? -1 : c;
-          }
-
-          inline void sat_incr(COUNT & target) {
-            target = sat_add(target, 1);
-          }
-
 
           // convert DNA16 value to bit array index.  not strictly needed here but have it for consistency
           // any unmapped gets shifted out to bit 8.
@@ -340,15 +343,6 @@ namespace bliss
           static constexpr size_t maxEdgeCount = 5;
 
         protected:
-          inline COUNT sat_add(COUNT const & a, COUNT const & b) {
-            COUNT c = a + b;
-            return (c < a) ? -1 : c;
-          }
-
-          inline void sat_incr(COUNT & target) {
-            target = sat_add(target, 1);
-          }
-
 
           // convert DNA16 value to bit array index.  not strictly needed here but have it for consistency
           // any unmapped gets shifted out to bit 8.
@@ -583,15 +577,6 @@ namespace bliss
           static constexpr size_t maxEdgeCount = 5;
 
         protected:
-          inline COUNT sat_add(COUNT const & a, COUNT const & b) {
-            COUNT c = a + b;
-            return (c < a) ? -1 : c;
-          }
-
-          inline void sat_incr(COUNT & target) {
-            target = sat_add(target, 1);
-          }
-
 
           // convert DNA16 value to bit array index.  not strictly needed here but have it for consistency
           // any unmapped gets shifted out to bit 8.
