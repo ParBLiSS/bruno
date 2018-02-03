@@ -57,7 +57,11 @@ std::string get_error_string(std::string const & filename, std::string const & o
 	//		MPI_Error_class(stat.MPI_ERROR, &error_class);
 	//		MPI_Error_string(error_class, error_string, &length_of_error_string);
 
-	ss << " MPI_Status error: [" << stat.MPI_ERROR << "]" << std::endl;
+	int count;
+	MPI_Get_count(&stat, MPI_BYTE, &count);
+
+	// if other I/O error, and MPI_ERROR is 0, check available space.
+	ss << " MPI_Status error: [ err=" << stat.MPI_ERROR << " cnt=" << count << "]" << std::endl;
 
 	return ss.str();
 }
@@ -80,42 +84,61 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 	}
 
 	// ensure atomicity is turned off
-	MPI_File_set_atomicity(fh, 1);
+	MPI_File_set_atomicity(fh, 0);
 
 	// get the global offset.
-	size_t global_offset = ::mxx::exscan(len, comm);
+	MPI_Offset global_offset = ::mxx::exscan(len, comm);
 
-	size_t step = (0x1 << 30);
-	size_t iterations = (len + step - 1) / step;
+
+	int step = (0x1 << 30);
+	int iterations = (len + step - 1) / step;
 
 	//std::cout << "rank " << comm.rank() << " mpiio write offset is " << global_offset << " len " << len << " iterations " << iterations << ::std::endl;
 
 	// get the maximum number of iterations
-	iterations = ::mxx::allreduce(iterations, [](size_t const & x, size_t const & y){
+	iterations = ::mxx::allreduce(iterations, [](int const & x, int const & y){
 		return (x >= y) ? x : y;
 	}, comm);
 
-	size_t remainder = len;
-	size_t curr_step = step;
+	printf("rank %d write mpiio. len %ld offset %lld step %d iterations %d\n", comm.rank(), len, global_offset, step, iterations);
+
+	int remainder = len;
+	int curr_step = step;
 	MPI_Status stat;
 	int count = 0;
-	for (size_t i = 0; i < iterations; ++i) {
+	bool success = true;
+	for (int i = 0; i < iterations; ++i) {
 		curr_step = std::min(remainder, step);
 
-		res = MPI_File_write_at_all( fh, global_offset, const_cast<char*>(data), curr_step, MPI_BYTE, &stat);
+		res = MPI_File_write_at_all( fh, global_offset, const_cast<char*>(data), curr_step, MPI_BYTE, &stat);  /// use bytes, no endian issues.
 
-		if (res != MPI_SUCCESS)
-			throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "write", res, stat, comm));
+		success = ::mxx::all_of(res == MPI_SUCCESS, comm);
+		if (!success) {
+		  MPI_File_close(&fh);
+
+		  if (res != MPI_SUCCESS)
+		    throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "write", res, stat, comm));
+		}
 
 		res = MPI_Get_count(&stat, MPI_BYTE, &count);
-		if (res != MPI_SUCCESS)
-			throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "write count", res, stat, comm));
+    success = ::mxx::all_of(res == MPI_SUCCESS, comm);
+		if (!success) {
+      MPI_File_close(&fh);
 
-		if (static_cast<size_t>(count) != curr_step) {
-			std::stringstream ss;
-			ss << "ERROR in mpiio: rank " << comm.rank() << " write error. request " << curr_step << " bytes got " << count << " bytes" << std::endl;
+      if (res != MPI_SUCCESS)
+        throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "write count", res, stat, comm));
+		}
 
-			throw ::bliss::utils::make_exception<::bliss::io::IOException>(ss.str());
+    success = ::mxx::all_of(count == curr_step, comm);
+		if (!success) {
+      MPI_File_close(&fh);
+
+      if (count != curr_step) {
+        std::stringstream ss;
+        ss << "ERROR in mpiio: rank " << comm.rank() << " write error. request " << curr_step << " bytes got " << count << " bytes" << std::endl;
+
+        throw ::bliss::utils::make_exception<::bliss::io::IOException>(ss.str());
+      }
 		}
 
 		global_offset += curr_step;
@@ -307,7 +330,7 @@ void print_chain_string(std::string const & filename,
 		// print out.
 		BL_BENCH_START(print_chain_string);
 		if (has_data == 1) {
-				std::cout << "rank " << comm.rank() << " printing " << std::endl << std::flush;
+//				std::cout << "rank " << comm.rank() << " printing " << std::endl << std::flush;
 
 			std::stringstream ss;
 			std::for_each(compacted_chain.begin(), compacted_chain.end(), ::bliss::debruijn::operation::chain::print_chain_as_fasta<KmerType>(ss));
