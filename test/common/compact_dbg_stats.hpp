@@ -90,7 +90,7 @@ void check_index(Index const & idx, mxx::comm const & comm) {
 
 		size_t erased = idx_copy.get_map().erase(lquery);
 
-		printf(" total query = %lu, erased = %lu, remaining = %lu\n", query.size(), erased, idx.local_size());
+		printf("check query is superset of content:  total query = %lu, erased = %lu, remaining = %lu\n", query.size(), erased, idx_copy.local_size());
 		assert(idx_copy.size() == 0);
 	}
 
