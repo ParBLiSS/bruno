@@ -264,16 +264,18 @@ namespace bliss {
         struct chain_node_to_proc {
             typename HASHMAP_PARAM<KMER>::DistributionTransformedFunction hash;
             const int p;
+            bool pow2_p;
+            const int p_mask;
 
             // 2x comm size to allow more even distribution?
             chain_node_to_proc(int comm_size) :
               hash(typename HASHMAP_PARAM<KMER>::template DistFunction<KMER>(ceilLog2(comm_size)),
                               typename HASHMAP_PARAM<KMER>::template DistTransform<KMER>()),
-                  p(comm_size) {};
+                  p(comm_size), pow2_p((comm_size & (comm_size - 1)) == 0 ), p_mask(comm_size - 1) {};
 
             inline int operator()(::bliss::debruijn::chain::listranked_chain_node<KMER> const & x) const {
               //            printf("KeyToRank operator. commsize %d  key.  hashed to %d, mapped to proc %d \n", p, proc_hash(Base::trans(x)), proc_hash(Base::trans(x)) % p);
-              return hash(std::get<1>(x)) % p;
+              return pow2_p ? (hash(std::get<1>(x)) & p_mask) : (hash(std::get<1>(x)) % p);
             }
         };
 
