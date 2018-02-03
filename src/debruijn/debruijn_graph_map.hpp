@@ -144,10 +144,10 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
       };
 
  public:
-	// for thresholded insert.  default frequency type is uint16_t, which should be sufficient for most use cases but does use more memory.
+	// for thresholded insert.  default frequency type is uint8_t, which should be sufficient for most use cases but does use more memory.
 	using FreqType = 
 		typename std::conditional<std::is_same<typename Edge::CountType, bool>::value,
-			uint16_t, typename Edge::CountType>::type;
+			uint8_t, typename Edge::CountType>::type;
 	// step 1:  build k2mer counter. only need it for aggregation. use murmurhash.
 	using LocalK2CountMapType = ::fsc::densehash_map<
 		::std::pair<key_type, typename Edge::EdgeInputType>, FreqType,
@@ -585,8 +585,11 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 	//			
 	//	user choose one of k2mer, k1mer, or kmer threshold for filter.  otherwise a heuristic about which to apply first is needed.
 	//          NOTE THAT reduction thresholding, and compaction steps are local, without communication.
-	//  		NOTE that user specified frequency is for canonicalized (should be this way else could get mismatched forward and backward k and k2).
+	//  		NOTE: that user specified frequency is for canonicalized (should be this way else could get mismatched forward and backward k and k2).
 	//				k2, k1, and k counts can be computed either canonicalized or uncanonicalized.
+	//      NOTE: k1 can become palindromic, and does.  Building a separate k1mer counter cannot separate palindromes arising from separate left and right edges of a k2mer.
+	 *          therefore the frequency may be inflated.
+	 *          on the other hand, looking at k1mer frequency in the context of k2mers separates in and out edge frequencies and palindromes should be avoidable.
 	//  broken up into 2 functions so the k2mer counting can work with multiple files.
 	// 
 	// ==== step 1.  build k2mer counter from received InputElemType (<kmer, edge_tuples>), key is <kmer, edge_tuples>
@@ -819,10 +822,23 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 					t1_hi = threshes[3],
 					t2_lo = threshes[4],
 					t2_hi = threshes[5];
+				size_t cnt_max = ((sizeof(FreqType) > 4) ? ::std::numeric_limits<uint32_t>::max() : ::std::numeric_limits<FreqType>::max());
+		    size_t thresh_max = cnt_max + 1;
 				if (it != k2counts.end()) k = it->first.first;  // init
 			
 				for (; it != k2counts.end(); ++it) {
 					if (it->first.first != k) {  // start of new block
+					  // cap the counts
+					  k_f = std::min(cnt_max, k_f);
+            k1in_f[0] = std::min(cnt_max, k1in_f[0]);
+            k1in_f[1] = std::min(cnt_max, k1in_f[1]);
+            k1in_f[2] = std::min(cnt_max, k1in_f[2]);
+            k1in_f[3] = std::min(cnt_max, k1in_f[3]);
+            k1out_f[0] = std::min(cnt_max, k1out_f[0]);
+            k1out_f[1] = std::min(cnt_max, k1out_f[1]);
+            k1out_f[2] = std::min(cnt_max, k1out_f[2]);
+            k1out_f[3] = std::min(cnt_max, k1out_f[3]);
+
 						// accumulation for block complete. filter and record results now.
 						for (; block_it != it; ++block_it, ++flag_it) {
 							// step 5: do per block threshold
@@ -830,8 +846,11 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 							
 							// step 5a: filter k2mer 
 							if ((c < t2_lo) || (c >= t2_hi)) *flag_it |= 4;
+							if ((c >= t2_hi) && (this->comm.rank()==0)) std::cout << block_it->first << " k2 count " << c << std::endl;
+
 							// step 5b: filter kmer
 							if ((k_f < t0_lo) || (k_f >= t0_hi)) *flag_it |= 8;
+							if ((k_f >= t0_hi) && (this->comm.rank()==0)) std::cout << block_it->first << " k count " << k_f << std::endl;
 							// step 5c: filter k1mer
 							edges = block_it->first.second.getData()[0];
 
@@ -843,6 +862,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 								default: k1cnt = t1_hi; break;
 							}
 							if ((k1cnt < t1_lo) || (k1cnt >= t1_hi)) *flag_it |= 2;  // in
+							if ((k1cnt >= t1_hi) && (k1cnt != thresh_max) && (this->comm.rank()==0)) std::cout << block_it->first << " in k1 count " << k1cnt << " t1_hi= " << t1_hi << std::endl;
 
 							switch (edges & 0x0F) {
 								case 0x01: k1cnt = k1out_f[0]; break;
@@ -852,6 +872,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 								default: k1cnt =  t1_hi; break;
 							}
 							if ((k1cnt < t1_lo) || (k1cnt >= t1_hi)) *flag_it |= 1;  // out
+							if ((k1cnt >= t1_hi) && (k1cnt != thresh_max) && (this->comm.rank()==0)) std::cout << block_it->first << " out k1 count " << k1cnt << " t1_hi= " << t1_hi << std::endl;
 
 						}
 						
@@ -887,15 +908,28 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 							break;
 					}
 				}
-				// do the final block
+        // do the final block
+        // cap the counts
+        k_f = std::min(cnt_max, k_f);
+        k1in_f[0] = std::min(cnt_max, k1in_f[0]);
+        k1in_f[1] = std::min(cnt_max, k1in_f[1]);
+        k1in_f[2] = std::min(cnt_max, k1in_f[2]);
+        k1in_f[3] = std::min(cnt_max, k1in_f[3]);
+        k1out_f[0] = std::min(cnt_max, k1out_f[0]);
+        k1out_f[1] = std::min(cnt_max, k1out_f[1]);
+        k1out_f[2] = std::min(cnt_max, k1out_f[2]);
+        k1out_f[3] = std::min(cnt_max, k1out_f[3]);
+
 				for (; block_it != it; ++block_it, ++flag_it) {
 					// step 5: do per block threshold
 					c = block_it->second;
 					
 					// step 5a: filter k2mer 
 					if ((c < t2_lo) || (c >= t2_hi)) *flag_it |= 4;
+							if (c >= t2_hi) std::cout << block_it->first << " k2 count " << c << std::endl;
 					// step 5b: filter kmer
 					if ((k_f < t0_lo) || (k_f >= t0_hi)) *flag_it |= 8;
+							if (k_f >= t0_hi) std::cout << block_it->first << " k count " << k_f << std::endl;
 					// step 5c: filter k1mer
 					edges = block_it->first.second.getData()[0];
 
@@ -907,6 +941,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 						default: k1cnt = t1_hi; break;
 					}
 					if ((k1cnt < t1_lo) || (k1cnt >= t1_hi)) *flag_it |= 2;  // in
+          if ((k1cnt >= t1_hi) && (k1cnt != thresh_max) && (this->comm.rank()==0)) std::cout << block_it->first << " in k1 count " << k1cnt << " t1_hi= " << t1_hi << std::endl;
 
 					switch (edges & 0x0F) {
 						case 0x01: k1cnt = k1out_f[0]; break;
@@ -916,6 +951,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 						default: k1cnt =  t1_hi; break;
 					}
 					if ((k1cnt < t1_lo) || (k1cnt >= t1_hi)) *flag_it |= 1;  // out
+          if ((k1cnt >= t1_hi) && (k1cnt != thresh_max) && (this->comm.rank()==0)) std::cout << block_it->first << " out k1 count " << k1cnt << " t1_hi= " << t1_hi << std::endl;
 				}
 
 			}  // end block for accumulation and thresholding.

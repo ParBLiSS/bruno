@@ -127,8 +127,8 @@ namespace bliss {
         /// convenience function to generate k+1mer frequency map.
         template <template <typename> class SeqParser, template <typename, template <typename> class> class SeqIterType, typename CounterType>
         void compute_edge_frequency(::std::vector<::bliss::io::file_data> const & file_data, CounterType & counter, mxx::comm const & comm,
-                                    typename CounterType::mapped_type const & lower_thresh = 0,
-                                    typename CounterType::mapped_type const & upper_thresh = ::std::numeric_limits<typename CounterType::mapped_type>::max()) {
+                                    size_t const & lower_thresh = 0,
+                                    size_t const & upper_thresh = ::std::numeric_limits<size_t>::max()) {
 
           // k+1-mer count map.  note that it should use the same hash function as Index.
           using K1merType = typename CounterType::key_type;
@@ -161,7 +161,9 @@ namespace bliss {
 
 
           BL_BENCH_START(compute_edge_frequency);
-          if ((lower_thresh > 0) || (upper_thresh < ::std::numeric_limits<typename CounterType::mapped_type>::max())) {
+          size_t thresh_max = ((sizeof(typename CounterType::mapped_type) > 4) ?
+              ::std::numeric_limits<uint32_t>::max() : ::std::numeric_limits<typename CounterType::mapped_type>::max()) + 1;
+          if ((lower_thresh > 0) || (upper_thresh < thresh_max)) {
             // ======= filter k+1-mers
             // now filter out the low frequency (and high frequency) ones.
             counter.erase([&lower_thresh, &upper_thresh](typename CounterType::value_type const & x) {
@@ -178,8 +180,8 @@ namespace bliss {
         /// convenience function to generate k+1mer frequency map.
         template <template <typename> class SeqParser, template <typename, template <typename> class> class SeqIter, typename CounterType>
         void compute_edge_frequency_incremental(::std::vector<::bliss::io::file_data> const & file_data, CounterType & counter, mxx::comm const & comm,
-                                    typename CounterType::mapped_type const & lower_thresh = 0,
-                                    typename CounterType::mapped_type const & upper_thresh = ::std::numeric_limits<typename CounterType::mapped_type>::max()) {
+                                    size_t const & lower_thresh = 0,
+                                    size_t const & upper_thresh = ::std::numeric_limits<size_t>::max()) {
 
 
         	BL_BENCH_INIT(compute_edge_frequency);
@@ -291,7 +293,9 @@ namespace bliss {
 
 
 			BL_BENCH_START(compute_edge_frequency);
-			if ((lower_thresh > 0) || (upper_thresh < ::std::numeric_limits<typename CounterType::mapped_type>::max())) {
+			size_t thresh_max = ((sizeof(typename CounterType::mapped_type) > 4) ?
+			    ::std::numeric_limits<uint32_t>::max() : ::std::numeric_limits<typename CounterType::mapped_type>::max()) + 1;
+			if ((lower_thresh > 0) || (upper_thresh < thresh_max)) {
 				// ======= filter k+1-mers
 				// now filter out the low frequency (and high frequency) ones.
 				counter.erase([&lower_thresh, &upper_thresh](typename CounterType::value_type const & x) {

@@ -109,6 +109,11 @@
 	#define bDNA 0
 #endif
 
+// need to handle different bit depths.
+//using CountType = uint16_t;  // set to uint16_t by default.  this is to ensure that most frequencies are captured.
+
+
+
 #if defined(MIN_MEM)
 
 	#if defined(pK)
@@ -146,7 +151,7 @@
 		#endif	
 		using K2merType = bliss::common::Kmer<(pK+2), Alphabet, K2merWordType>;
 
-
+		using CountType = uint8_t;  // set to uint16_t by default.  this is to ensure that most frequencies are captured.
 	#else   // pK not defined.  assume 31.  compute data type.
 		#if (pDNA == 16)
 			using KmerWordType = uint64_t;
@@ -166,7 +171,6 @@
 		using K2merType = bliss::common::Kmer<33, Alphabet, K2merWordType>;
 	#endif
 
-	using CountType = uint8_t;  // set to uint16_t - so that TCLAP does not start reading in as unsigned char and treat it as ASCII
 
 #else   // MIN_MEM not defined.  use uint64_t.  this is same as compact_debruijn_graph_refactor.cpp
 
@@ -183,8 +187,7 @@
 		using K1merType = bliss::common::Kmer<32, Alphabet, K1merWordType>;
 		using K2merType = bliss::common::Kmer<33, Alphabet, K2merWordType>;
 	#endif
-
-	using CountType = uint16_t;
+		using CountType = uint16_t;  // set to uint16_t by default.  this is to ensure that most frequencies are captured.
 #endif
 
 #define FASTA 1
@@ -511,7 +514,7 @@ void do_benchmark(::std::vector<::bliss::io::file_data> const & file_data, std::
 	}
 
 
-	BL_BENCH_REPORT_MPI_NAMED(benchmark, "app", comm);
+	BL_BENCH_REPORT_MPI_NAMED(benchmark, "benchmark", comm);
 
 }
 
@@ -583,12 +586,30 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		build_index(file_data, idx, comm);
 	}
 #endif
-
-
 	BL_BENCH_COLLECTIVE_END(work, "construct", idx.local_size(), comm);
 
 		// TODO: filter out, or do something, about "N".  May have to add back support for ASCII edge encoding so that we can use DNA5 alphabet
 		//   this is done via read filtering/splitting.
+
+  // ================== Do stats and checks
+  // ====== print edge histogram
+  BL_BENCH_START(work);
+  print_edge_histogram(idx, comm);
+  check_index(idx, comm);
+  printf("rank %d finished checking index\n", comm.rank());
+  BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
+  // == DONE == make compacted simple DBG
+
+
+  // == PRINT == prep branch for printing - here ONLY BECAUSE WE ARE DISCARDING IDX AFTER MAKING CHAINMAPS
+  BL_BENCH_START(work);
+  print_branch_edge_frequencies(branch_filename, idx, comm);
+  BL_BENCH_COLLECTIVE_END(work, "print branch", idx.local_size(), comm);
+
+  BL_BENCH_START(work);
+  print_branch_fasta(branch_fasta_filename, idx, comm);
+  BL_BENCH_COLLECTIVE_END(work, "print branch fasta", idx.local_size(), comm);
+
 
 
 	// ==== make chain map
@@ -608,33 +629,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	//auto cycle_node_kmers = list_rank(chainmap, comm);
 	BL_BENCH_COLLECTIVE_END(work, "list_rank", iterations, comm);
 	// == DONE == parallel list ranking for chain compaction
-
-
-	// ================== Do stats and checks
-	// ====== print edge histogram
-	BL_BENCH_START(work);
-	print_edge_histogram(idx, comm);
-	BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
-	// == DONE == make compacted simple DBG
-
-	check_index(idx, comm);
-	printf("rank %d finished checking index\n", comm.rank());
-		
-
-
-
-	// == PRINT == prep branch for printing - here ONLY BECAUSE WE ARE DISCARDING IDX AFTER MAKING CHAINMAPS
-	BL_BENCH_START(work);
-	print_branch_edge_frequencies(branch_filename, idx, comm);
-	BL_BENCH_COLLECTIVE_END(work, "print branch", idx.local_size(), comm);
-
-	BL_BENCH_START(work);
-	print_branch_fasta(branch_fasta_filename, idx, comm);
-	BL_BENCH_COLLECTIVE_END(work, "print branch fasta", idx.local_size(), comm);
-
-
-
-
 
 	// =============================================================
 	// below is for printing.
@@ -678,10 +672,10 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	ChainVecType chain_rep = chainmap.find_if(::bliss::debruijn::filter::chain::IsCanonicalTerminusOrIsolated());
 	BL_BENCH_COLLECTIVE_END(work, "chain rep", chain_rep.size(), comm);
 
-	BL_BENCH_START(work);
-	//ChainVecType termini = chainmap.find_if(::bliss::debruijn::filter::chain::IsTerminusOrIsolated());
-	std::vector<KmerType> termini = chainmap.get_terminal_node_kmers();
-	BL_BENCH_COLLECTIVE_END(work, "chain termini", termini.size(), comm);
+//	BL_BENCH_START(work);
+//	//ChainVecType termini = chainmap.find_if(::bliss::debruijn::filter::chain::IsTerminusOrIsolated());
+//	std::vector<KmerType> termini = chainmap.get_terminal_node_kmers();
+//	BL_BENCH_COLLECTIVE_END(work, "chain termini", termini.size(), comm);
 
 
 	FreqMapType freq_map(comm);
@@ -694,7 +688,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 
 		if (compress) {
-			// === and compress.
 			// === and compress.
 			BL_BENCH_START(work);
 			::std::vector<::std::string> compressed_chain = chainmap.to_compressed_chains();
@@ -740,7 +733,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	BL_BENCH_START(work);
 	//ChainVecType termini = chainmap.find_if(::bliss::debruijn::filter::chain::IsTerminusOrIsolated());
 	std::vector<KmerType> chain_internal_kmers = chainmap.get_internal_node_kmers();
-	BL_BENCH_COLLECTIVE_END(work, "chain termini", chain_internal_kmers.size(), comm);
+	BL_BENCH_COLLECTIVE_END(work, "chain internal", chain_internal_kmers.size(), comm);
 	
 	BL_BENCH_START(work);
 	//remove everything except for chain terminal
@@ -775,7 +768,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	chainmap.get_map().get_local_container().reset();
 	BL_BENCH_COLLECTIVE_END(work, "chainmap_reset", chainmap.local_size(), comm);
 
-	BL_BENCH_REPORT_MPI_NAMED(work, "app", comm);
+	BL_BENCH_REPORT_MPI_NAMED(work, "work", comm);
 
 }
 
@@ -811,8 +804,8 @@ int main(int argc, char** argv) {
 	std::string out_prefix;
 	out_prefix.assign("./output");
 
-	std::vector<size_t> threshes(6, 0);
-	threshes[1] = threshes[3] = threshes[5] = std::numeric_limits<size_t>::max();
+	  // thresholds capped at uint32_t, but uses size_t for representation.
+	std::vector<size_t> threshes(6, ((sizeof(CountType) > 4) ? ::std::numeric_limits<uint32_t>::max() : ::std::numeric_limits<CountType>::max()) + 1);
 
 	bool thresholding = false;
 	bool benchmark = false;
@@ -845,10 +838,10 @@ int main(int argc, char** argv) {
 		TCLAP::ValueArg<std::string> outputArg("O", "output_prefix", "Prefix for output files, including directory", false, "", "string", cmd);
 
 		TCLAP::SwitchArg threshArg("T", "thresholding", "on/off for thresholding", cmd, false);
-		TCLAP::MultiArg<int64_t> lowerThreshArg("L", "lower_thresholds", 
+		TCLAP::MultiArg<size_t> lowerThreshArg("L", "lower_thresholds",
 			"Lower frequency thresholds, inclusive. Single value maps to K1mer. 3 values correspond to kmer, k1mer, k2mer.", false, 
 			"uint16", cmd);
-		TCLAP::MultiArg<int64_t> upperThreshArg("U", "upper_thresholds",
+		TCLAP::MultiArg<size_t> upperThreshArg("U", "upper_thresholds",
 			"Upper frequency thresholds, exclusive. Single value maps to K1mer. 3 values correspond to kmer, k1mer, k2mer.", false, 
 			"uint16", cmd);
 
@@ -878,26 +871,20 @@ int main(int argc, char** argv) {
 		auto upper = upperThreshArg.getValue();
 
 		if (lower.size() == 1) {
-			threshes[2] = ::std::min(static_cast<size_t>(lower[0]),
-                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
+      threshes[0] = threshes[4] = 0;
+			threshes[2] = ::std::min(lower[0],threshes[2]);
 		} else if (lower.size() == 3) {
-			threshes[0] = ::std::min(static_cast<size_t>(lower[0]),
-                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
-			threshes[2] = ::std::min(static_cast<size_t>(lower[1]),
-                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
-			threshes[4] = ::std::min(static_cast<size_t>(lower[2]),
-                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
+			threshes[0] = ::std::min(lower[0],threshes[0]);
+			threshes[2] = ::std::min(lower[1],threshes[2]);
+			threshes[4] = ::std::min(lower[2],threshes[4]);
 		}
 		if (upper.size() == 1) {
-			threshes[3] = ::std::min(static_cast<size_t>(upper[0]),
-                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
+		  threshes[1] = threshes[5] = 0;
+			threshes[3] = ::std::min(upper[0],threshes[3]);
 		} else if (upper.size() == 3) {
-			threshes[1] = ::std::min(static_cast<size_t>(upper[0]),
-                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
-			threshes[3] = ::std::min(static_cast<size_t>(upper[1]),
-                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
-			threshes[5] = ::std::min(static_cast<size_t>(upper[2]),
-                        static_cast<size_t>(::std::numeric_limits<size_t>::max()));
+			threshes[1] = ::std::min(upper[0],threshes[1]);
+			threshes[3] = ::std::min(upper[1],threshes[3]);
+			threshes[5] = ::std::min(upper[2],threshes[5]);
 		}
 
 		// ====
@@ -914,6 +901,12 @@ int main(int argc, char** argv) {
 
 	if (comm.rank() == 0)  std::cout << "Parallel de bruijn graph compaction v0.5" << std::endl;
 
+	if (thresholding && (comm.rank() == 0)) {
+	  std::cout << "THRESHOLDS: ";
+	  std::cout << "k2:  " << threshes[0] << "-" << threshes[1] << std::endl;
+    std::cout << "k1:  " << threshes[2] << "-" << threshes[3] << std::endl;
+    std::cout << "k0:  " << threshes[4] << "-" << threshes[5] << std::endl;
+	}
 
 //#if (pPARSER == FASTA)
 //    if (thresholding)

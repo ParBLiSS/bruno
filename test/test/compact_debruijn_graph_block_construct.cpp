@@ -110,6 +110,9 @@
 	#define bDNA 0
 #endif
 
+// need to handle different bit depths.
+//using CountType = uint16_t;  // by default, 16 bit to ensure most frequencies are captured.
+
 #if defined(MIN_MEM)
 
 	#if defined(pK)
@@ -135,9 +138,7 @@
 		#endif
 		using KmerType = bliss::common::Kmer<31, Alphabet, KmerWordType>;
 	#endif
-
-	using CountType = uint8_t;  // don't want it to become a character.
-
+		using CountType = uint8_t;  // by default, 16 bit to ensure most frequencies are captured.
 #else   // MIN_MEM not defined.  use uint64_t.  this is same as compact_debruijn_graph_refactor.cpp
 
 	using KmerWordType = uint64_t;  // matches system architecture.
@@ -147,8 +148,7 @@
 	#else
 		using KmerType = bliss::common::Kmer<31, Alphabet, KmerWordType>;
 	#endif
-
-	using CountType = uint16_t;
+		using CountType = uint16_t;  // by default, 16 bit to ensure most frequencies are captured.
 #endif
 
 #define FASTA 1
@@ -393,7 +393,7 @@ void build_index_incremental(::std::vector<::bliss::io::file_data> const & file_
 template <typename Index>
 ::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> >
 build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data, Index & idx,
-		CountType const & lower_thresh, CountType const & upper_thresh,  mxx::comm const & comm) {
+		size_t const & lower_thresh, size_t const & upper_thresh,  mxx::comm const & comm) {
 	BL_BENCH_INIT(build);
 
 	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT\n");
@@ -462,7 +462,7 @@ build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data,
 template <typename Index>
 ::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> >
 build_index_thresholded_incremental(::std::vector<::bliss::io::file_data> const & file_data, Index & idx,
-		CountType const & lower_thresh, CountType const & upper_thresh,  mxx::comm const & comm) {
+		size_t const & lower_thresh, size_t const & upper_thresh,  mxx::comm const & comm) {
 	BL_BENCH_INIT(build);
 
 	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT\n");
@@ -622,7 +622,8 @@ int main(int argc, char** argv) {
 	out_prefix.assign("./output");
 
 //#if (pPARSER == FASTQ)
-	CountType lower, upper;
+	size_t lower, upper;
+	lower = upper = ((sizeof(CountType) > 4) ? ::std::numeric_limits<uint32_t>::max() : ::std::numeric_limits<CountType>::max()) + 1;
 //#endif
 
 	bool thresholding = false;
@@ -657,9 +658,9 @@ int main(int argc, char** argv) {
 
 		// value type is uint16_t - to ensure that the values are parsed as integer instead of being treated as unsigned chars.
 		TCLAP::SwitchArg threshArg("T", "thresholding", "on/off for thresholding", cmd, false);
-		TCLAP::ValueArg<int64_t> lowerThreshArg("L", "lower_thresh", "Lower Threshold for Kmer and Edge frequency", false, 0, "uint16", cmd);
-		TCLAP::ValueArg<int64_t> upperThreshArg("U", "upper_thresh", "Upper Threshold for Kmer and Edge frequency", false,
-				std::numeric_limits<CountType>::max(), "uint16", cmd);
+		TCLAP::ValueArg<size_t> lowerThreshArg("L", "lower_thresh", "Lower Threshold for Kmer and Edge frequency", false, 0, "uint16", cmd);
+		TCLAP::ValueArg<size_t> upperThreshArg("U", "upper_thresh", "Upper Threshold for Kmer and Edge frequency", false,
+				upper, "uint16", cmd);
 
 		TCLAP::SwitchArg benchmarkArg("B", "benchmark", "on/off for benchmarking (no file output)", cmd, false);
 
@@ -681,10 +682,8 @@ int main(int argc, char** argv) {
 		out_prefix = outputArg.getValue();
 
 //#if (pPARSER == FASTQ)
-    lower = ::std::min(static_cast<size_t>(lowerThreshArg.getValue()),
-			static_cast<size_t>(::std::numeric_limits<CountType>::max()));
-    upper = ::std::min(static_cast<size_t>(upperThreshArg.getValue()),
-			static_cast<size_t>(::std::numeric_limits<CountType>::max()));
+    lower = ::std::min(lowerThreshArg.getValue(), lower);
+    upper = ::std::min(upperThreshArg.getValue(), upper);
 //#endif
 
 		thresholding = threshArg.getValue();
@@ -701,6 +700,10 @@ int main(int argc, char** argv) {
 	}
 
 	if (comm.rank() == 0)  std::cout << "compact_debruijn_graph_block_construct v0.4a" << std::endl;
+  if (thresholding && (comm.rank() == 0)) {
+    std::cout << "THRESHOLDS: ";
+    std::cout << "k1:  " << lower << "-" << upper << std::endl;
+  }
 
 
 //#if (pPARSER == FASTA)
@@ -812,11 +815,11 @@ int main(int argc, char** argv) {
 		if (!benchmark) {
 			BL_BENCH_START(app);
 			print_edge_histogram(idx, comm);
+      check_index(idx, comm);
+      printf("rank %d finished checking index\n", comm.rank());
 			BL_BENCH_COLLECTIVE_END(app, "histo", idx.local_size(), comm);
 			// == DONE == make compacted simple DBG
 
-			check_index(idx, comm);
-			printf("rank %d finished checking index\n", comm.rank());
 		}
 		// TODO: filter out, or do something, about "N".  May have to add back support for ASCII edge encoding so that we can use DNA5 alphabet
 		//   this is done via read filtering/splitting.
