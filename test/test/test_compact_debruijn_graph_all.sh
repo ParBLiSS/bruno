@@ -1,23 +1,26 @@
-#!/bin/sh
+#!/bin/bash
 
 DIR=test_dbg
 
 rm -rf ${DIR}
 
+TIME_CMD=time
+#TIME_CMD="/usr/bin/time -v"
+
 #gold
 mkdir -p ${DIR}/gold-q1
 echo "gold q1"
-/usr/bin/time -v bin/compact_debruijn_graph_fastq_refactored -O ${DIR}/gold-q1/s ~/src/bruno/test/data/test.star.unitiqs.fastq >   ${DIR}/gold-q1_s.log 2>&1
-/usr/bin/time -v bin/compact_debruijn_graph_fastq_refactored -O ${DIR}/gold-q1/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/gold-q1_s2.log 2>&1
-/usr/bin/time -v bin/compact_debruijn_graph_fastq_refactored -O ${DIR}/gold-q1/u ~/src/bruno/test/data/test.unitiqs.fastq > 	   ${DIR}/gold-q1_u.log 2>&1
-/usr/bin/time -v bin/compact_debruijn_graph_fastq_refactored -O ${DIR}/gold-q1/t ~/src/bruno/test/data/test.short.unitiqs.fastq >  ${DIR}/gold-q1_t.log 2>&1
+eval $TIME_CMD bin/compact_debruijn_graph_fastq_refactored -O ${DIR}/gold-q1/s ~/src/bruno/test/data/test.star.unitiqs.fastq >   ${DIR}/gold-q1_s.log 2>&1
+eval $TIME_CMD bin/compact_debruijn_graph_fastq_refactored -O ${DIR}/gold-q1/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/gold-q1_s2.log 2>&1
+eval $TIME_CMD bin/compact_debruijn_graph_fastq_refactored -O ${DIR}/gold-q1/u ~/src/bruno/test/data/test.unitiqs.fastq > 	   ${DIR}/gold-q1_u.log 2>&1
+eval $TIME_CMD bin/compact_debruijn_graph_fastq_refactored -O ${DIR}/gold-q1/t ~/src/bruno/test/data/test.short.unitiqs.fastq >  ${DIR}/gold-q1_t.log 2>&1
 
 mkdir -p ${DIR}/gold-q1-tl2
 echo "gold q1 tl2"
-/usr/bin/time -v bin/compact_debruijn_graph_fastq_refactored -T -L 2 -O ${DIR}/gold-q1-tl2/s ~/src/bruno/test/data/test.star.unitiqs.fastq > 	${DIR}/gold-q1-tl2_s.log 2>&1
-/usr/bin/time -v bin/compact_debruijn_graph_fastq_refactored -T -L 2 -O ${DIR}/gold-q1-tl2/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > 	${DIR}/gold-q1-tl2_s2.log 2>&1
-/usr/bin/time -v bin/compact_debruijn_graph_fastq_refactored -T -L 2 -O ${DIR}/gold-q1-tl2/u ~/src/bruno/test/data/test.unitiqs.fastq > 		${DIR}/gold-q1-tl2_u.log 2>&1
-/usr/bin/time -v bin/compact_debruijn_graph_fastq_refactored -T -L 2 -O ${DIR}/gold-q1-tl2/t ~/src/bruno/test/data/test.short.unitiqs.fastq > 	${DIR}/gold-q1-tl2_t.log 2>&1
+eval $TIME_CMD bin/compact_debruijn_graph_fastq_refactored -T -L 2 -O ${DIR}/gold-q1-tl2/s ~/src/bruno/test/data/test.star.unitiqs.fastq > 	${DIR}/gold-q1-tl2_s.log 2>&1
+eval $TIME_CMD bin/compact_debruijn_graph_fastq_refactored -T -L 2 -O ${DIR}/gold-q1-tl2/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > 	${DIR}/gold-q1-tl2_s2.log 2>&1
+eval $TIME_CMD bin/compact_debruijn_graph_fastq_refactored -T -L 2 -O ${DIR}/gold-q1-tl2/u ~/src/bruno/test/data/test.unitiqs.fastq > 		${DIR}/gold-q1-tl2_u.log 2>&1
+eval $TIME_CMD bin/compact_debruijn_graph_fastq_refactored -T -L 2 -O ${DIR}/gold-q1-tl2/t ~/src/bruno/test/data/test.short.unitiqs.fastq > 	${DIR}/gold-q1-tl2_t.log 2>&1
 
 
 for i in 1 2 4 8 16
@@ -28,56 +31,56 @@ do
 	# blocked
 		mkdir -p ${DIR}/b${s}-${i}
 		echo "$i $s b"
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -C -O ${DIR}/b${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/b${s}-${i}_s.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -C -O ${DIR}/b${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/b${s}-${i}_s2.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -C -O ${DIR}/b${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/b${s}-${i}_u.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -C -O ${DIR}/b${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/b${s}-${i}_t.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -C -O ${DIR}/b${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/b${s}-${i}_s.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -C -O ${DIR}/b${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/b${s}-${i}_s2.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -C -O ${DIR}/b${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/b${s}-${i}_u.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -C -O ${DIR}/b${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/b${s}-${i}_t.log 2>&1
 		
 	# freq
 
 		mkdir -p ${DIR}/f${s}-${i}
 		echo "$i $s f"
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -C -O ${DIR}/f${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/f${s}-${i}_s.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -C -O ${DIR}/f${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/f${s}-${i}_s2.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -C -O ${DIR}/f${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/f${s}-${i}_u.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -C -O ${DIR}/f${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/f${s}-${i}_t.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -C -O ${DIR}/f${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/f${s}-${i}_s.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -C -O ${DIR}/f${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/f${s}-${i}_s2.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -C -O ${DIR}/f${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/f${s}-${i}_u.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -C -O ${DIR}/f${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/f${s}-${i}_t.log 2>&1
 		
 	#blocked min mem
 
 		mkdir -p ${DIR}/bm${s}-${i}
 		echo "$i $s bm"
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -C -O ${DIR}/bm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/bm${s}-${i}_s.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -C -O ${DIR}/bm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/bm${s}-${i}_s2.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -C -O ${DIR}/bm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/bm${s}-${i}_u.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -C -O ${DIR}/bm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/bm${s}-${i}_t.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -C -O ${DIR}/bm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/bm${s}-${i}_s.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -C -O ${DIR}/bm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/bm${s}-${i}_s2.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -C -O ${DIR}/bm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/bm${s}-${i}_u.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -C -O ${DIR}/bm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/bm${s}-${i}_t.log 2>&1
 		
 	# freq min mem
 
 		mkdir -p ${DIR}/fm${s}-${i}
 		echo "$i $s fm"
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -C -O ${DIR}/fm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/fm${s}-${i}_s.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -C -O ${DIR}/fm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/fm${s}-${i}_s2.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -C -O ${DIR}/fm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/fm${s}-${i}_u.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -C -O ${DIR}/fm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/fm${s}-${i}_t.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -C -O ${DIR}/fm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/fm${s}-${i}_s.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -C -O ${DIR}/fm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/fm${s}-${i}_s2.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -C -O ${DIR}/fm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/fm${s}-${i}_u.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -C -O ${DIR}/fm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/fm${s}-${i}_t.log 2>&1
 		
 
 	#blocked min mem, no opt
 
 		mkdir -p ${DIR}/obm${s}-${i}
 		echo "$i $s obm"
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -C -O ${DIR}/obm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/obm${s}-${i}_s.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -C -O ${DIR}/obm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/obm${s}-${i}_s2.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -C -O ${DIR}/obm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/obm${s}-${i}_u.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -C -O ${DIR}/obm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/obm${s}-${i}_t.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -C -O ${DIR}/obm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/obm${s}-${i}_s.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -C -O ${DIR}/obm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/obm${s}-${i}_s2.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -C -O ${DIR}/obm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/obm${s}-${i}_u.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -C -O ${DIR}/obm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/obm${s}-${i}_t.log 2>&1
 		
 	# freq min mem, no opt
 
 		mkdir -p ${DIR}/ofm${s}-${i}
 		echo "$i $s ofm"
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -C -O ${DIR}/ofm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/ofm${s}-${i}_s.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -C -O ${DIR}/ofm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/ofm${s}-${i}_s2.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -C -O ${DIR}/ofm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/ofm${s}-${i}_u.log 2>&1
-		/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -C -O ${DIR}/ofm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/ofm${s}-${i}_t.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -C -O ${DIR}/ofm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/ofm${s}-${i}_s.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -C -O ${DIR}/ofm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/ofm${s}-${i}_s2.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -C -O ${DIR}/ofm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/ofm${s}-${i}_u.log 2>&1
+		eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -C -O ${DIR}/ofm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/ofm${s}-${i}_t.log 2>&1
 
 	done
 done
@@ -94,55 +97,55 @@ do
 		# blocked
 			mkdir -p ${DIR}/tl${t}-b${s}-${i}
 			echo "$i $s b tl${t}"
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -T -L ${t} -C -O ${DIR}/tl${t}-b${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/tl${t}-b${s}-${i}_s.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -T -L ${t} -C -O ${DIR}/tl${t}-b${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/tl${t}-b${s}-${i}_s2.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -T -L ${t} -C -O ${DIR}/tl${t}-b${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/tl${t}-b${s}-${i}_u.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -T -L ${t} -C -O ${DIR}/tl${t}-b${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/tl${t}-b${s}-${i}_t.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -T -L ${t} -C -O ${DIR}/tl${t}-b${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/tl${t}-b${s}-${i}_s.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -T -L ${t} -C -O ${DIR}/tl${t}-b${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/tl${t}-b${s}-${i}_s2.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -T -L ${t} -C -O ${DIR}/tl${t}-b${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/tl${t}-b${s}-${i}_u.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31 -R -T -L ${t} -C -O ${DIR}/tl${t}-b${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/tl${t}-b${s}-${i}_t.log 2>&1
 
 		# freq
 			
 			mkdir -p ${DIR}/tl${t}-f${s}-${i}
 			echo "$i $s f tl${t}"
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -T -L ${t} -C -O ${DIR}/tl${t}-f${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/tl${t}-f${s}-${i}_s.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -T -L ${t} -C -O ${DIR}/tl${t}-f${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/tl${t}-f${s}-${i}_s2.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -T -L ${t} -C -O ${DIR}/tl${t}-f${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/tl${t}-f${s}-${i}_u.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -T -L ${t} -C -O ${DIR}/tl${t}-f${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/tl${t}-f${s}-${i}_t.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -T -L ${t} -C -O ${DIR}/tl${t}-f${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/tl${t}-f${s}-${i}_s.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -T -L ${t} -C -O ${DIR}/tl${t}-f${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/tl${t}-f${s}-${i}_s2.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -T -L ${t} -C -O ${DIR}/tl${t}-f${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/tl${t}-f${s}-${i}_u.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq -R -T -L ${t} -C -O ${DIR}/tl${t}-f${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/tl${t}-f${s}-${i}_t.log 2>&1
 
 		#blocked min mem
 
 			mkdir -p ${DIR}/tl${t}-bm${s}-${i}
 			echo "$i $s bn tl${t}"
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-bm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/tl${t}-bm${s}-${i}_s.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-bm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/tl${t}-bm${s}-${i}_s2.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-bm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/tl${t}-bm${s}-${i}_u.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-bm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/tl${t}-bm${s}-${i}_t.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-bm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/tl${t}-bm${s}-${i}_s.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-bm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/tl${t}-bm${s}-${i}_s2.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-bm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/tl${t}-bm${s}-${i}_u.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-bm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/tl${t}-bm${s}-${i}_t.log 2>&1
 			
 		# freq min mem
 			
 			mkdir -p ${DIR}/tl${t}-fm${s}-${i}
 			echo "$i $s fm tl${t}"	
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-fm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/tl${t}-fm${s}-${i}_s.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-fm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/tl${t}-fm${s}-${i}_s2.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-fm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/tl${t}-fm${s}-${i}_u.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-fm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/tl${t}-fm${s}-${i}_t.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-fm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/tl${t}-fm${s}-${i}_s.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-fm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/tl${t}-fm${s}-${i}_s2.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-fm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/tl${t}-fm${s}-${i}_u.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -R -T -L ${t} -C -O ${DIR}/tl${t}-fm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/tl${t}-fm${s}-${i}_t.log 2>&1
 
 		#blocked min mem, no opt
 
 			mkdir -p ${DIR}/tl${t}-obm${s}-${i}
 			echo "$i $s obm tl${t}"
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -T -L ${t} -C -O ${DIR}/tl${t}-obm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/tl${t}-obm${s}-${i}_s.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -T -L ${t} -C -O ${DIR}/tl${t}-obm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/tl${t}-obm${s}-${i}_s2.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -T -L ${t} -C -O ${DIR}/tl${t}-obm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/tl${t}-obm${s}-${i}_u.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -T -L ${t} -C -O ${DIR}/tl${t}-obm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/tl${t}-obm${s}-${i}_t.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -T -L ${t} -C -O ${DIR}/tl${t}-obm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/tl${t}-obm${s}-${i}_s.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -T -L ${t} -C -O ${DIR}/tl${t}-obm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/tl${t}-obm${s}-${i}_s2.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -T -L ${t} -C -O ${DIR}/tl${t}-obm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/tl${t}-obm${s}-${i}_u.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_incr -T -L ${t} -C -O ${DIR}/tl${t}-obm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/tl${t}-obm${s}-${i}_t.log 2>&1
 		
 		# freq min mem, no opt
 			
 			mkdir -p ${DIR}/tl${t}-ofm${s}-${i}
 			echo "$i $s ofm tl${t}"
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -T -L ${t} -C -O ${DIR}/tl${t}-ofm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/tl${t}-ofm${s}-${i}_s.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -T -L ${t} -C -O ${DIR}/tl${t}-ofm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/tl${t}-ofm${s}-${i}_s2.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -T -L ${t} -C -O ${DIR}/tl${t}-ofm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/tl${t}-ofm${s}-${i}_u.log 2>&1
-			/usr/bin/time -v mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -T -L ${t} -C -O ${DIR}/tl${t}-ofm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/tl${t}-ofm${s}-${i}_t.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -T -L ${t} -C -O ${DIR}/tl${t}-ofm${s}-${i}/s ~/src/bruno/test/data/test.star.unitiqs.fastq   > ${DIR}/tl${t}-ofm${s}-${i}_s.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -T -L ${t} -C -O ${DIR}/tl${t}-ofm${s}-${i}/s2 ~/src/bruno/test/data/test.star2.unitiqs.fastq > ${DIR}/tl${t}-ofm${s}-${i}_s2.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -T -L ${t} -C -O ${DIR}/tl${t}-ofm${s}-${i}/u ~/src/bruno/test/data/test.unitiqs.fastq        > ${DIR}/tl${t}-ofm${s}-${i}_u.log 2>&1
+			eval $TIME_CMD mpirun -np $i bin/compact_debruijn_graph_fastq_A${s}_K31_freq_incr -T -L ${t} -C -O ${DIR}/tl${t}-ofm${s}-${i}/t ~/src/bruno/test/data/test.short.unitiqs.fastq  > ${DIR}/tl${t}-ofm${s}-${i}_t.log 2>&1
 
 		done
 	done
