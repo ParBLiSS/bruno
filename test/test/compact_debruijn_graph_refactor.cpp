@@ -1635,7 +1635,7 @@ void count_kmers(::std::vector<::bliss::io::file_data> const & file_data,
 		temp.clear();
 		size_t counter = 0;
 		std::transform(temp1.begin(), temp1.end(), back_emplacer,
-				[&comm, &counter](::bliss::debruijn::biedge::compact_simple_biedge_kmer_node<KmerType> const & y){
+				[&counter](::bliss::debruijn::biedge::compact_simple_biedge_kmer_node<KmerType> const & y){
 //			std::cout << "kmer counting: rank " << comm.rank() << " counter " << counter << " "<< y.first << std::endl;
 			++counter;
 			return y.first;
