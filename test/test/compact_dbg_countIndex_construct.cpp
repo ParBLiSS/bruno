@@ -323,16 +323,23 @@ build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data,
 		}
 	}
 
-
 	// then filter the k2mers and insert into dbg (no need to touch files again)
 	BL_BENCH_START(build);
 	std::vector<size_t> lthreshes(threshes.begin(), threshes.end());
 	idx.get_map().local_insert_by_freqencies(k2_counter, lthreshes);
 	BL_BENCH_END(build, "insert", idx.local_size());
 
+	for (auto k2 : k2_counter) {
+		std::cout << "k2 " << k2.first << " f=" << static_cast<size_t>(k2.second) << std::endl;
+	}
+
 	BL_BENCH_START(build);
 	idx.get_map().local_insert_palindrome_by_freqencies(pal_counter, lthreshes);
 	BL_BENCH_END(build, "insert_pal", idx.local_size());
+
+	for (auto k2 : pal_counter) {
+		std::cout << "pal " << k2.first << " f=" << static_cast<size_t>(k2.second) << std::endl;
+	}
 
 	size_t total = idx.size();
 	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT: total size after insert/rehash is %lu\n", total);
@@ -569,6 +576,9 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	std::string branch_filename(out_prefix);
 	branch_filename.append("_branch.edges");
 
+	std::string graph_filename(out_prefix);
+	graph_filename.append("_graph.edges.debug");
+
 	std::string branch_fasta_filename(out_prefix);
 	branch_fasta_filename.append("_branch.fasta");
 
@@ -609,6 +619,10 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
   BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
   // == DONE == make compacted simple DBG
 
+
+  BL_BENCH_START(work);
+  print_graph_edge_frequencies(graph_filename, idx, comm);
+  BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
 
   // == PRINT == prep branch for printing - here ONLY BECAUSE WE ARE DISCARDING IDX AFTER MAKING CHAINMAPS
   BL_BENCH_START(work);
