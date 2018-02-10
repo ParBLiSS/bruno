@@ -251,8 +251,8 @@ void print_graph_edge_frequencies(
 
 	// then find branches.
 	BL_BENCH_START(branch_print);
-	std::vector<typename CountDBGType::mutable_value_type> branch_pts =
-			idx2.to_vector();
+	std::vector<typename CountDBGType::mutable_value_type> branch_pts(idx2.local_size());
+	std::copy(idx2.cbegin(), idx2.cend(), branch_pts.begin());
 	BL_BENCH_COLLECTIVE_END(branch_print, "get_all_counts", branch_pts.size(), comm);
 
 	// sort the branches
