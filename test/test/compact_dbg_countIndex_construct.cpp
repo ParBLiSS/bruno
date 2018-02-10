@@ -255,6 +255,11 @@ using ChainVecType = ::std::vector<std::pair<KmerType, ChainNodeType> >;
 
 #include "../common/compact_dbg_build.hpp"
 
+#include "../common/compact_dbg_io.hpp"
+
+#include "../common/compact_dbg_stats.hpp"
+
+
 // ==========  choices:
 //  1. no filtering:  parse simple nodes directly, insert
 //  2. de novo filtering:  parse simple nodes, parse edge k1mers, transform edges, copy edges, filter and erase, insert
@@ -289,7 +294,8 @@ using ChainVecType = ::std::vector<std::pair<KmerType, ChainNodeType> >;
 template <typename Index>
 size_t
 build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data, Index & idx,
-		std::vector<size_t> const & threshes,  mxx::comm const & comm) {
+		std::vector<size_t> const & threshes,  mxx::comm const & comm,
+		std::string k2mer_filename, std::string pal_filename) {
 	BL_BENCH_INIT(build);
 
 	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT\n");
@@ -323,23 +329,20 @@ build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data,
 		}
 	}
 
+	print_k2mer_frequencies(k2mer_filename, k2_counter, "k2", comm);
+
 	// then filter the k2mers and insert into dbg (no need to touch files again)
 	BL_BENCH_START(build);
 	std::vector<size_t> lthreshes(threshes.begin(), threshes.end());
 	idx.get_map().local_insert_by_freqencies(k2_counter, lthreshes);
 	BL_BENCH_END(build, "insert", idx.local_size());
 
-	for (auto k2 : k2_counter) {
-		std::cout << "k2 " << k2.first << " f=" << static_cast<size_t>(k2.second) << std::endl;
-	}
+	print_k2mer_frequencies(pal_filename, pal_counter, "pal", comm);
 
 	BL_BENCH_START(build);
 	idx.get_map().local_insert_palindrome_by_freqencies(pal_counter, lthreshes);
 	BL_BENCH_END(build, "insert_pal", idx.local_size());
 
-	for (auto k2 : pal_counter) {
-		std::cout << "pal " << k2.first << " f=" << static_cast<size_t>(k2.second) << std::endl;
-	}
 
 	size_t total = idx.size();
 	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT: total size after insert/rehash is %lu\n", total);
@@ -433,10 +436,6 @@ size_t build_index_thresholded_incremental(::std::vector<::bliss::io::file_data>
 
 #endif
 
-#include "../common/compact_dbg_io.hpp"
-
-#include "../common/compact_dbg_stats.hpp"
-
 
 void do_benchmark(::std::vector<::bliss::io::file_data> const & file_data, std::string const & out_prefix,
 	bool thresholding, bool benchmark, bool LRoptimized, bool compress, bool mpiio, 
@@ -451,6 +450,12 @@ void do_benchmark(::std::vector<::bliss::io::file_data> const & file_data, std::
 	// compressed chain
 	std::string compressed_chain_filename(out_prefix);
 	compressed_chain_filename.append("_compressed_chain.debug");
+
+	std::string k2mer_filename(out_prefix);
+	k2mer_filename.append("_k2mers.debug");
+	std::string pal_filename(out_prefix);
+	pal_filename.append("_palindromes.debug");
+
 
 	BL_BENCH_INIT(benchmark);
 
@@ -470,7 +475,7 @@ void do_benchmark(::std::vector<::bliss::io::file_data> const & file_data, std::
 		}
 #else
 		if (thresholding) {
-			build_index_thresholded(file_data, idx, threshes, comm);
+			build_index_thresholded(file_data, idx, threshes, comm, k2mer_filename, pal_filename);
 		} else {
 			build_index(file_data, idx, comm);
 		}
@@ -579,6 +584,12 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	std::string graph_filename(out_prefix);
 	graph_filename.append("_graph.edges.debug");
 
+	std::string k2mer_filename(out_prefix);
+	k2mer_filename.append("_k2mers.debug");
+	std::string pal_filename(out_prefix);
+	pal_filename.append("_palindromes.debug");
+
+
 	std::string branch_fasta_filename(out_prefix);
 	branch_fasta_filename.append("_branch.fasta");
 
@@ -600,7 +611,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	}
 #else
 	if (thresholding) {
-		build_index_thresholded(file_data, idx, threshes, comm);
+		build_index_thresholded(file_data, idx, threshes, comm, k2mer_filename, pal_filename);
 	} else {
 		build_index(file_data, idx, comm);
 	}

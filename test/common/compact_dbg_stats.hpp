@@ -268,7 +268,7 @@ void print_graph_edge_frequencies(
 				return x.first < y.first;
 			}, subcomm);
 		}
-		BL_BENCH_COLLECTIVE_END(branch_print, "psort branches", branch_pts.size(), comm);   // this is for ordered output.
+		BL_BENCH_COLLECTIVE_END(branch_print, "psort nodes", branch_pts.size(), comm);   // this is for ordered output.
 	}
 
 	// and print.
@@ -286,6 +286,53 @@ void print_graph_edge_frequencies(
 
 }
 
+template <typename CountMapType>
+void print_k2mer_frequencies(
+		std::string const & filename,
+		CountMapType const & idx2,
+		std::string prefix,
+		mxx::comm const & comm) {
+
+	if (comm.rank() == 0) printf("PRINT K2MERs\n");
+	BL_BENCH_INIT(branch_print);
+
+	// then find branches.
+	BL_BENCH_START(branch_print);
+	auto branch_pts = idx2.to_vector();
+	BL_BENCH_COLLECTIVE_END(branch_print, "get_k2mers", branch_pts.size(), comm);
+
+	// sort the branches
+	int has_data = (branch_pts.size() == 0) ? 0 : 1;
+	int all_has_data = mxx::allreduce(has_data, comm);
+	if (all_has_data > 0) {
+		// global sort
+		BL_BENCH_START(branch_print);
+		mxx::comm subcomm = (all_has_data == comm.size()) ? comm.copy() : comm.split(has_data);
+		if (has_data == 1) {
+			mxx::sort(branch_pts.begin(), branch_pts.end(), [](typename CountMapType::value_type const & x,
+					typename CountMapType::value_type const & y){
+				return x.first.first < y.first.first;
+			}, subcomm);
+		}
+		BL_BENCH_COLLECTIVE_END(branch_print, "psort k2mers", branch_pts.size(), comm);   // this is for ordered output.
+	}
+
+	// and print.
+	BL_BENCH_START(branch_print);
+
+	std::stringstream ss;
+	ss.clear();
+	std::for_each(branch_pts.begin(), branch_pts.end(),
+		[&ss, &prefix](typename CountMapType::value_type const & x) {
+			ss << prefix << " " << x << std::endl; 
+		});
+	write_mpiio(filename, ss.str().c_str(), ss.str().length(), comm);
+
+	BL_BENCH_COLLECTIVE_END(branch_print, "print k2mers (debug)", branch_pts.size(), comm);
+
+	BL_BENCH_REPORT_MPI_NAMED(branch_print, "k2mer_print", comm);
+
+}
 
 
 /// printsthe first and last valid k-mer positions in each read.
