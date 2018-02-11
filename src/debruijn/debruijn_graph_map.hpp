@@ -685,7 +685,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 					// if rc_palindrome, then insert into palindrome counter (no cap)
 					auto result = pal_counter.insert(std::make_pair(*it, PalindromeFreqType(1)));
 					if (!(result.second)) {
-						++result.first->second;
+						++(result.first->second);
 					}
 				} else {
 					kv.first = *it;
@@ -788,7 +788,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 							// if rc_palindrome, then insert into palindrome counter (no cap)
 						auto result = pal_counter.insert(std::make_pair(*it, PalindromeFreqType(1)));
 						if (!(result.second)) {
-							++result.first->second;
+							++(result.first->second);
 						}
 					} else {
 						kv.first = *it;
@@ -1125,19 +1125,17 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		    	size_t thresh_max = cnt_max + 1;
 				if (it != k2counts.end()) k = it->first.first;  // init
 			
+				uint8_t ch;
+
 				for (; it != k2counts.end(); ++it) {
 					if (it->first.first != k) {  // start of new block
 					  // cap the counts, could be data type max, and larger than thresh_max.
 					  k_f = std::min(cnt_max, k_f);
 					  // average by 2 since this is from palindromic k+1 mer.
-						k1in_f[0] = std::min(cnt_max, (k1in_f[0] >> 1));
-						k1in_f[1] = std::min(cnt_max, (k1in_f[1] >> 1));
-						k1in_f[2] = std::min(cnt_max, (k1in_f[2] >> 1));
-						k1in_f[3] = std::min(cnt_max, (k1in_f[3] >> 1));
-						k1out_f[0] = std::min(cnt_max, (k1out_f[0] >> 1));
-						k1out_f[1] = std::min(cnt_max, (k1out_f[1] >> 1));
-						k1out_f[2] = std::min(cnt_max, (k1out_f[2] >> 1));
-						k1out_f[3] = std::min(cnt_max, (k1out_f[3] >> 1));
+					  	for (uint8_t cc = 0; cc < 4; ++cc) {
+							k1in_f[cc] = std::min(cnt_max, (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(cc, k) ? (k1in_f[cc] >> 1) : k1in_f[cc]));
+							k1out_f[cc] = std::min(cnt_max, (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(k, cc) ? (k1out_f[cc] >> 1) : k1out_f[cc]));
+						  }
 
 						// accumulation for block complete. filter and record results now.
 						for (; block_it != it; ++block_it, ++flag_it) {
@@ -1190,37 +1188,59 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 					// step 4b: accumulate the k1mer in and out edge counts.
 					// if k is palindromic, then revcomp of edges may be present.  AVERAGE. 
 					edges = it->first.second.getData()[0];
-					switch (edges & 0xF0) {
-						case 0x10: k1in_f[0] += c; k1out_f[3] += c; break;
-						case 0x20: k1in_f[1] += c; k1out_f[2] += c; break;
-						case 0x40: k1in_f[2] += c; k1out_f[1] += c; break;
-						case 0x80: k1in_f[3] += c; k1out_f[0] += c; break;
+
+					ch = edges >> 4;
+					switch (ch) {
+						case 0x1: k1in_f[0] += c; break;
+						case 0x2: k1in_f[1] += c; break;
+						case 0x4: k1in_f[2] += c; break;
+						case 0x8: k1in_f[3] += c; break;
 						default:
 							assert("ERROR in edge has a combination of characters");
 							break;
 					}
-					switch (edges & 0x0F) {
-						case 0x01: k1out_f[0] += c; k1in_f[3] += c; break;
-						case 0x02: k1out_f[1] += c; k1in_f[2] += c; break;
-						case 0x04: k1out_f[2] += c; k1in_f[1] += c; break;
-						case 0x08: k1out_f[3] += c; k1in_f[0] += c; break;
+					if (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(ch, k)) {  // TODO: only handling k+1 palindrome right now.
+						switch (ch) {
+							case 0x1: k1out_f[3] += c; break;
+							case 0x2: k1out_f[2] += c; break;
+							case 0x4: k1out_f[1] += c; break;
+							case 0x8: k1out_f[0] += c; break;
+							default:
+								assert("ERROR in edge has a combination of characters");
+								break;
+						}						
+					}
+
+					ch = edges & 0x0F;
+					switch (ch) {
+						case 0x01: k1out_f[0] += c; break;
+						case 0x02: k1out_f[1] += c; break;
+						case 0x04: k1out_f[2] += c; break;
+						case 0x08: k1out_f[3] += c; break;
 						default:
 							assert("ERROR out edge has a combination of characters");
 							break;
+					}
+					if (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(k, ch)) {  // TODO: only handling k+1 palindrome right now.
+						switch (ch) {
+							case 0x1: k1in_f[3] += c; break;
+							case 0x2: k1in_f[2] += c; break;
+							case 0x4: k1in_f[1] += c; break;
+							case 0x8: k1in_f[0] += c; break;
+							default:
+								assert("ERROR out edge has a combination of characters");
+								break;
+						}						
 					}
 				}
 				// do the final block
 				// cap the counts
 				k_f = std::min(cnt_max, k_f);
 				// since palindromic, average the two.
-				k1in_f[0] = std::min(cnt_max, (k1in_f[0] >> 1));
-				k1in_f[1] = std::min(cnt_max, (k1in_f[1] >> 1));
-				k1in_f[2] = std::min(cnt_max, (k1in_f[2] >> 1));
-				k1in_f[3] = std::min(cnt_max, (k1in_f[3] >> 1));
-				k1out_f[0] = std::min(cnt_max, (k1out_f[0] >> 1));
-				k1out_f[1] = std::min(cnt_max, (k1out_f[1] >> 1));
-				k1out_f[2] = std::min(cnt_max, (k1out_f[2] >> 1));
-				k1out_f[3] = std::min(cnt_max, (k1out_f[3] >> 1));
+				for (uint8_t cc = 0; cc < 4; ++cc) {
+					k1in_f[cc] = std::min(cnt_max, (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(cc, k) ? (k1in_f[cc] >> 1) : k1in_f[cc]));
+					k1out_f[cc] = std::min(cnt_max, (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(k, cc) ? (k1out_f[cc] >> 1) : k1out_f[cc]));
+					}
 
 				for (; block_it != it; ++block_it, ++flag_it) {
 					// step 5: do per block threshold
