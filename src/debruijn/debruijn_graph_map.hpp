@@ -108,16 +108,18 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 
 	/**
-	 * @brief Kmer specialization for MurmurHash.  generated hash is 128 bit.
-	 *
+	 * @brief K2mer specialization for MurmurHash.  generated hash is 128 bit.
+	 *  does hash combining, using boost version.  from 
+	 * https://stackoverflow.com/questions/5889238/why-is-xor-the-default-way-to-combine-hashes
 	 * TODO: move KMER type template param to operator.
 	 * TODO: change h to member variable.
 	 */
-	template <typename Key>
+	template <typename KT, typename ET>
 	class k2_murmur {
 
 	protected:
-		static constexpr unsigned int nBytes = sizeof(Key);
+		static constexpr unsigned int KTBytes = sizeof(KT);
+		static constexpr unsigned int ETBytes = sizeof(ET);
 		uint32_t seed;
 
 	public:
@@ -127,19 +129,22 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 		k2_murmur(const unsigned int prefix_bits = default_init_value, uint32_t const & _seed = ((1 << 17) - 1) ) : seed(_seed) {};
 
-		inline uint64_t operator()(const Key & k) const	{
+		inline uint64_t operator()(std::pair<KT, ET> const & k) const	{
 			// produces 128 bit hash.
-			uint64_t h[2];
+			uint64_t h[2], f[2];
 			// let compiler optimize out all except one of these.
-			if (sizeof(void*) == 8)
-				MurmurHash3_x64_128(reinterpret_cast<unsigned char const *>(&k), nBytes, seed, h);
-			else if (sizeof(void*) == 4)
-				MurmurHash3_x86_128(reinterpret_cast<unsigned char const *>(&k), nBytes, seed, h);
-			else
+			if (sizeof(void*) == 8) {
+				MurmurHash3_x64_128(reinterpret_cast<unsigned char const *>(&(k.first)), KTBytes, seed, h);
+				MurmurHash3_x64_128(reinterpret_cast<unsigned char const *>(&(k.second)), ETBytes, seed, f);
+			} else if (sizeof(void*) == 4) {
+				MurmurHash3_x86_128(reinterpret_cast<unsigned char const *>(&(k.first)), KTBytes, seed, h);
+				MurmurHash3_x86_128(reinterpret_cast<unsigned char const *>(&(k.second)), ETBytes, seed, f);
+			} else
 				throw ::std::logic_error("ERROR: neither 32 bit nor 64 bit system");
 
 			// use the upper 64 bits.
-			return h[0];
+			// mixing hash functions.  uses Phttps://stackoverflow.com/questions/5889238/why-is-xor-the-default-way-to-combine-hashes
+			return h[0] ^ (f[0] + 0x517cc1b727220a95 +(h[0] << 6) + (h[0] >> 2));
 		}
 
       };
@@ -154,7 +159,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		::std::pair<key_type, typename Edge::EdgeInputType>, FreqType,
 		k2_special_keys<::std::pair<key_type, typename Edge::EdgeInputType> >,
 		::bliss::transform::identity,   // should not need to change relative to the transform used for the graph.
-		k2_murmur<::std::pair<key_type, typename Edge::EdgeInputType> >,    	// need specialization
+		k2_murmur<key_type, typename Edge::EdgeInputType>,    	// need specialization
 		::fsc::sparsehash::compare<::std::pair<key_type, typename Edge::EdgeInputType>, std::equal_to, ::bliss::transform::identity>,  // should not need to change
 		::std::allocator<::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType> >,
 		k2_special_keys<::std::pair<key_type, typename Edge::EdgeInputType> >::need_to_split >;
@@ -164,7 +169,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		::std::pair<key_type, typename Edge::EdgeInputType>, PalindromeFreqType,
 		k2_special_keys<::std::pair<key_type, typename Edge::EdgeInputType> >,
 		::bliss::transform::identity,   // should not need to change relative to the transform used for the graph.
-		k2_murmur<::std::pair<key_type, typename Edge::EdgeInputType> >,    	// need specialization
+		k2_murmur<key_type, typename Edge::EdgeInputType>,    	// need specialization
 		::fsc::sparsehash::compare<::std::pair<key_type, typename Edge::EdgeInputType>, std::equal_to, ::bliss::transform::identity>,  // should not need to change
 		::std::allocator<::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType> >,
 		k2_special_keys<::std::pair<key_type, typename Edge::EdgeInputType> >::need_to_split >;
