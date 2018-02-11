@@ -765,6 +765,10 @@ int main(int argc, char** argv) {
   std::string branch_fasta_filename(out_prefix);
   branch_fasta_filename.append("_branch.fasta");
 
+	std::string graph_filename(out_prefix);
+	graph_filename.append("_graph.edges.debug");
+
+
   BL_BENCH_INIT(app);
 
   // ================  read and get file
@@ -812,6 +816,7 @@ int main(int argc, char** argv) {
 
 		BL_BENCH_COLLECTIVE_END(app, "construct", idx.local_size(), comm);
 
+
 		if (!benchmark) {
 			BL_BENCH_START(app);
 			print_edge_histogram(idx, comm);
@@ -823,6 +828,11 @@ int main(int argc, char** argv) {
 		}
 		// TODO: filter out, or do something, about "N".  May have to add back support for ASCII edge encoding so that we can use DNA5 alphabet
 		//   this is done via read filtering/splitting.
+
+  BL_BENCH_START(work);
+  print_graph_edge_frequencies(graph_filename, idx, comm);
+  BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
+
 
 		// == PRINT == prep branch for printing - here ONLY BECAUSE WE ARE DISCARDING IDX AFTER MAKING CHAINMAPS
 		if (!benchmark) {
