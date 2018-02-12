@@ -562,6 +562,10 @@ namespace graph
 						for (auto n : neighbors) {  // OUT neighbor is used as IN edge
 							// insert as is.  let lex_less handle flipping it.
 							all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
+							
+							// NEED TO HANDLE k1 PALINDROME
+							if (n.reverse_complement() == t.first) 
+								all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
 						}
 
 						neighbors.clear();
@@ -569,6 +573,10 @@ namespace graph
 						for (auto n : neighbors) {  // IN neighbor is used as OUT edge
 							// insert as is.  let lex_less handle flipping it.
 							all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
+
+							// NEED TO HANDLE k1 PALINDROME
+							if (n.reverse_complement() == t.first) 
+								all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
 						}
 					}
 
