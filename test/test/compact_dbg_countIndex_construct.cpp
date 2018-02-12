@@ -595,6 +595,8 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 	std::string double_chain_node_filename(out_prefix);
 	double_chain_node_filename.append("_chainmap.debug");
+	std::string double_chain_node_filename2(out_prefix);
+	double_chain_node_filename2.append("_chainmap_uncomp.debug");
 
 	BL_BENCH_INIT(work);
 
@@ -655,6 +657,11 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	//make_chain_map(idx, chainmap, comm);
 	BL_BENCH_COLLECTIVE_END(work, "chainmap", chainmap.local_size(), comm);
 	// == DONE == make chain map
+
+	BL_BENCH_START(work);
+	print_double_chain_nodes(double_chain_node_filename2, chainmap, comm);
+	BL_BENCH_COLLECTIVE_END(work, "print_double_chain_node_uncomp", chainmap.local_size(), comm);
+
 
 	// ===== parallel list ranking for chain compaction
 	BL_BENCH_START(work);

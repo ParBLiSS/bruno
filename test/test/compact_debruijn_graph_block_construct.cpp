@@ -769,6 +769,10 @@ int main(int argc, char** argv) {
 	// graph_filename.append("_graph.edges.debug");
 	std::string double_chain_node_filename(out_prefix);
 	double_chain_node_filename.append("_chainmap.debug");
+	// std::string graph_filename(out_prefix);
+	// graph_filename.append("_graph.edges.debug");
+	std::string double_chain_node_filename2(out_prefix);
+	double_chain_node_filename2.append("_chainmap_uncomp.debug");
 
 
   BL_BENCH_INIT(app);
@@ -881,6 +885,12 @@ int main(int argc, char** argv) {
 	if (benchmark) {
 		idx.get_map().clear();
 		idx.get_map().reserve(0);
+	}
+
+	if (!benchmark) {
+		BL_BENCH_START(app);
+		print_double_chain_nodes(double_chain_node_filename2, chainmap, comm);
+		BL_BENCH_COLLECTIVE_END(app, "print_double_chain_node_uncomp", chainmap.local_size(), comm);
 	}
 
 	// ===== parallel list ranking for chain compaction
