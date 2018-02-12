@@ -484,6 +484,33 @@ void print_chain_nodes(std::string const & filename,
 
 }
 
+void print_double_chain_nodes(std::string const & filename,
+		ChainMapType const & chainmap,
+		mxx::comm const & comm) {
+
+	BL_BENCH_INIT(print_double_chain_nodes);
+
+	//===  print chain nodes (1)
+	if (comm.rank() == 0) printf("PRINT CHAINMAP Nodes\n");
+
+	// print out.
+	BL_BENCH_START(print_double_chain_nodes);
+	{
+		std::stringstream ss2;
+
+		for (auto it = chainmap.cbegin(); it != chainmap.cend(); ++it) {
+			ss2 << (*it) << std::endl;
+		}
+		write_mpiio(filename, ss2.str().c_str(), ss2.str().length(), comm);
+
+	}
+	//      std::cout << ss.str() << std::endl;
+	BL_BENCH_COLLECTIVE_END(print_double_chain_nodes, "print double chains", chainmap.local_size(), comm);
+
+	BL_BENCH_REPORT_MPI_NAMED(print_double_chain_nodes, "print_double_chain", comm);
+
+}
+
 
 
 

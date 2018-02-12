@@ -767,6 +767,8 @@ int main(int argc, char** argv) {
 
 	// std::string graph_filename(out_prefix);
 	// graph_filename.append("_graph.edges.debug");
+	std::string double_chain_node_filename(out_prefix);
+	double_chain_node_filename.append("_chainmap.debug");
 
 
   BL_BENCH_INIT(app);
@@ -919,7 +921,12 @@ int main(int argc, char** argv) {
 	// =============================================================
 	// below is for printing.
 
+
 	if (!benchmark) {
+		BL_BENCH_START(app);
+		print_double_chain_nodes(double_chain_node_filename, chainmap, comm);
+		BL_BENCH_COLLECTIVE_END(app, "print_double_chain_node", chainmap.local_size(), comm);
+
 		// =========== remove cycles and isolated
 		BL_BENCH_START(app);
 		auto cycle_kmers = chainmap.get_cycle_node_kmers();

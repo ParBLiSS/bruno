@@ -593,6 +593,9 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	std::string branch_fasta_filename(out_prefix);
 	branch_fasta_filename.append("_branch.fasta");
 
+	std::string double_chain_node_filename(out_prefix);
+	double_chain_node_filename.append("_chainmap.debug");
+
 	BL_BENCH_INIT(work);
 
 
@@ -666,6 +669,10 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 	// =============================================================
 	// below is for printing.
+	BL_BENCH_START(work);
+	print_double_chain_nodes(double_chain_node_filename, chainmap, comm);
+	BL_BENCH_COLLECTIVE_END(work, "print_double_chain_node", chainmap.local_size(), comm);
+
 
 	// =========== remove cycles and isolated
 	BL_BENCH_START(work);
