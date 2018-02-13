@@ -155,23 +155,15 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		typename std::conditional<std::is_same<typename Edge::CountType, bool>::value,
 			uint8_t, typename Edge::CountType>::type;
 	// step 1:  build k2mer counter. only need it for aggregation. use murmurhash.
-	using LocalK2CountMapType = ::fsc::densehash_map<
-		::std::pair<key_type, typename Edge::EdgeInputType>, FreqType,
-		k2_special_keys<::std::pair<key_type, typename Edge::EdgeInputType> >,
-		::bliss::transform::identity,   // should not need to change relative to the transform used for the graph.
-		k2_murmur<key_type, typename Edge::EdgeInputType>,    	// need specialization
-		::fsc::sparsehash::compare<::std::pair<key_type, typename Edge::EdgeInputType>, std::equal_to, ::bliss::transform::identity>,  // should not need to change
-		::std::allocator<::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType> >,
-		k2_special_keys<::std::pair<key_type, typename Edge::EdgeInputType> >::need_to_split >;
 
-	using PalindromeFreqType = uint32_t;
-	using LocalPalindromeCountMapType = ::fsc::densehash_map<
-		::std::pair<key_type, typename Edge::EdgeInputType>, PalindromeFreqType,
+	using K2FreqType = uint32_t;
+	using LocalK2CountMapType = ::fsc::densehash_map<
+		::std::pair<key_type, typename Edge::EdgeInputType>, K2FreqType,
 		k2_special_keys<::std::pair<key_type, typename Edge::EdgeInputType> >,
 		::bliss::transform::identity,   // should not need to change relative to the transform used for the graph.
 		k2_murmur<key_type, typename Edge::EdgeInputType>,    	// need specialization
 		::fsc::sparsehash::compare<::std::pair<key_type, typename Edge::EdgeInputType>, std::equal_to, ::bliss::transform::identity>,  // should not need to change
-		::std::allocator<::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType> >,
+		::std::allocator<::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, K2FreqType> >,
 		k2_special_keys<::std::pair<key_type, typename Edge::EdgeInputType> >::need_to_split >;
 
 	/**
@@ -234,11 +226,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		typename ::std::enable_if<
 		  (::std::is_same<
 			typename ::std::iterator_traits<InputIterator>::value_type,
-			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType>
-		  >::value || 
-		  ::std::is_same<
-			typename ::std::iterator_traits<InputIterator>::value_type,
-			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, PalindromeFreqType>
+			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, K2FreqType>
 		  >::value) && 
 		  ::std::is_same<CT, bool>::value, int>::type = 1
 		  >
@@ -250,9 +238,12 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 		for (auto it = first; it != last; ++it) {
 			// try inserting a stub first
-			auto result = this->c.insert(::std::make_pair((*it).first.first, Edge()));   // TODO: reduce number of allocations.
-			// then reduce.
-			result.first->second.update((*it).first.second);
+			if ((*it).second > 0) {
+				auto result = this->c.insert(::std::make_pair((*it).first.first, Edge()));   // TODO: reduce number of allocations.
+				// then reduce.
+				// cap to max of FeqType
+				result.first->second.update((*it).first.second);
+			}
 		}
 
 		if (this->c.size() != before) this->local_changed = true;
@@ -260,16 +251,12 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		return this->c.size() - before;
 	}
 
-	// frequency version
+	// frequency version.  cap to FreqType max.
 	template <typename CT = typename Edge::CountType, class InputIterator,
 		typename ::std::enable_if<
 		  (::std::is_same<
 			typename ::std::iterator_traits<InputIterator>::value_type,
-			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType>
-		  >::value || 
-		  ::std::is_same<
-			typename ::std::iterator_traits<InputIterator>::value_type,
-			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, PalindromeFreqType>
+			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, K2FreqType>
 		  >::value)  && 
 		  !::std::is_same<CT, bool>::value, int>::type = 1
 		  >
@@ -280,9 +267,15 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		//this->local_reserve(before + ::std::distance(first, last));
 
 		for (auto it = first; it != last; ++it) {
-			auto result = this->c.insert(::std::make_pair((*it).first.first, Edge()));   // TODO: reduce number of allocations.
-			// failed insertion - means an entry is already there, so reduce
-			result.first->second.update((*it).first.second, (*it).second);
+			if ((*it).second > 0) {
+				auto result = this->c.insert(::std::make_pair((*it).first.first, Edge()));   // TODO: reduce number of allocations.
+				// failed insertion - means an entry is already there, so reduce
+				result.first->second.update((*it).first.second, 
+					(std::numeric_limits<FreqType>::max() >= std::numeric_limits<K2FreqType>::max()) ? 
+						static_cast<FreqType>((*it).second) :
+						static_cast<FreqType>(std::min(static_cast<K2FreqType>(std::numeric_limits<FreqType>::max()), (*it).second))
+					);
+			}
 		}
 
 		if (this->c.size() != before) this->local_changed = true;
@@ -315,7 +308,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 				auto result = this->c.insert(::std::make_pair(it->first, Edge()));   // TODO: reduce number of allocations.
 				// failed insertion - means an entry is already there, so reduce
-				result.first->second.update(it->second);
+				result.first->second.update((*it).second);
 			}
 		}
 
@@ -361,11 +354,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		typename ::std::enable_if<
 		  (::std::is_same<
 			typename ::std::iterator_traits<InputIterator>::value_type,
-			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType>
-		  >::value || 
-		  ::std::is_same<
-			typename ::std::iterator_traits<InputIterator>::value_type,
-			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, PalindromeFreqType>
+			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, K2FreqType>
 		  >::value)  && 
 		  ::std::is_same<CT, bool>::value, int>::type = 1
 		  >
@@ -376,7 +365,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		//this->local_reserve(before + ::std::distance(first, last));
 
 		for (auto it = first; it != last; ++it) {
-			if (pred(*it)) {
+			if (pred(*it) && ((*it).second > 0)) {
 				// try inserting a stub first
 				auto result = this->c.insert(::std::make_pair((*it).first.first, Edge()));   // TODO: reduce number of allocations.
 				// then reduce.
@@ -389,16 +378,12 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		return this->c.size() - before;
 	}
 
-	// frequency version
+	// frequency version.  cap to FreqType max.
 	template <typename CT = typename Edge::CountType, class InputIterator, class Predicate,
 		typename ::std::enable_if<
 		  (::std::is_same<
 			typename ::std::iterator_traits<InputIterator>::value_type,
-			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType>
-		  >::value || 
-		  ::std::is_same<
-			typename ::std::iterator_traits<InputIterator>::value_type,
-			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, PalindromeFreqType>
+			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, K2FreqType>
 		  >::value) && 
 		  !::std::is_same<CT, bool>::value, int>::type = 1
 		  >
@@ -409,10 +394,14 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		//this->local_reserve(before + ::std::distance(first, last));
 
 		for (auto it = first; it != last; ++it) {
-			if (pred(*it)) {
+			if (pred(*it) && ((*it).second > 0)) {
 				auto result = this->c.insert(::std::make_pair((*it).first.first, Edge()));   // TODO: reduce number of allocations.
 				// failed insertion - means an entry is already there, so reduce
-				result.first->second.update((*it).first.second, (*it).second);
+				result.first->second.update((*it).first.second, 
+					(std::numeric_limits<FreqType>::max() >= std::numeric_limits<K2FreqType>::max()) ? 
+					static_cast<FreqType>((*it).second) :
+					static_cast<FreqType>(std::min(static_cast<K2FreqType>(std::numeric_limits<FreqType>::max()), (*it).second))
+				);
 			}
 		}
 
@@ -618,10 +607,19 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 	//          NOTE THAT reduction thresholding, and compaction steps are local, without communication.
 	//  		NOTE: that user specified frequency is for canonicalized (should be this way else could get mismatched forward and backward k and k2).
 	//				k2, k1, and k counts can be computed either canonicalized or uncanonicalized.
-	//      NOTE: k1 can become palindromic, and does.  Building a separate k1mer counter cannot separate palindromes arising from separate left and right edges of a k2mer.
-	 *          therefore the frequency may be inflated.
-	 *          on the other hand, looking at k1mer frequency in the context of k2mers separates in and out edge frequencies and palindromes should be avoidable.
-	//  broken up into 2 functions so the k2mer counting can work with multiple files.
+	//      NOTE: k, k1, and k2 mers may be palindromic.  for k2 mer to be palindromic, k mer also needs to be.  
+				palindromic k-mer is always canonical - and so is k2-mer.  no canonicalization would be applied and the edge frequencies can exist as is.
+				palindromic k1-mer means that 2 successive k2-mer have central k-mers that are on opposite strands, and when canonicalized, the palindromic k1-mer would be double counted.
+				freqency of k1-mer palindrome in a k2-mer should be added to both sides and then halved.
+				if both sides are k1-palindromes, each k1-mer is doubled in frequency (from prev and next k2-mers) so each must be halved and added to both sides.
+				unless the central k-mer is also a palindrome (DNA5 and DNA16), then no canonicalization happens, and we can skip the halving and adding to both sides, in order to preserve freq in real data
+				another special case occurs when some k1-palindrome and some non-palindrome share the same central k-mer.  if they are counted and thresholded separately,
+					the the total count would be off for common edges, as threshold is applied to partial counts.
+					the solution to this special case is to count k2-mers together without saturation (uint32_t) and then do threshold and saturation only during graph freq aggregation.
+				assume count is less than 4B so uint32_t works.  (if palindromes and k2-mers are counted separately, a sort and merge would need to be done
+					only to save 3 bytes per unique k2-mer (subject to load factor of count map.))
+
+	//  broken up into 2 functions so the k2mer counting can work with limited memory.
 	// 
 	// ==== step 1.  build k2mer counter from received InputElemType (<kmer, edge_tuples>), key is <kmer, edge_tuples>
 	// ==== step 2.  scan the k2mer counter (to_vector)  <<k, edge_tuples>, c>
@@ -636,11 +634,12 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 	// ==== step 6.  use delete array to compact the k2mer counters.  heuristic here assumes thresholds independently applied.
 					//  if > 2, remove.  if 1, zero in.  if 2 zero out.
 	// ==== step 7.  build dbg:  direct insertion into local hash map.
+
 	 * @param first
 	 * @param last
 	 */
 	size_t compute_biedge_freqencies(std::vector<::std::pair<key_type, typename Edge::EdgeInputType> >& input, 
-		LocalK2CountMapType & k2_counter, LocalPalindromeCountMapType & pal_counter) {
+		LocalK2CountMapType & k2_counter) {
 
 		static_assert(std::is_same<typename Edge::EdgeInputType, bliss::debruijn::biedge::compact_simple_biedge>::value, "currently only supporitng compact_simple_biedge as input type.");
 
@@ -673,26 +672,18 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		{  // scope to clean up k2_counter later
 
 			// step 1:  build k2mer counter. only need it for aggregation. use murmurhash.
-			dsc::sat_plus<FreqType> k2_sat_add;
 			// insert into counter.  need to make this a saturating counter.
-			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType> kv = 
-				std::make_pair(std::make_pair(key_type(), typename Edge::EdgeInputType()), FreqType(1));
+			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, K2FreqType> kv = 
+				std::make_pair(std::make_pair(key_type(), typename Edge::EdgeInputType()), K2FreqType(1));
 			for (auto it = input.begin(); it != input.end(); ++it) {
+ 
+				// no saturation add.  K2Freq is uint32_t.  
+				// NO check for rc_palindrome.  could be k, k+1, or k+2 (requires k)
 
-				// check for rc_palindrome.  could be k, k+1, or k+2 (requires k)
-				if ((::bliss::common::kmer::kmer_traits<key_type>::has_k1_rc_palindrome(it->first, it->second) > 0) ||
-					::bliss::common::kmer::kmer_traits<key_type>::is_rc_palindrome(it->first)) {
-					// if rc_palindrome, then insert into palindrome counter (no cap)
-					auto result = pal_counter.insert(std::make_pair(*it, PalindromeFreqType(1)));
-					if (!(result.second)) {
-						++(result.first->second);
-					}
-				} else {
-					kv.first = *it;
-					auto result = k2_counter.insert(kv);
-					if (!(result.second)) {
-						result.first->second = k2_sat_add(result.first->second, 1);
-					}
+				kv.first = *it;
+				auto result = k2_counter.insert(kv);
+				if (!(result.second)) {
+					++(result.first->second);
 				}
 			}
 		} // automatically cleans up.
@@ -711,7 +702,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 			::std::pair<key_type, typename Edge::EdgeInputType> >::value,
 			int>::type = 1>
 	size_t compute_biedge_freqencies_incremental( IT start, IT endd, 
-		LocalK2CountMapType & k2_counter, LocalPalindromeCountMapType & pal_counter, size_t block_size) {
+		LocalK2CountMapType & k2_counter, size_t block_size) {
 
 		static_assert(std::is_same<typename Edge::EdgeInputType, bliss::debruijn::biedge::compact_simple_biedge>::value, "currently only supporitng compact_simple_biedge as input type.");
 
@@ -746,8 +737,6 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 			::std::vector<size_t> recv_counts(this->comm.size());
 
 			// step 1:  build k2mer counter. only need it for aggregation. use murmurhash.
-			::dsc::sat_plus<FreqType> k2_sat_add;
-
 			BL_BENCH_COLLECTIVE_END(k2freq, "init", block_size, this->comm);
 
 			if (this->comm.rank() == 0)
@@ -759,7 +748,8 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 			BL_BENCH_LOOP_START(k2freq, 2);  // for insert into k2mer counter
 			BL_BENCH_LOOP_START(k2freq, 3);  // for cleanup
 
-			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType> kv = std::make_pair(InputElemType(), FreqType(1));
+			std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, K2FreqType> kv = 
+				std::make_pair(InputElemType(), K2FreqType(1));
 			while (! all_done) {
 				
 				if (this->comm.size() > 1) {
@@ -783,19 +773,13 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 				BL_BENCH_LOOP_RESUME(k2freq, 2);
 				// insert into counter.  need to make this a saturating counter.
 				for (auto it = output.begin(); it != output.end(); ++it) {
-					if ((::bliss::common::kmer::kmer_traits<key_type>::has_k1_rc_palindrome(it->first, it->second) > 0) ||
-						 ::bliss::common::kmer::kmer_traits<key_type>::is_rc_palindrome(it->first)) {
-							// if rc_palindrome, then insert into palindrome counter (no cap)
-						auto result = pal_counter.insert(std::make_pair(*it, PalindromeFreqType(1)));
-						if (!(result.second)) {
-							++(result.first->second);
-						}
-					} else {
-						kv.first = *it;
-						auto result = k2_counter.insert(kv);
-						if (!(result.second)) {
-							result.first->second = k2_sat_add(result.first->second, 1);
-						}
+
+					// no saturation add.  K2Freq is uint32_t.  
+					// NO check for rc_palindrome.  could be k, k+1, or k+2 (requires k)
+					kv.first = *it;
+					auto result = k2_counter.insert(kv);
+					if (!(result.second)) {
+						++(result.first->second);
 					}
 				}
 				BL_BENCH_LOOP_PAUSE(k2freq, 2);
@@ -825,7 +809,8 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 	}
 
-	// actual insertion using k2frequencies.
+	// actual insertion using k2frequencies for palindromes.   actually, cant do separately from normal - filter on WHOLE GROUP of same kmers
+	// seaparate would require storing partial sums.
 	template <typename Predicate = ::bliss::filter::TruePredicate>
 	size_t local_insert_by_freqencies(
 		LocalK2CountMapType & k2_counter,
@@ -836,7 +821,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 		// step 2: get the content of the k2 count map.
 		BL_BENCH_START(local_insert);
-		::std::vector<::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType> > k2counts;
+		::std::vector<::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, K2FreqType> > k2counts;
 		k2_counter.to_vector(k2counts);
 		k2_counter.reset(); // get rid of allocated space.
 		BL_BENCH_END(local_insert, "to_vec", k2counts.size());
@@ -844,8 +829,8 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		// step 3: sort by kmer.  no transform of the kmer.
 		BL_BENCH_START(local_insert);
 		std::sort(k2counts.begin(), k2counts.end(),
-			[](::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType> const & x,
-			   ::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType> const & y) {
+			[](::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, K2FreqType> const & x,
+			   ::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, K2FreqType> const & y) {
 				   return x.first.first < y.first.first;
 		});
 		BL_BENCH_END(local_insert, "k2mer_sort", k2counts.size());
@@ -862,7 +847,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 				size_t k1out_f[4];  memset(k1out_f, 0, sizeof(size_t) << 2);  // ignore empty.
 				size_t k1cnt;
 				key_type k;
-				FreqType c;
+				K2FreqType cnt, cnt_unsplit;
 				uint8_t edges;
 				auto block_it = k2counts.begin();
 				auto it = k2counts.begin();
@@ -872,279 +857,36 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 					t1_hi = threshes[3],
 					t2_lo = threshes[4],
 					t2_hi = threshes[5];
-				size_t cnt_max = ((sizeof(FreqType) > 4) ? ::std::numeric_limits<uint32_t>::max() : ::std::numeric_limits<FreqType>::max());
-		    size_t thresh_max = cnt_max + 1;
-				if (it != k2counts.end()) k = it->first.first;  // init
-			
-				for (; it != k2counts.end(); ++it) {
-					if (it->first.first != k) {  // start of new block
-					  // cap the counts
-					  k_f = std::min(cnt_max, k_f);
-            k1in_f[0] = std::min(cnt_max, k1in_f[0]);
-            k1in_f[1] = std::min(cnt_max, k1in_f[1]);
-            k1in_f[2] = std::min(cnt_max, k1in_f[2]);
-            k1in_f[3] = std::min(cnt_max, k1in_f[3]);
-            k1out_f[0] = std::min(cnt_max, k1out_f[0]);
-            k1out_f[1] = std::min(cnt_max, k1out_f[1]);
-            k1out_f[2] = std::min(cnt_max, k1out_f[2]);
-            k1out_f[3] = std::min(cnt_max, k1out_f[3]);
-
-						// accumulation for block complete. filter and record results now.
-						for (; block_it != it; ++block_it, ++flag_it) {
-							// step 5: do per block threshold
-							c = block_it->second;
-							
-							// step 5a: filter k2mer 
-							if ((c < t2_lo) || (c >= t2_hi)) *flag_it |= 4;
-							if ((c >= t2_hi) && (this->comm.rank()==0)) std::cout << block_it->first << " k2 count " << c << std::endl;
-
-							// step 5b: filter kmer
-							if ((k_f < t0_lo) || (k_f >= t0_hi)) *flag_it |= 8;
-							if ((k_f >= t0_hi) && (this->comm.rank()==0)) std::cout << block_it->first << " k count " << k_f << std::endl;
-							// step 5c: filter k1mer
-							edges = block_it->first.second.getData()[0];
-
-							switch (edges & 0xF0) {
-								case 0x10: k1cnt = k1in_f[0]; break;
-								case 0x20: k1cnt = k1in_f[1]; break;
-								case 0x40: k1cnt = k1in_f[2]; break;
-								case 0x80: k1cnt = k1in_f[3]; break;
-								default: k1cnt = t1_hi; break;
-							}
-							if ((k1cnt < t1_lo) || (k1cnt >= t1_hi)) *flag_it |= 2;  // in
-							if ((k1cnt >= t1_hi) && (k1cnt != thresh_max) && (this->comm.rank()==0)) std::cout << block_it->first << " in k1 count " << k1cnt << " t1_hi= " << t1_hi << std::endl;
-
-							switch (edges & 0x0F) {
-								case 0x01: k1cnt = k1out_f[0]; break;
-								case 0x02: k1cnt = k1out_f[1]; break;
-								case 0x04: k1cnt = k1out_f[2]; break;
-								case 0x08: k1cnt = k1out_f[3]; break;
-								default: k1cnt =  t1_hi; break;
-							}
-							if ((k1cnt < t1_lo) || (k1cnt >= t1_hi)) *flag_it |= 1;  // out
-							if ((k1cnt >= t1_hi) && (k1cnt != thresh_max) && (this->comm.rank()==0)) std::cout << block_it->first << " out k1 count " << k1cnt << " t1_hi= " << t1_hi << std::endl;
-
-						}
-						
-						// reinitialize for next block
-						k = block_it->first.first;
-						k_f = 0;
-						memset(k1in_f, 0, sizeof(size_t) << 2);
-						memset(k1out_f, 0, sizeof(size_t) << 2);
-					}
-
-					// step 4: do per block sum
-					c = it->second;
-					// step 4a: accumulate the kmer counts. 
-					k_f += c;   // accumulate the kmer count
-					// step 4b: accumulate the k1mer in and out edge counts. 
-					edges = it->first.second.getData()[0];
-					switch (edges & 0xF0) {
-						case 0x10: k1in_f[0] += c; break;
-						case 0x20: k1in_f[1] += c; break;
-						case 0x40: k1in_f[2] += c; break;
-						case 0x80: k1in_f[3] += c; break;
-						default:
-							assert("ERROR in edge has a combination of characters");
-							break;
-					}
-					switch (edges & 0x0F) {
-						case 0x01: k1out_f[0] += c; break;
-						case 0x02: k1out_f[1] += c; break;
-						case 0x04: k1out_f[2] += c; break;
-						case 0x08: k1out_f[3] += c; break;
-						default:
-							assert("ERROR out edge has a combination of characters");
-							break;
-					}
-				}
-        // do the final block
-        // cap the counts
-        k_f = std::min(cnt_max, k_f);
-        k1in_f[0] = std::min(cnt_max, k1in_f[0]);
-        k1in_f[1] = std::min(cnt_max, k1in_f[1]);
-        k1in_f[2] = std::min(cnt_max, k1in_f[2]);
-        k1in_f[3] = std::min(cnt_max, k1in_f[3]);
-        k1out_f[0] = std::min(cnt_max, k1out_f[0]);
-        k1out_f[1] = std::min(cnt_max, k1out_f[1]);
-        k1out_f[2] = std::min(cnt_max, k1out_f[2]);
-        k1out_f[3] = std::min(cnt_max, k1out_f[3]);
-
-				for (; block_it != it; ++block_it, ++flag_it) {
-					// step 5: do per block threshold
-					c = block_it->second;
-					
-					// step 5a: filter k2mer 
-					if ((c < t2_lo) || (c >= t2_hi)) *flag_it |= 4;
-							if (c >= t2_hi) std::cout << block_it->first << " k2 count " << c << std::endl;
-					// step 5b: filter kmer
-					if ((k_f < t0_lo) || (k_f >= t0_hi)) *flag_it |= 8;
-							if (k_f >= t0_hi) std::cout << block_it->first << " k count " << k_f << std::endl;
-					// step 5c: filter k1mer
-					edges = block_it->first.second.getData()[0];
-
-					switch (edges & 0xF0) {
-						case 0x10: k1cnt = k1in_f[0]; break;
-						case 0x20: k1cnt = k1in_f[1]; break;
-						case 0x40: k1cnt = k1in_f[2]; break;
-						case 0x80: k1cnt = k1in_f[3]; break;
-						default: k1cnt = t1_hi; break;
-					}
-					if ((k1cnt < t1_lo) || (k1cnt >= t1_hi)) *flag_it |= 2;  // in
-          if ((k1cnt >= t1_hi) && (k1cnt != thresh_max) && (this->comm.rank()==0)) std::cout << block_it->first << " in k1 count " << k1cnt << " t1_hi= " << t1_hi << std::endl;
-
-					switch (edges & 0x0F) {
-						case 0x01: k1cnt = k1out_f[0]; break;
-						case 0x02: k1cnt = k1out_f[1]; break;
-						case 0x04: k1cnt = k1out_f[2]; break;
-						case 0x08: k1cnt = k1out_f[3]; break;
-						default: k1cnt =  t1_hi; break;
-					}
-					if ((k1cnt < t1_lo) || (k1cnt >= t1_hi)) *flag_it |= 1;  // out
-          if ((k1cnt >= t1_hi) && (k1cnt != thresh_max) && (this->comm.rank()==0)) std::cout << block_it->first << " out k1 count " << k1cnt << " t1_hi= " << t1_hi << std::endl;
-				}
-
-			}  // end block for accumulation and thresholding.
-			BL_BENCH_END(local_insert, "count_thresh", k2counts.size());
-
-
-			BL_BENCH_START(local_insert);
-			{ // scope to clear stats array
-				// step 6: modify and compact.
-				auto it = k2counts.data();
-				auto write_it = k2counts.begin();
-				flag_it = filter_flag.begin();
-				uint8_t flag = 0;
-				size_t i = 0, imax = k2counts.size();
-				size_t k_del[16];  memset(k_del, 0, sizeof(size_t) * 16);
-				for (; i < imax; ++it, ++flag_it, ++i) {
-					flag = *flag_it;
-					++k_del[flag];
-
-					if (flag < 3) {
-						memmove(&(*write_it), it, sizeof(::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, FreqType> ));
-						switch (flag) {
-							case 1:
-								write_it->first.second.getDataRef()[0] &= 0xF0;
-								break;  // remove out and keep
-							case 2: 
-								write_it->first.second.getDataRef()[0] &= 0x0F;
-								break;  // remove in and keep
-							default: break; 
-						}
-						++write_it;
-					} // else discard
-				}
-				if (this->comm.rank() == 0) {
-					std::cout << "rank " << this->comm.rank() <<
-					" BEFFORE filtering unique k2mers=" << k2counts.size() << " filter count:" << std::endl;
-					for (int j = 0; j < 16; ++j) {
-						std::cout << "\t[" << j << " : " << k_del[j] << "]" << std::endl;
-					}
-				}
-				k2counts.erase(write_it, k2counts.end());
-			} // end scope to delete stats array
-			BL_BENCH_END(local_insert, "filter", k2counts.size());
-		} // end scope to delete filter_flag		
-
-		// step 7: insert k2counts now
-		BL_BENCH_COLLECTIVE_START(local_insert, "local_insert", this->comm);
-		if (this->comm.rank() == 0)
-			std::cout << "rank " << this->comm.rank() <<
-			" BEFFORE filtered unique k2mers =" << k2counts.size() << 
-			" size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
-
-		// local compute part.  called by the communicator.
-		size_t count = 0;
-		if (!::std::is_same<Predicate, ::bliss::filter::TruePredicate>::value)
-			count = this->local_insert(k2counts.begin(), k2counts.end(), pred);
-		else
-			count = this->local_insert(k2counts.begin(), k2counts.end());
-
-		if (this->comm.rank() == 0)
-		  std::cout << "rank " << this->comm.rank() <<
-        	" AFTER size=" << this->local_size() << " buckets=" << this->c.bucket_count() << std::endl;
-
-		BL_BENCH_END(local_insert, "local_insert", this->c.size());
-
-		BL_BENCH_REPORT_MPI_NAMED(local_insert, "debruijnmap:local_insert_freq", this->comm);
-
-
-		return count;
-	}
-
-
-	// actual insertion using k2frequencies for palindromes
-	template <typename Predicate = ::bliss::filter::TruePredicate>
-	size_t local_insert_palindrome_by_freqencies(
-		LocalPalindromeCountMapType & k2_counter,
-		std::vector<size_t> const & threshes,  // order is k_low, k_hi, k1_low, k1_hi, k2_low, k2_hi
-		Predicate const & pred = Predicate()) {
-
-		BL_BENCH_INIT(local_insert);
-
-		// step 2: get the content of the k2 count map.
-		BL_BENCH_START(local_insert);
-		::std::vector<::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, PalindromeFreqType> > k2counts;
-		k2_counter.to_vector(k2counts);
-		k2_counter.reset(); // get rid of allocated space.
-		BL_BENCH_END(local_insert, "to_vec", k2counts.size());
-
-		// step 3: sort by kmer.  no transform of the kmer.
-		BL_BENCH_START(local_insert);
-		std::sort(k2counts.begin(), k2counts.end(),
-			[](::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, PalindromeFreqType> const & x,
-			   ::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, PalindromeFreqType> const & y) {
-				   return x.first.first < y.first.first;
-		});
-		BL_BENCH_END(local_insert, "k2mer_sort", k2counts.size());
-
-		{ // scope to clear filter_flag later.
-			// step 4: do per block sum
-			// step 5: do per block threshold (interleaved.)
-			BL_BENCH_START(local_insert);
-			std::vector<unsigned char> filter_flag(k2counts.size(), 0);
-			auto flag_it = filter_flag.begin();
-			{  // scope to clear local arrays later
-				size_t k_f = 0;
-				size_t k1in_f[4];  memset(k1in_f, 0, sizeof(size_t) << 2);   // ignore empty.
-				size_t k1out_f[4];  memset(k1out_f, 0, sizeof(size_t) << 2);  // ignore empty.
-				size_t k1cnt;
-				key_type k;
-				PalindromeFreqType c;
-				uint8_t edges;
-				auto block_it = k2counts.begin();
-				auto it = k2counts.begin();
-				size_t t0_lo = threshes[0],
-					t0_hi = threshes[1],
-					t1_lo = threshes[2],
-					t1_hi = threshes[3],
-					t2_lo = threshes[4],
-					t2_hi = threshes[5];
-				size_t cnt_max = ::std::numeric_limits<PalindromeFreqType>::max();
+				size_t cnt_max = ::std::numeric_limits<K2FreqType>::max();
 		    	size_t thresh_max = cnt_max + 1;
-				if (it != k2counts.end()) k = it->first.first;  // init
-			
+				bool k_is_palindrome = false;
+				if (it != k2counts.end()) {
+					k = it->first.first;  // init
+					k_is_palindrome = ::bliss::common::kmer::kmer_traits<key_type>::is_rc_palindrome(k);
+				}
 				uint8_t ch;
+				bool split_counts = false;
 
 				for (; it != k2counts.end(); ++it) {
 					if (it->first.first != k) {  // start of new block
 					  // cap the counts, could be data type max, and larger than thresh_max.
 					  k_f = std::min(cnt_max, k_f);
 					  // average by 2 since this is from palindromic k+1 mer.
-					  	for (uint8_t cc = 0; cc < 4; ++cc) {
-							k1in_f[cc] = std::min(cnt_max, (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(cc, k) ? (k1in_f[cc] >> 1) : k1in_f[cc]));
-							k1out_f[cc] = std::min(cnt_max, (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(k, cc) ? (k1out_f[cc] >> 1) : k1out_f[cc]));
+					  	for (ch = 0; ch < 4; ++ch) {
+							// k1in_f[ch] = std::min(cnt_max, (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(ch, k) ? (k1in_f[ch] >> 1) : k1in_f[ch]));
+							// k1out_f[ch] = std::min(cnt_max, (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(k, ch) ? (k1out_f[ch] >> 1) : k1out_f[ch]));
+							k1in_f[ch] = std::min(cnt_max, k1in_f[ch]);
+							k1out_f[ch] = std::min(cnt_max, k1out_f[ch]);
 						  }
 
 						// accumulation for block complete. filter and record results now.
 						for (; block_it != it; ++block_it, ++flag_it) {
 							// step 5: do per block threshold
-							c = block_it->second;
+							cnt = block_it->second;
 							
 							// step 5a: filter k2mer 
-							if ((c < t2_lo) || (c >= t2_hi)) *flag_it |= 4;
-							if ((c >= t2_hi) && (this->comm.rank()==0)) std::cout << block_it->first << " k2 count " << c << std::endl;
+							if ((cnt < t2_lo) || (cnt >= t2_hi)) *flag_it |= 4;
+							if ((cnt >= t2_hi) && (this->comm.rank()==0)) std::cout << block_it->first << " k2 count " << cnt << std::endl;
 
 							// step 5b: filter kmer
 							if ((k_f < t0_lo) || (k_f >= t0_hi)) *flag_it |= 8;
@@ -1176,35 +918,38 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 						
 						// reinitialize for next block
 						k = block_it->first.first;
+						k_is_palindrome = ::bliss::common::kmer::kmer_traits<key_type>::is_rc_palindrome(k);
 						k_f = 0;
 						memset(k1in_f, 0, sizeof(size_t) << 2);
 						memset(k1out_f, 0, sizeof(size_t) << 2);
 					}
 
 					// step 4: do per block sum
-					c = it->second;  // show frequency in real data, so leave as is.
+					cnt_unsplit = it->second;  // show frequency in real data, so leave as is, even k1palindromic ones.
 					// step 4a: accumulate the kmer counts. 
-					k_f += c;   // accumulate the kmer count  - each k+2 mer occurs once, even palindromic ones.
+					k_f += cnt_unsplit;   // accumulate the kmer count  - each k+2 mer occurs once, even palindromic ones.
 					// step 4b: accumulate the k1mer in and out edge counts.
 					// if k is palindromic, then revcomp of edges may be present.  AVERAGE. 
 					edges = it->first.second.getData()[0];
 
 					ch = edges >> 4;
+					split_counts = ::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(ch, k) && (!k_is_palindrome);
+					cnt = split_counts ? ((cnt_unsplit+1) >> 1) : cnt_unsplit; 
 					switch (ch) {
-						case 0x1: k1in_f[0] += c; break;
-						case 0x2: k1in_f[1] += c; break;
-						case 0x4: k1in_f[2] += c; break;
-						case 0x8: k1in_f[3] += c; break;
+						case 0x1: k1in_f[0] += cnt; break;
+						case 0x2: k1in_f[1] += cnt; break;
+						case 0x4: k1in_f[2] += cnt; break;
+						case 0x8: k1in_f[3] += cnt; break;
 						default:
 							assert("ERROR in edge has a combination of characters");
 							break;
 					}
-					if (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(ch, k)) {  // TODO: only handling k+1 palindrome right now.
+					if (split_counts) {  // TODO: only handling k+1 palindrome right now.
 						switch (ch) {
-							case 0x1: k1out_f[3] += c; break;
-							case 0x2: k1out_f[2] += c; break;
-							case 0x4: k1out_f[1] += c; break;
-							case 0x8: k1out_f[0] += c; break;
+							case 0x1: k1out_f[3] += (cnt_unsplit - cnt); break;
+							case 0x2: k1out_f[2] += (cnt_unsplit - cnt); break;
+							case 0x4: k1out_f[1] += (cnt_unsplit - cnt); break;
+							case 0x8: k1out_f[0] += (cnt_unsplit - cnt); break;
 							default:
 								assert("ERROR in edge has a combination of characters");
 								break;
@@ -1212,21 +957,23 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 					}
 
 					ch = edges & 0x0F;
+					split_counts = ::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(k, ch) && (!k_is_palindrome);
+					cnt = split_counts ? ((cnt_unsplit+1) >> 1) : cnt_unsplit; 
 					switch (ch) {
-						case 0x01: k1out_f[0] += c; break;
-						case 0x02: k1out_f[1] += c; break;
-						case 0x04: k1out_f[2] += c; break;
-						case 0x08: k1out_f[3] += c; break;
+						case 0x01: k1out_f[0] += cnt; break;
+						case 0x02: k1out_f[1] += cnt; break;
+						case 0x04: k1out_f[2] += cnt; break;
+						case 0x08: k1out_f[3] += cnt; break;
 						default:
 							assert("ERROR out edge has a combination of characters");
 							break;
 					}
-					if (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(k, ch)) {  // TODO: only handling k+1 palindrome right now.
+					if (split_counts) {  // TODO: only handling k+1 palindrome right now.
 						switch (ch) {
-							case 0x1: k1in_f[3] += c; break;
-							case 0x2: k1in_f[2] += c; break;
-							case 0x4: k1in_f[1] += c; break;
-							case 0x8: k1in_f[0] += c; break;
+							case 0x1: k1in_f[3] += (cnt_unsplit - cnt); break;
+							case 0x2: k1in_f[2] += (cnt_unsplit - cnt); break;
+							case 0x4: k1in_f[1] += (cnt_unsplit - cnt); break;
+							case 0x8: k1in_f[0] += (cnt_unsplit - cnt); break;
 							default:
 								assert("ERROR out edge has a combination of characters");
 								break;
@@ -1237,18 +984,20 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 				// cap the counts
 				k_f = std::min(cnt_max, k_f);
 				// since palindromic, average the two.
-				for (uint8_t cc = 0; cc < 4; ++cc) {
-					k1in_f[cc] = std::min(cnt_max, (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(cc, k) ? (k1in_f[cc] >> 1) : k1in_f[cc]));
-					k1out_f[cc] = std::min(cnt_max, (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(k, cc) ? (k1out_f[cc] >> 1) : k1out_f[cc]));
-					}
+				for (ch = 0; ch < 4; ++ch) {
+					// k1in_f[ch] = std::min(cnt_max, (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(ch, k) ? (k1in_f[ch] >> 1) : k1in_f[ch]));
+					// k1out_f[ch] = std::min(cnt_max, (::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(k, ch) ? (k1out_f[ch] >> 1) : k1out_f[ch]));
+					k1in_f[ch] = std::min(cnt_max, k1in_f[ch]);
+					k1out_f[ch] = std::min(cnt_max, k1out_f[ch]);
+				}
 
 				for (; block_it != it; ++block_it, ++flag_it) {
 					// step 5: do per block threshold
-					c = block_it->second;
+					cnt = block_it->second;
 					
 					// step 5a: filter k2mer 
-					if ((c < t2_lo) || (c >= t2_hi)) *flag_it |= 4;
-							if (c >= t2_hi) std::cout << block_it->first << " k2 count " << c << std::endl;
+					if ((cnt < t2_lo) || (cnt >= t2_hi)) *flag_it |= 4;
+							if (cnt >= t2_hi) std::cout << block_it->first << " k2 count " << cnt << std::endl;
 					// step 5b: filter kmer
 					if ((k_f < t0_lo) || (k_f >= t0_hi)) *flag_it |= 8;
 							if (k_f >= t0_hi) std::cout << block_it->first << " k count " << k_f << std::endl;
@@ -1294,7 +1043,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 					++k_del[flag];
 
 					if (flag < 3) {
-						memmove(&(*write_it), it, sizeof(::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, PalindromeFreqType> ));
+						memmove(&(*write_it), it, sizeof(::std::pair<::std::pair<key_type, typename Edge::EdgeInputType>, K2FreqType> ));
 						switch (flag) {
 							case 1:
 								write_it->first.second.getDataRef()[0] &= 0xF0;

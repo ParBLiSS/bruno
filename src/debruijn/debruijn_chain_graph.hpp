@@ -563,9 +563,9 @@ namespace graph
 							// insert as is.  let lex_less handle flipping it.
 							all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
 							
-							// NEED TO HANDLE k1 PALINDROME
-							if (n.reverse_complement() == t.first) 
-								all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
+							// NOT NEEDED - n is same as t.first, which is not a chain node so should not need to be updated.  // HANDLE k1 PALINDROME
+							// if (n.reverse_complement() == t.first) 
+							// 	all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
 						}
 
 						neighbors.clear();
@@ -574,9 +574,9 @@ namespace graph
 							// insert as is.  let lex_less handle flipping it.
 							all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
 
-							// NEED TO HANDLE k1 PALINDROME
-							if (n.reverse_complement() == t.first) 
-								all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
+							// NOT NEEDED - n is same as t.first, which is not a chain node so should not need to be updated. // HANDLE k1 PALINDROME
+							// if (n.reverse_complement() == t.first) 
+							// 	all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
 						}
 					}
 

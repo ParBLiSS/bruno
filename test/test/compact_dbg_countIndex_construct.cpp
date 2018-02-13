@@ -295,7 +295,7 @@ template <typename Index>
 size_t
 build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data, Index & idx,
 		std::vector<size_t> const & threshes,  mxx::comm const & comm,
-		std::string k2mer_filename, std::string pal_filename) {
+		std::string k2mer_filename) {
 	BL_BENCH_INIT(build);
 
 	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT\n");
@@ -303,7 +303,6 @@ build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data,
 	// need to build the k2mer counter first using all files
 	BL_BENCH_START(build);
   	typename Index::map_type::LocalK2CountMapType k2_counter;
-	  typename Index::map_type::LocalPalindromeCountMapType pal_counter;
 	BL_BENCH_COLLECTIVE_END(build, "init_k2counter", k2_counter.size(), comm);
 
 
@@ -323,26 +322,19 @@ build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data,
 
 			// compute the frequencies.
 			BL_BENCH_START(build);
-			idx.get_map().compute_biedge_freqencies(nodes2, k2_counter, pal_counter);
+			idx.get_map().compute_biedge_freqencies(nodes2, k2_counter);
 			BL_BENCH_END(build, "compute_freq", nodes2.size());
 
 		}
 	}
 
-	print_k2mer_frequencies(k2mer_filename, k2_counter, "k2", comm);
+	print_k2mer_frequencies(k2mer_filename, k2_counter, comm);
 
 	// then filter the k2mers and insert into dbg (no need to touch files again)
 	BL_BENCH_START(build);
 	std::vector<size_t> lthreshes(threshes.begin(), threshes.end());
 	idx.get_map().local_insert_by_freqencies(k2_counter, lthreshes);
 	BL_BENCH_END(build, "insert", idx.local_size());
-
-	print_k2mer_frequencies(pal_filename, pal_counter, "pal", comm);
-
-	BL_BENCH_START(build);
-	idx.get_map().local_insert_palindrome_by_freqencies(pal_counter, lthreshes);
-	BL_BENCH_END(build, "insert_pal", idx.local_size());
-
 
 	size_t total = idx.size();
 	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT: total size after insert/rehash is %lu\n", total);
@@ -364,7 +356,6 @@ size_t build_index_thresholded_incremental(::std::vector<::bliss::io::file_data>
 	// need to build the k2mer counter first using all files
 	BL_BENCH_START(build);
   	typename Index::map_type::LocalK2CountMapType k2_counter;
-  	typename Index::map_type::LocalPalindromeCountMapType pal_counter;
 	BL_BENCH_COLLECTIVE_END(build, "init_k2counter", k2_counter.size(), comm);
 
 
@@ -408,7 +399,7 @@ size_t build_index_thresholded_incremental(::std::vector<::bliss::io::file_data>
 
     	//=== copy into array incrementally
 		BL_BENCH_START(build);
-		idx.get_map().compute_biedge_freqencies_incremental(start, endd, k2_counter, pal_counter, block_size);
+		idx.get_map().compute_biedge_freqencies_incremental(start, endd, k2_counter, block_size);
 		BL_BENCH_COLLECTIVE_END(build, "count_k2mer_incr", k2_counter.size(), comm);
 
 	}
@@ -419,10 +410,6 @@ size_t build_index_thresholded_incremental(::std::vector<::bliss::io::file_data>
 	std::vector<size_t> lthreshes(threshes.begin(), threshes.end());
 	idx.get_map().local_insert_by_freqencies(k2_counter, lthreshes);
 	BL_BENCH_END(build, "insert", idx.local_size());
-
-	BL_BENCH_START(build);
-	idx.get_map().local_insert_palindrome_by_freqencies(pal_counter, lthreshes);
-	BL_BENCH_END(build, "insert_pal", idx.local_size());
 
 	size_t total = idx.size();
 	if (comm.rank() == 0) printf("PARSING and INSERT incremental DONE: total size after insert/rehash is %lu\n", total);
@@ -453,8 +440,6 @@ void do_benchmark(::std::vector<::bliss::io::file_data> const & file_data, std::
 
 	std::string k2mer_filename(out_prefix);
 	k2mer_filename.append("_k2mers.debug");
-	std::string pal_filename(out_prefix);
-	pal_filename.append("_palindromes.debug");
 
 
 	BL_BENCH_INIT(benchmark);
@@ -475,7 +460,7 @@ void do_benchmark(::std::vector<::bliss::io::file_data> const & file_data, std::
 		}
 #else
 		if (thresholding) {
-			build_index_thresholded(file_data, idx, threshes, comm, k2mer_filename, pal_filename);
+			build_index_thresholded(file_data, idx, threshes, comm, k2mer_filename);
 		} else {
 			build_index(file_data, idx, comm);
 		}
@@ -586,9 +571,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 	std::string k2mer_filename(out_prefix);
 	k2mer_filename.append("_k2mers.debug");
-	std::string pal_filename(out_prefix);
-	pal_filename.append("_palindromes.debug");
-
 
 	std::string branch_fasta_filename(out_prefix);
 	branch_fasta_filename.append("_branch.fasta");
@@ -616,7 +598,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	}
 #else
 	if (thresholding) {
-		build_index_thresholded(file_data, idx, threshes, comm, k2mer_filename, pal_filename);
+		build_index_thresholded(file_data, idx, threshes, comm, k2mer_filename);
 	} else {
 		build_index(file_data, idx, comm);
 	}

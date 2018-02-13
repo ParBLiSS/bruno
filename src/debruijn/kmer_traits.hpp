@@ -55,7 +55,7 @@ namespace bliss
                 if ((KMER_SIZE & 0x1) > 0) return false;  // odd DNA.  cannot be palindromic 
                 return (k == k.reverse_complement());
             }
-            // check to see if k+1-mer and its rc are identical.  append c to k on the right
+            // check to see if k+1-mer and its rc are identical.  
             static inline bool is_k1_rc_palindrome(KmerType const & k, unsigned char const & r) {
                 if ((KMER_SIZE & 0x1) == 0) return false;  // even DNA.  so k-1-mer cannot be palindromic
                 if (k.getCharsAtPos(KMER_SIZE - 1, 1) != ::bliss::common::DNA::to_complement(r)) return false;   // two sides are not the same so not a rc_palindrome.
@@ -63,7 +63,7 @@ namespace bliss
                 kk.nextReverseFromChar(::bliss::common::DNA::to_complement(r));
                 return (k == kk);
             }
-            // check to see if k+1-mer and its rc are identical.  append c to k on the left.
+            // check to see if k+1-mer and its rc are identical. 
             static inline bool is_k1_rc_palindrome(unsigned char const & l, KmerType const & k) {
                 if ((KMER_SIZE & 0x1) == 0) return false;  // even DNA.  so k-1-mer cannot be palindromic
                 if (k.getCharsAtPos(0, 1) != ::bliss::common::DNA::to_complement(l)) return false;   // two sides are not the same so not a rc_palindrome.
@@ -71,13 +71,13 @@ namespace bliss
                 kk.nextFromChar(::bliss::common::DNA::to_complement(l));
                 return (k == kk);
             }
-            // check to see if k+2-mer and its rc are identical.  append c and k to both side.
+            // check to see if k+2-mer and its rc are identical.  
             static inline bool is_k2_rc_palindrome(unsigned char const & l, KmerType const & k, unsigned char const & r) {
-                if ((KMER_SIZE & 0x1) > 0) return false;  // even DNA.  so k-1-mer cannot be palindromic
+                if ((KMER_SIZE & 0x1) > 0) return false;  // odd DNA.  so k2-mer cannot be palindromic
                 if (r != ::bliss::common::DNA::to_complement(l)) return false;   // two sides are not the same so not a rc_palindrome.
                 return (k == k.reverse_complement());
             }
-            // check to see if k+2-mer contains a k+1-mer palindrome.
+            // check to see if k+2-mer contains a k+1-mer palindrome.  3: both are k1 palindrome. 2: in edge.  1. out edge.
             static inline unsigned char has_k1_rc_palindrome(unsigned char const & l, KmerType const & k, unsigned char const & r) {
             //     if ((KMER_SIZE & 0x1) == 0) return 0;  // even DNA.  so k-1-mer cannot be palindromic
             //     unsigned char res = 0;
@@ -88,7 +88,7 @@ namespace bliss
             //  TODO: this could be done with 1 revcomp check.
                 return (is_k1_rc_palindrome(l, k) ? 2 : 0) | (is_k1_rc_palindrome(k, r) ? 1 : 0);
             }
-            // check to see if k+2-mer and its rc are identical.  append c and k to both side.
+            // check to see if k-mer and k+2-mer are rc_palindromic.  3: kmer and k2mer.  1. kmer only.
             static inline unsigned char is_k_k2_rc_palindrome(unsigned char const & l, KmerType const & k, unsigned char const & r) {
                 if ((KMER_SIZE & 0x1) > 0) return false;  // even DNA.  so k-1-mer cannot be palindromic
                 unsigned char res = ((k == k.reverse_complement()) ? 3 : 0);

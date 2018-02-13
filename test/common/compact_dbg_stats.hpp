@@ -290,7 +290,6 @@ template <typename CountMapType>
 void print_k2mer_frequencies(
 		std::string const & filename,
 		CountMapType const & idx2,
-		std::string prefix,
 		mxx::comm const & comm) {
 
 	if (comm.rank() == 0) printf("PRINT K2MERs\n");
@@ -320,11 +319,32 @@ void print_k2mer_frequencies(
 	// and print.
 	BL_BENCH_START(branch_print);
 
+	using key_type = typename CountMapType::value_type::first_type::first_type;
+
 	std::stringstream ss;
 	ss.clear();
 	std::for_each(branch_pts.begin(), branch_pts.end(),
-		[&ss, &prefix](typename CountMapType::value_type const & x) {
-			ss << prefix << " " << x << std::endl; 
+		[&ss](typename CountMapType::value_type const & x) {
+			uint8_t ch = x.first.second.getData()[0];
+			auto kmer = x.first.first;
+			ss << "[";
+			ss << (::bliss::common::kmer::kmer_traits<key_type>::is_rc_palindrome(kmer) ? "k" : " ");
+			ss << (((ch >> 4) > 0) && 
+				::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(
+				key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch >> 4]],
+				kmer) ? "i" : " ");
+			ss << (((ch & 0xF) > 0) && 
+				::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(kmer, 
+				key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch & 0xF]]
+				) ? "o" : " ");
+			ss << (((ch >> 4) > 0) && ((ch & 0xF) > 0) && 
+				::bliss::common::kmer::kmer_traits<key_type>::is_k2_rc_palindrome(
+				key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch >> 4]], 
+				kmer,
+				key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch & 0xF]]
+				) ? "2" : " ");
+			
+			ss << "] " << x << std::endl; 
 		});
 	write_mpiio(filename, ss.str().c_str(), ss.str().length(), comm);
 
