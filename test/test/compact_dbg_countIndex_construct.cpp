@@ -151,7 +151,6 @@
 		#endif	
 		using K2merType = bliss::common::Kmer<(pK+2), Alphabet, K2merWordType>;
 
-		using CountType = uint8_t;  // set to uint16_t by default.  this is to ensure that most frequencies are captured.
 	#else   // pK not defined.  assume 31.  compute data type.
 		#if (pDNA == 16)
 			using KmerWordType = uint64_t;
@@ -172,6 +171,7 @@
 	#endif
 
 
+		using CountType = uint8_t;  // set to uint16_t by default.  this is to ensure that most frequencies are captured.
 #else   // MIN_MEM not defined.  use uint64_t.  this is same as compact_debruijn_graph_refactor.cpp
 
 	using KmerWordType = uint64_t;  // matches system architecture.
@@ -901,15 +901,15 @@ int main(int argc, char** argv) {
 		auto upper = upperThreshArg.getValue();
 
 		if (lower.size() == 1) {
-      threshes[0] = threshes[4] = 0;
 			threshes[2] = ::std::min(lower[0],threshes[2]);
+
+      			threshes[0] = threshes[4] = 0;
 		} else if (lower.size() == 3) {
 			threshes[0] = ::std::min(lower[0],threshes[0]);
 			threshes[2] = ::std::min(lower[1],threshes[2]);
 			threshes[4] = ::std::min(lower[2],threshes[4]);
 		}
 		if (upper.size() == 1) {
-		  threshes[1] = threshes[5] = 0;
 			threshes[3] = ::std::min(upper[0],threshes[3]);
 		} else if (upper.size() == 3) {
 			threshes[1] = ::std::min(upper[0],threshes[1]);
@@ -933,9 +933,9 @@ int main(int argc, char** argv) {
 
 	if (thresholding && (comm.rank() == 0)) {
 	  std::cout << "THRESHOLDS: ";
-	  std::cout << "k2:  " << threshes[0] << "-" << threshes[1] << std::endl;
+	  std::cout << "k0:  " << threshes[0] << "-" << threshes[1] << std::endl;
     std::cout << "k1:  " << threshes[2] << "-" << threshes[3] << std::endl;
-    std::cout << "k0:  " << threshes[4] << "-" << threshes[5] << std::endl;
+    std::cout << "k2:  " << threshes[4] << "-" << threshes[5] << std::endl;
 	}
 
 //#if (pPARSER == FASTA)

@@ -195,7 +195,7 @@ using ChainMapType = ::bliss::debruijn::graph::debruijn_chain_graph<KmerType>;
 template <typename Key>
 using FreqMapParams = ::bliss::index::kmer::CanonicalHashMapParams<Key>;
 
-using CountMapType = ::dsc::counting_densehash_map<KmerType, CountType,
+using CountMapType = ::dsc::saturating_counting_densehash_map<KmerType, CountType,
 		FreqMapParams,
 		::bliss::kmer::hash::sparsehash::special_keys<KmerType, true> >;
 

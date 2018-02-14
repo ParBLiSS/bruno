@@ -857,7 +857,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 					t1_hi = threshes[3],
 					t2_lo = threshes[4],
 					t2_hi = threshes[5];
-				size_t cnt_max = ::std::numeric_limits<K2FreqType>::max();
+				size_t cnt_max = ::std::numeric_limits<FreqType>::max();
 		    	size_t thresh_max = cnt_max + 1;
 				bool k_is_palindrome = false;
 				if (it != k2counts.end()) {
@@ -882,8 +882,8 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 						// accumulation for block complete. filter and record results now.
 						for (; block_it != it; ++block_it, ++flag_it) {
 							// step 5: do per block threshold
-							cnt = block_it->second;
-							
+							cnt = std::min(cnt_max, static_cast<size_t>(block_it->second));	
+
 							// step 5a: filter k2mer 
 							if ((cnt < t2_lo) || (cnt >= t2_hi)) *flag_it |= 4;
 							if ((cnt >= t2_hi) && (this->comm.rank()==0)) std::cout << block_it->first << " k2 count " << cnt << std::endl;
@@ -993,7 +993,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 				for (; block_it != it; ++block_it, ++flag_it) {
 					// step 5: do per block threshold
-					cnt = block_it->second;
+					cnt = std::min(cnt_max, static_cast<size_t>(block_it->second));
 					
 					// step 5a: filter k2mer 
 					if ((cnt < t2_lo) || (cnt >= t2_hi)) *flag_it |= 4;

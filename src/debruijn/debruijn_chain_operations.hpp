@@ -401,8 +401,8 @@ namespace bliss {
         			::std::tuple<size_t, size_t, CountType, CountType> const & x,
         			::std::tuple<size_t, size_t, CountType, CountType> const & y) {
         		return ::std::tuple<size_t, size_t, CountType, CountType>(
-        				std::get<0>(x) + std::get<0>(y),  // reduced nodes count
-						std::get<1>(x) + std::get<1>(y),  // node frequency sum
+        				static_cast<size_t>(std::get<0>(x)) + static_cast<size_t>(std::get<0>(y)),  // reduced nodes count
+						static_cast<size_t>(std::get<1>(x)) + static_cast<size_t>(std::get<1>(y)),  // node frequency sum
 						std::min(std::get<2>(x), std::get<2>(y)), // node freq min
 						std::max(std::get<3>(x), std::get<3>(y)) );  // node freq max
         	}
@@ -420,7 +420,7 @@ namespace bliss {
 
     	  inline CountType sat_add(CountType const & a, CountType const & b) {
 			CountType c = a + b;
-			return (c < a) ? -1 : c;
+			return (c < a) ? ::std::numeric_limits<CountType>::max() : c;
 		  }
 
 

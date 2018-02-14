@@ -81,7 +81,7 @@ namespace bliss
       template <typename COUNT>
       inline COUNT sat_add(COUNT const & a, COUNT const & b) {
         COUNT c = a + b;
-        return (c < a) ? -1 : c;
+        return (c < a) ? std::numeric_limits<COUNT>::max() : c;
       }
 
       // cap at max.  Threshold need to make sense under this...
