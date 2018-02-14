@@ -72,11 +72,14 @@ void check_index(Index const & idx, mxx::comm const & comm) {
 	  auto absent_end = std::partition(counts.begin(), counts.end(), [](std::pair<KmerType, size_t> const & x){
 		  return x.second == 0;
 	  });
+
+#ifndef NDEBUG
 	  printf(" total query = %lu, unique query = %lu, unique absent = %lu\n", query.size(), counts.size(), std::distance(counts.begin(), absent_end));
 
 	  for (auto it = counts.begin(); it != absent_end; ++it) {
 		  std::cout << "absent k-mer " << ::bliss::utils::KmerUtils::toASCIIString(it->first) << std::endl;
 	  }
+#endif
 	  assert( std::distance(counts.begin(), absent_end) == 0);
 	}
 
@@ -90,7 +93,9 @@ void check_index(Index const & idx, mxx::comm const & comm) {
 
 		size_t erased = idx_copy.get_map().erase(lquery);
 
+#ifndef NDEBUG
 		printf("check query is superset of content:  total query = %lu, erased = %lu, remaining = %lu\n", query.size(), erased, idx_copy.local_size());
+#endif
 		assert(idx_copy.size() == 0);
 	}
 

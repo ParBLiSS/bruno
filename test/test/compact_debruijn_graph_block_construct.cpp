@@ -826,8 +826,8 @@ int main(int argc, char** argv) {
 		if (!benchmark) {
 			BL_BENCH_START(app);
 			print_edge_histogram(idx, comm);
-      check_index(idx, comm);
-      printf("rank %d finished checking index\n", comm.rank());
+      		check_index(idx, comm);
+      		if (comm.rank() == 0) printf("rank 0 finished checking index\n");
 			BL_BENCH_COLLECTIVE_END(app, "histo", idx.local_size(), comm);
 			// == DONE == make compacted simple DBG
 

@@ -613,7 +613,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
   BL_BENCH_START(work);
   print_edge_histogram(idx, comm);
   check_index(idx, comm);
-  printf("rank %d finished checking index\n", comm.rank());
+  if (comm.rank() == 0) printf("rank 0 finished checking index\n");
   BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
   // == DONE == make compacted simple DBG
 

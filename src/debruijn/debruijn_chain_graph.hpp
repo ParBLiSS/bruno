@@ -822,7 +822,7 @@ namespace graph
 					} else {
 
 						all_compacted = (count == 0) || (cycle_node_count == unfinished.size());
-						if (!all_compacted) printf("rank %d iter %lu updated %lu, unfinished %lu cycle nodes %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_node_count);
+						if (!all_compacted) printf("rank %d iter %lu updated %lu, unfinished %lu internal chain nodes %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_node_count);
 					}
 					all_compacted = ::mxx::all_of(all_compacted, comm);
 
@@ -1198,7 +1198,7 @@ namespace graph
 					} else {
 
 						all_compacted = (count == 0) || (cycle_node_count == unfinished.size());
-						if (!all_compacted) printf("rank %d iter %lu updated %lu, unfinished %lu cycle nodes %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_node_count);
+						if (!all_compacted) printf("rank %d iter %lu updated %lu, unfinished %lu chain internal nodes %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_node_count);
 					}
 					all_compacted = ::mxx::all_of(all_compacted, comm);
 

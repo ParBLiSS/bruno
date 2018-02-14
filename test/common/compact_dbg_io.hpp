@@ -100,7 +100,9 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 		return (x >= y) ? x : y;
 	}, comm);
 
+#ifndef NDEBUG
 	printf("rank %d write mpiio. len %ld offset %lld step %d iterations %d\n", comm.rank(), len, global_offset, step, iterations);
+#endif
 
 	int remainder = len;
 	int curr_step = step;
