@@ -1126,9 +1126,12 @@ namespace bliss
 
 
       };
-
       template <typename DUMMY>
       constexpr std::array<uint8_t, 16> compact_multi_biedge<::bliss::common::DNA6, bool, DUMMY>::FROM_DNA16;
+      template <typename DUMMY>
+      constexpr std::array<uint8_t, 8> compact_multi_biedge<::bliss::common::DNA6, bool, DUMMY>::CHAR_TO_INDEX;
+      template <typename DUMMY>
+      constexpr std::array<uint8_t, 5> compact_multi_biedge<::bliss::common::DNA6, bool, DUMMY>::INDEX_TO_CHAR;
 
       /*node trait class*/
       template <typename DUMMY>
