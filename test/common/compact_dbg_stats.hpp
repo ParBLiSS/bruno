@@ -79,8 +79,10 @@ void check_index(Index const & idx, mxx::comm const & comm) {
 	  for (auto it = counts.begin(); it != absent_end; ++it) {
 		  std::cout << "absent k-mer " << ::bliss::utils::KmerUtils::toASCIIString(it->first) << std::endl;
 	  }
-#endif
 	  assert( std::distance(counts.begin(), absent_end) == 0);
+#else
+	BLISS_UNUSED(absent_end);
+#endif
 	}
 
 	comm.barrier();
@@ -95,6 +97,8 @@ void check_index(Index const & idx, mxx::comm const & comm) {
 
 #ifndef NDEBUG
 		printf("check query is superset of content:  total query = %lu, erased = %lu, remaining = %lu\n", query.size(), erased, idx_copy.local_size());
+#else
+		BLISS_UNUSED(erased);
 #endif
 		assert(idx_copy.size() == 0);
 	}

@@ -859,10 +859,12 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 					t2_hi = threshes[5];
 				size_t cnt_max = ::std::numeric_limits<FreqType>::max();
 		    	size_t thresh_max = cnt_max + 1;
-				bool k_is_palindrome = false;
+				bool k_is_palindrome = false, km1_low_is_palindrome = false, km1_high_is_palindrome = false;
 				if (it != k2counts.end()) {
 					k = it->first.first;  // init
 					k_is_palindrome = ::bliss::common::kmer::kmer_traits<key_type>::is_rc_palindrome(k);
+					km1_high_is_palindrome = ::bliss::common::kmer::kmer_traits<key_type>::is_kminus1_rc_palindrome_high(k);
+					km1_low_is_palindrome = ::bliss::common::kmer::kmer_traits<key_type>::is_kminus1_rc_palindrome_low(k);
 				}
 				uint8_t ch;
 				bool split_counts = false;
@@ -919,6 +921,8 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 						// reinitialize for next block
 						k = block_it->first.first;
 						k_is_palindrome = ::bliss::common::kmer::kmer_traits<key_type>::is_rc_palindrome(k);
+						km1_high_is_palindrome = ::bliss::common::kmer::kmer_traits<key_type>::is_kminus1_rc_palindrome_high(k);
+						km1_low_is_palindrome = ::bliss::common::kmer::kmer_traits<key_type>::is_kminus1_rc_palindrome_low(k);
 						k_f = 0;
 						memset(k1in_f, 0, sizeof(size_t) << 2);
 						memset(k1out_f, 0, sizeof(size_t) << 2);
@@ -933,7 +937,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 					edges = it->first.second.getData()[0];
 
 					ch = edges >> 4;
-					split_counts = ::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(ch, k) && (!k_is_palindrome);
+					split_counts = ::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(ch, k, km1_high_is_palindrome) && (!k_is_palindrome);
 					cnt = split_counts ? ((cnt_unsplit+1) >> 1) : cnt_unsplit; 
 					switch (ch) {
 						case 0x1: k1in_f[0] += cnt; break;
@@ -957,7 +961,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 					}
 
 					ch = edges & 0x0F;
-					split_counts = ::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(k, ch) && (!k_is_palindrome);
+					split_counts = ::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(k, ch, km1_low_is_palindrome) && (!k_is_palindrome);
 					cnt = split_counts ? ((cnt_unsplit+1) >> 1) : cnt_unsplit; 
 					switch (ch) {
 						case 0x01: k1out_f[0] += cnt; break;

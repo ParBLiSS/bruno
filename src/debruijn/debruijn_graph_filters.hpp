@@ -25,7 +25,8 @@
 #define DEBRUIJN_GRAPH_FILTERS_HPP_
 
 #include <vector>
-#include <debruijn/debruijn_graph_node.hpp>
+#include "debruijn/debruijn_graph_node.hpp"
+#include "debruijn/kmer_traits.hpp"
 
 namespace bliss {
   namespace debruijn {
@@ -41,11 +42,15 @@ namespace bliss {
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
               // if DNA, and k is odd, then impossible to be palindrome.
-              if (std::is_same<typename Kmer::KmerAlphabet, ::bliss::common::DNA>::value &&
-                  (Kmer::size & 0x1) == 1 ) return false;
+              using KM = typename std::remove_cv<Kmer>::type;
+              return ::bliss::common::kmer::kmer_traits<KM>::is_rc_palindrome(t.first);
 
-              // else check.
-              return (t.first == t.first.reverse_complement());
+              // replaced
+              // if (std::is_same<typename Kmer::KmerAlphabet, ::bliss::common::DNA>::value &&
+              //     (Kmer::size & 0x1) == 1 ) return false;
+
+              // // else check.
+              // return (t.first == t.first.reverse_complement());
             }
         };
 
@@ -55,8 +60,8 @@ namespace bliss {
             inline bool operator()(Iter first, Iter last) const {return true;}
 
 
-            template <typename Kmer, typename Alphabet, typename CountType, typename DUMMY,
-				typename ::std::enable_if<!std::is_same<CountType, bool>::value, int>::type = 0>
+            template <typename Kmer, typename Alphabet, typename CountType, typename DUMMY>
+//				typename ::std::enable_if<!std::is_same<CountType, bool>::value, int>::type = 0>
             inline bool operator()(::std::pair<Kmer,
             		::bliss::debruijn::graph::compact_multi_biedge<Alphabet, CountType, DUMMY> > const & t) const {
 
@@ -66,35 +71,28 @@ namespace bliss {
 
               using KM = typename std::remove_cv<Kmer>::type;
               KM k = t.first;
-              KM krevcomp = k.reverse_complement();
 
-              std::vector< std::pair<KM, CountType> > neighbors;
+// TODO use get_edge_frequency(0..3) instead.
+	      bool km1_low_is_palindrome = ::bliss::common::kmer::kmer_traits<KM>::is_kminus1_rc_palindrome_low(k);
+	      for (unsigned char c = 0; c < 4; ++c) {
+		if (t.second.get_out_edge_frequency(c) > 0) {
+			if (::bliss::common::kmer::kmer_traits<KM>::is_k1_k1pair_rc_palindrome(k, c, km1_low_is_palindrome)) return true;
+		}
+	      }
 
-//              std::cout << " kmer: " << k << " neighbors: " << t.second << std::endl;
-
-              // out kmer is same as revcmp of kmer.
-              t.second.get_out_neighbors(k, neighbors);
-              for (auto x : neighbors) {
-//                std::cout << "k+1 palindrome out " << x.first << " k " << k << (x.first == krevcomp ? " 1" : " 0") << std::endl;
-            	  if (x.first == krevcomp) {
-            	    return true;
-            	  }
-              }
-
+	      bool km1_high_is_palindrome = ::bliss::common::kmer::kmer_traits<KM>::is_kminus1_rc_palindrome_high(k);
               // in
-              neighbors.clear();
-              t.second.get_in_neighbors(k, neighbors);
-              for (auto x : neighbors) {
-            	  if (x.first == krevcomp) {
-//                  std::cout << "k+1 palindrome in  " << x.first << " k " << k << (x.first == krevcomp ? " 1" : " 0") << std::endl;
-            	    return true;
-            	  }
-              }
+              for (unsigned char c = 0; c < 4; ++c) {
+		if (t.second.get_in_edge_frequency(c) > 0) {
+			if (::bliss::common::kmer::kmer_traits<KM>::is_k1_k1pair_rc_palindrome(c, k, km1_high_is_palindrome)) return true;
+		}
+	      }
+
 
               return false;
             }
 
-            template <typename Kmer, typename Alphabet, typename CountType, typename DUMMY,
+/*            template <typename Kmer, typename Alphabet, typename CountType, typename DUMMY,
 			typename ::std::enable_if<std::is_same<CountType, bool>::value, int>::type = 0>
             inline bool operator()(::std::pair<Kmer,
             		::bliss::debruijn::graph::compact_multi_biedge<Alphabet, CountType, DUMMY> > const & t) const {
@@ -139,7 +137,7 @@ namespace bliss {
 //              return res;
               return false;
             }
-        };
+  */      };
 
         struct IsBranchPoint {
             IsKPalindrome isKPalindrome;
