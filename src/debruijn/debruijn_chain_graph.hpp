@@ -668,7 +668,7 @@ namespace graph
 	   void list_rank_dispatch() {
 		   if (modified) {
 			   if (listranked) list_rerank();  // call rerank only if we previously listranked, and then modified the map.
-			   else list_rank();  // if not listranked and modified.
+			   else list_rank_min_update();  // if not listranked and modified.
 		   }  // else not modified, so nothing to do.
 	   }
 
