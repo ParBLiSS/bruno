@@ -38,12 +38,48 @@ namespace bliss
   namespace debruijn
   {
     // data type for debruijn graph chain compaction
-    // first Kmer is in edge, second Kmer is out edge.  int is distance from end nodes.
-    // 0 means that this node is a terminus.  negative numbers indicate that the edge is pointing to a terminus
-    // used with Kmer key in a map, to mean in-Kmer-out bi edge.
+    // first Kmer is in edge, second Kmer is out edge.  
+	// uint is distance from end nodes, with 
+	//		MSB=true  + d>0 indicates the edge is pointing to terminus.  this is end state for non-termini after chain compaction.
+	//		MSB=false + d>0 indicates the edge is pointing to chain node.  this is intermediate state of non-termini during chain compaction.
+	// 		MSB=false + 0 indicate that node is terminus and is pointing to a branch.  (determined from graph branches later)
+	//		MSB=true  + 0 indicate that node is terminus and is pointing to self (daedend).  (not determined from graph branches later, so this should be default)
+	// used with Kmer key in a map, to mean in-Kmer-out bi edge.
     template <typename KMER>
-    using simple_biedge = ::std::tuple<KMER, KMER, int, int>;
+    using simple_biedge = ::std::tuple<KMER, KMER, uint, uint>;
     //static_assert(sizeof(simple_biedge<::bliss::common::Kmer<31, ::bliss::common::DNA> >) == sizeof(::bliss::common::Kmer<31, ::bliss::common::DNA>) * 2 + 2 * sizeof(int), "size of simple biedge is not what's expected");
+
+	constexpr uint dist_mask = std::numeric_limits<uint>::max() >> 1;
+	constexpr uint term_mask = ~(::bliss::debruijn::dist_mask);  // MSB=true and dist=0
+	constexpr uint branch_neighbor = static_cast<uint>(0);
+
+	inline constexpr uint get_chain_dist(uint const & x) {
+		return x & dist_mask;
+	}
+	inline constexpr bool is_chain_terminal(uint const & x) {
+		return (x & dist_mask) == 0;
+	}
+	inline constexpr bool points_to_branch(uint const & x) {
+		return x == static_cast<uint>(0);
+	}
+	inline constexpr bool points_to_self(uint const & x) {  // DEADEND
+		return x == term_mask;
+	}
+	inline constexpr bool points_to_chain_node(uint const & x) {  // MSB not set and d > 0
+		return (x ^ term_mask) > term_mask;  // flip MSB, then compare to term_mask
+	}
+	inline constexpr bool points_to_terminal(uint const & x) { // for non-terminal chain nodes.  MSB set.
+		return x > term_mask;
+	}
+	inline constexpr bool points_to_chain_node_or_self(uint const & x) {  // MSB not set and d > 0
+		return x <= term_mask;  // flip MSB, then compare to term_mask
+	}
+	inline constexpr bool points_to_terminal_or_self(uint const & x) { // for non-terminal and terminal chain nodes.  MSB set.
+		return (x ^ term_mask) <= term_mask;
+	}
+	inline uint mark_as_point_to_terminal(uint const & x) {  // unmark as self pointing, and keep dist.
+		return x | term_mask;
+	}
 
 
     template <typename KMER>
@@ -53,7 +89,7 @@ namespace bliss
     	std::pair<KMER, simple_biedge<KMER> >
     	operator()(::std::pair<KMER, ::bliss::debruijn::graph::compact_multi_biedge<EdgeEncoding, COUNT, DUMMY> > const & t) {
 
-			simple_biedge<KMER> node(KMER(), KMER(), 0, 0);   // default node
+			simple_biedge<KMER> node(KMER(), KMER(), ::bliss::debruijn::term_mask, ::bliss::debruijn::term_mask);   // default node
 
 			// get the in neighbor
 			std::vector<KMER> neighbors;
@@ -86,7 +122,7 @@ namespace bliss
     	std::pair<KMER, simple_biedge<KMER> >
     	operator()(::std::pair<const KMER, ::bliss::debruijn::graph::compact_multi_biedge<EdgeEncoding, COUNT, DUMMY> > const & t) {
 
-			simple_biedge<KMER> node(KMER(), KMER(), 0, 0);   // default node
+			simple_biedge<KMER> node(KMER(), KMER(), ::bliss::debruijn::term_mask, ::bliss::debruijn::term_mask);   // default node
 
 			// get the in neighbor
 			std::vector<KMER> neighbors;
@@ -120,7 +156,7 @@ namespace bliss
        *
        * @tparam KMER 		first KMER field is the current k-mer, canonical
        * @tparam KMER		second KMER field is the lex smaller 5' terminus of the chain
-       * @tparam int		int is distance to that terminus.  +/0 indicates both are on same strand.  - means otherwise.
+       * @tparam int		int is distance to that terminus.  +/0 indicates both are on same strand.  - means otherwise..  no -0 needed because we are on canonical strand.
        *
        *      note that a vector of these are sufficient to represent a complete compacted chain.
        */

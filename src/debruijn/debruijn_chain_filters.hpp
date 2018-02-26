@@ -41,7 +41,7 @@ namespace bliss {
 
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              return (std::get<2>(t.second) == 0) && (std::get<3>(t.second) == 0);
+              return ::bliss::debruijn::is_chain_terminal(std::get<2>(t.second)) && ::bliss::debruijn::is_chain_terminal(std::get<3>(t.second));
             }
         };
 
@@ -52,7 +52,7 @@ namespace bliss {
 
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              return (std::get<2>(t.second) == 0) ^ (std::get<3>(t.second) == 0);
+              return ::bliss::debruijn::is_chain_terminal(std::get<2>(t.second)) ^ ::bliss::debruijn::is_chain_terminal(std::get<3>(t.second));
             }
         };
 
@@ -63,7 +63,8 @@ namespace bliss {
 
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              return (std::get<2>(t.second) != 0) && (std::get<3>(t.second) != 0);
+              return (::bliss::debruijn::get_chain_dist(std::get<2>(t.second)) > 0) &&
+                     (::bliss::debruijn::get_chain_dist(std::get<3>(t.second)) > 0);
             }
         };
 
@@ -75,7 +76,7 @@ namespace bliss {
 
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              return (std::get<2>(t.second) == 0) || (std::get<3>(t.second) == 0);
+              return ::bliss::debruijn::is_chain_terminal(std::get<2>(t.second)) || ::bliss::debruijn::is_chain_terminal(std::get<3>(t.second));
             }
         };
 
@@ -87,12 +88,16 @@ namespace bliss {
 
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              if (! ((std::get<2>(t.second) == 0) ^ (std::get<3>(t.second) == 0)) ) return false;
+              // neither isolated nor internal.
+              bool term_in = ::bliss::debruijn::is_chain_terminal(std::get<2>(t.second));
+              bool term_out = ::bliss::debruijn::is_chain_terminal(std::get<3>(t.second));
 
-              if (std::get<2>(t.second) == 0) {
+              if (! (term_in ^ term_out) ) return false;
+
+              if (term_in) {
                 // if same as right rev comp, mark as canonical
             	  return (t.first <= std::get<1>(t.second).reverse_complement());
-              } else if (std::get<3>(t.second) == 0) {
+              } else if (term_out) {
                 // if revcomp same as left, choose the left.
             	  return (t.first.reverse_complement() < std::get<0>(t.second));
               } else {
@@ -108,12 +113,15 @@ namespace bliss {
 
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              if ((std::get<2>(t.second) == 0) && (std::get<3>(t.second) == 0)) {
+              bool term_in = ::bliss::debruijn::is_chain_terminal(std::get<2>(t.second));
+              bool term_out = ::bliss::debruijn::is_chain_terminal(std::get<3>(t.second));
+
+              if (term_in && term_out) {
                 return true;
-              } else if (std::get<2>(t.second) == 0) {
+              } else if (term_in) {
                 // if same as right rev comp, mark as canonical
                 return (t.first <= std::get<1>(t.second).reverse_complement());
-              } else if (std::get<3>(t.second) == 0) {
+              } else if (term_out) {
                 // if revcomp same as left, choose the left.
                 return (t.first.reverse_complement() < std::get<0>(t.second));
               } else {
@@ -135,7 +143,8 @@ namespace bliss {
             // or is a terminus and pointing to other terminus (0, -y), then this is a node that's finished.
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              return (std::get<2>(t.second) <= 0) && (std::get<3>(t.second) <= 0);
+              return ::bliss::debruijn::points_to_terminal_or_self(std::get<2>(t.second)) &&
+                     ::bliss::debruijn::points_to_terminal_or_self(std::get<3>(t.second));
             }
         };
 
@@ -149,7 +158,8 @@ namespace bliss {
             // if both one or both of the edge are not pointing to a terminus, then this is a node that's in progress.
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              return (std::get<2>(t.second) > 0) || (std::get<3>(t.second) > 0);
+              return  ::bliss::debruijn::points_to_chain_node(std::get<2>(t.second)) ||
+                      ::bliss::debruijn::points_to_chain_node(std::get<3>(t.second));
             }
 
             template <typename Iter>
@@ -176,8 +186,8 @@ namespace bliss {
             // if both one or both of the edge are not pointing to a terminus, then this is a node that's in progress.
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              return (std::get<2>(t.second) == max_distance) &&
-                  (std::get<3>(t.second) == max_distance);
+              return (::bliss::debruijn::get_chain_dist(std::get<2>(t.second)) == max_distance) &&
+                     (::bliss::debruijn::get_chain_dist(std::get<3>(t.second)) == max_distance);
             }
 
             template <typename Iter>
@@ -213,8 +223,12 @@ namespace bliss {
             // if both one or both of the edge are not pointing to a terminus, then this is a node that's in progress.
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              return ((std::get<2>(t.second) > 0) || (std::get<3>(t.second) > 0)) && // at least 1 is positive
-                  !((std::get<2>(t.second) == max_distance) && (std::get<3>(t.second) == max_distance));  // not both are at max_distance.
+              return  ( ::bliss::debruijn::points_to_chain_node(std::get<2>(t.second)) || 
+                        ::bliss::debruijn::points_to_chain_node(std::get<3>(t.second))
+                      ) && // at least 1 is positive
+                      !( (::bliss::debruijn::get_chain_dist(std::get<2>(t.second)) == max_distance) && 
+                         (::bliss::debruijn::get_chain_dist(std::get<3>(t.second)) == max_distance)
+                      );  // not both are at max_distance.
             }
         };
 

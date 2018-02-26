@@ -56,7 +56,7 @@ namespace bliss {
         /// return 1 if updated, 0 if not updated
         template <typename Kmer>
         struct terminus_update {
-            size_t operator()(::bliss::debruijn::simple_biedge<Kmer> & x,
+            inline size_t operator()(::bliss::debruijn::simple_biedge<Kmer> & x,
                               terminus_update_md<Kmer> const & y) const {
               assert(y.second != 0);  // second entry should not be 0.
 
@@ -72,7 +72,7 @@ namespace bliss {
                 //assert(std::get<2>(x) == 1);   // just to make sure that the edge we're trying to update is not already "cut".
                 assert(y.first == std::get<0>(x));   // just to make sure that we are talking about the same kmer.
 
-                std::get<2>(x) = 0;   // mark as terminus
+                std::get<2>(x) = ::bliss::debruijn::branch_neighbor;   // mark as terminus
                 return 1;
               } else if (y.second > 0) {  // OUT edge
 // commented for performance
@@ -85,7 +85,7 @@ namespace bliss {
                 //assert(std::get<3>(x) == 1);   // just to make sure that the edge we're trying to update is not already "cut".
                 assert(y.first == std::get<1>(x));   // just to make sure that we are talking about the same kmer.
 
-                std::get<3>(x) = 0;   // mark as terminus
+                std::get<3>(x) = ::bliss::debruijn::branch_neighbor;   // mark as terminus
                 return 1;
               }
               return 0;
@@ -96,10 +96,10 @@ namespace bliss {
         // k-mer is the target k-mer ON SAME STRAND as the canonical key kmer that this is used with.
         //    key k-mer is the source and chain_update_md contains the target of a directed edge
         //    i.e. if key kmer is canonical, Kmer in field is on same strand (whether Kmer itself is canonical or not)
-        // int is the distance between Kmer and key kmer on the key kmer's strand.  - means Kmer is a terminal node, + means it's not..
+        // uint is the distance between Kmer and key kmer on the key kmer's strand.  MSB=true means Kmer is a terminal node, false means it's not..
         // char is indicator for edge orientation.   + means OUT edge, - means IN edge.
         template <typename Kmer>
-        using chain_update_md = ::std::tuple<Kmer, int, char>;
+        using chain_update_md = ::std::tuple<Kmer, uint, char>;
 
 
         /// update the internal chains.  used on chains only.
@@ -108,7 +108,7 @@ namespace bliss {
         struct chain_update {
 
             /// update the chain node.  return 1 if updated, 0 if not.
-            size_t operator()(::bliss::debruijn::simple_biedge<Kmer> & x,
+            inline size_t operator()(::bliss::debruijn::simple_biedge<Kmer> & x,
                               chain_update_md<Kmer> const & y) const {
 
               assert(std::get<2>(y) != 0);   // orientation needs to be 1 or -1
@@ -116,10 +116,9 @@ namespace bliss {
               // ***
               //  received an update for the current kmer.  check to see if we are jumping sufficiently
 
-              auto dist = abs(std::get<1>(y));
+              uint dist = ::bliss::debruijn::get_chain_dist(std::get<1>(y));
 
               assert(dist > 0);   // update distance should be larger than 0.
-
 
               if (std::get<2>(y) < 0) {  // IN edge
 // commented for performance
@@ -142,9 +141,23 @@ namespace bliss {
  //           		std::cout << "L end: " << x << " update " << y << std::endl;
    //         	}
 //
-                assert( std::get<2>(x) != 0);
-                assert( ( ( std::get<2>(x) < 0 ) && ((dist < -(std::get<2>(x)) ) || ((dist == -(std::get<2>(x))) && (std::get<0>(y) == std::get<0>(x)))) ) ||
-                        ( ( std::get<2>(x) > 0 ) && ((dist != std::get<2>(x) ) || ((dist == std::get<2>(x)) && (std::get<0>(y) == std::get<0>(x)))) ));
+                uint distx = ::bliss::debruijn::get_chain_dist(std::get<2>(x));
+                assert( distx > 0);
+                assert( ( ::bliss::debruijn::points_to_terminal(std::get<2>(x)) && 
+                          ( (dist < distx ) || 
+                            ( (dist == distx ) &&
+                              (std::get<0>(y) == std::get<0>(x) )
+                            )
+                          ) 
+                        ) ||
+                        ( ::bliss::debruijn::points_to_chain_node(std::get<2>(x)) && 
+                          ( (dist != distx ) ||
+                            ( (dist == distx ) &&
+                              (std::get<0>(y) == std::get<0>(x))
+                            )
+                          )
+                        )
+                      );
                 // if current node not pointing to terminus, update distance should be larger than current distance,
                 // or if equal, should have same k-mer.
                 // cannot be smaller.
@@ -154,9 +167,9 @@ namespace bliss {
                 //                  std::get<2>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
                 //                  std::get<0>(x) = std::get<0>(y);
                 //                }
-                if (std::get<2>(x) > 0) {
-                  if (dist > std::get<2>(x)) std::get<0>(x) = std::get<0>(y);
-                  if (dist >= std::get<2>(x)) {			// == is to change sign of x.2, as y.1 may be negative to indicate finished.
+                if ( ::bliss::debruijn::points_to_chain_node(std::get<2>(x)) ) {  // not terminal and has positive dist.
+                  if (dist > distx) std::get<0>(x) = std::get<0>(y);
+                  if (dist >= distx) {			// == is to change sign of x.2, as y.1 may be negative to indicate finished.
                     std::get<2>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
                     return 1;
                   }
@@ -181,9 +194,23 @@ namespace bliss {
 //              		std::cout << "R end: " << x << " update " << y << std::endl;
 //              	}
 //
-              	assert( std::get<3>(x) != 0);
-                assert( ( ( std::get<3>(x) < 0 ) && ((dist < -(std::get<3>(x)) ) || ((dist == -(std::get<3>(x))) && (std::get<0>(y) == std::get<1>(x)))) ) ||
-                        ( ( std::get<3>(x) > 0 ) && ((dist != std::get<3>(x) ) || ((dist == std::get<3>(x)) && (std::get<0>(y) == std::get<1>(x)))) ));
+                uint distx = ::bliss::debruijn::get_chain_dist(std::get<3>(x));
+                assert( distx > 0);
+                assert( ( ::bliss::debruijn::points_to_terminal(std::get<3>(x))  && 
+                          ( (dist < distx ) || 
+                            ( (dist == distx ) &&
+                              (std::get<0>(y) == std::get<1>(x) )
+                            )
+                          ) 
+                        ) ||
+                        ( ::bliss::debruijn::points_to_chain_node(std::get<3>(x)) && 
+                          ( (dist != distx ) ||
+                            ( (dist == distx ) &&
+                              (std::get<0>(y) == std::get<1>(x))
+                            )
+                          )
+                        )
+                      );
                 // if current node not pointing to terminus, update distance should be larger than current distance,
                 // or if equal, should have same k-mer.
                 // cannot be smaller.
@@ -193,9 +220,9 @@ namespace bliss {
                 //            	}
 
                 // update out edge IF new distance is larger than current.
-                if (std::get<3>(x) > 0) {
-                  if (dist > std::get<3>(x)) std::get<1>(x) = std::get<0>(y);
-                  if (dist >= std::get<3>(x)) { // == is to change sign of x.2, as y.1 may be negative to indicate finished.
+                if (::bliss::debruijn::points_to_chain_node(std::get<3>(x))) {
+                  if (dist > distx) std::get<1>(x) = std::get<0>(y);
+                  if (dist >= distx) { // == is to change sign of x.3, as y.1 may be negative to indicate finished.
                     std::get<3>(x) = std::get<1>(y);   // note that if update indicates finished, it's propagated.
                     return 1;
                   }
@@ -230,8 +257,8 @@ namespace bliss {
             	assert(x.first <= x.first.reverse_complement());  // ensure the key is lex smaller.
 
               // if this is end node, L is set to node k-mer.  else left edge k-mer (and right k-mer revcomp)
-              KMER L = (std::get<2>(x.second) == 0) ? x.first : std::get<0>(x.second);
-              KMER R = (std::get<3>(x.second) == 0) ? x.first.reverse_complement() :
+              KMER L = ::bliss::debruijn::is_chain_terminal(std::get<2>(x.second)) ? x.first : std::get<0>(x.second);
+              KMER R = ::bliss::debruijn::is_chain_terminal(std::get<3>(x.second)) ? x.first.reverse_complement() :
             		  std::get<1>(x.second).reverse_complement();
 
               // now compare L and R, the smaller is the "representative" of a chain
@@ -242,7 +269,7 @@ namespace bliss {
               KMER K = sense ? x.first : x.first.reverse_complement();
 
               // once the representative is chosen, the distance is set too.  negative is opposite strand from chain rep
-              int dist = sense ? abs(std::get<2>(x.second)) : abs(std::get<3>(x.second));
+              int dist = sense ? ::bliss::debruijn::get_chain_dist(std::get<2>(x.second)) : ::bliss::debruijn::get_chain_dist(std::get<3>(x.second));
 
 
 //              auto md = x.second;

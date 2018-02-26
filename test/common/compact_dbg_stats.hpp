@@ -816,17 +816,20 @@ void print_chain_frequencies(std::string const & filename,
 	//========= get the R frequencies (from remote) and insert into a local map
 	if (comm.rank() == 0) printf("GATHER NON_REP_END EDGE FREQUENCY\n");
 
+	bool lterm, rterm;
 	// get query vector
 	BL_BENCH_START(print_chain_freq);
 	typename CountDBGMapType::local_container_type R_freq_map;
 	{
 		std::vector<KmerType> R_query;
 		for (auto x : chain_reps) {
-			if ((::std::get<2>(x.second) == 0) && (::std::get<3>(x.second) == 0)) {
+			lterm = ::bliss::debruijn::is_chain_terminal(::std::get<2>(x.second));
+			rterm = ::bliss::debruijn::is_chain_terminal(::std::get<3>(x.second));
+			if (lterm && rterm) {
 				R_query.emplace_back(x.first);
-			} else if (::std::get<2>(x.second) == 0) {
+			} else if (lterm) {
 				R_query.emplace_back(std::get<1>(x.second));
-			} else if (::std::get<3>(x.second) == 0) {
+			} else if (rterm) {
 				R_query.emplace_back(std::get<0>(x.second));
 			} else {
 				std::cout << "rank " << comm.rank() << " canonical chain terminal not really terminal" << std::endl;
@@ -854,16 +857,18 @@ void print_chain_frequencies(std::string const & filename,
 
 	for (auto x : chain_reps) {
 		// first get the kmer strings
+		lterm = ::bliss::debruijn::is_chain_terminal(::std::get<2>(x.second));
+		rterm = ::bliss::debruijn::is_chain_terminal(::std::get<3>(x.second));
 
-		if ((::std::get<2>(x.second) == 0) && (::std::get<3>(x.second) == 0)) {
+		if (lterm && rterm) {
 			L = x.first;
 			R = x.first;
-		} else if (::std::get<2>(x.second) == 0) {
+		} else if (lterm) {
 			L = x.first;
 			//        		  R = std::get<1>(x.second).reverse_complement();  // opposite strand
 			R = std::get<1>(x.second); // we now want same strand as L.
 
-		} else if (::std::get<3>(x.second) == 0) {
+		} else if (rterm) {
 			L = x.first.reverse_complement();
 			//        		  R = std::get<0>(x.second);  // opposite strand
 			R = std::get<0>(x.second).reverse_complement(); // we now want same strand as L.

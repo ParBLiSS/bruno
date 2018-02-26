@@ -454,7 +454,7 @@ namespace graph
 		   // assume cycles are excluded.
 
 			debruijn_chain_graph<KmerType> termini;
-			termini.insert(this->get_terminal_nodes(), ::bliss::transform::identity, true);  // local insert only.
+			termini.insert(this->get_terminal_nodes(), ::bliss::transform::identity<mutable_value_type>(), true);  // local insert only.
 
 			return termini;
 	   }
@@ -462,7 +462,7 @@ namespace graph
 		   // assume cycles are excluded.
 
 			debruijn_chain_graph<KmerType> reps;
-			reps.insert(this->get_chain_representatives(), ::bliss::transform::identity, true);  // local insert only.
+			reps.insert(this->get_chain_representatives(), ::bliss::transform::identity<mutable_value_type>(), true);  // local insert only.
 
 			return reps;
 	   }
@@ -747,7 +747,7 @@ namespace graph
 				std::vector<std::pair<KmerType, update_md > > updates;
 				updates.reserve(unfinished.size());  // initially reserve same size.  will encounter a resize at least.
 
-				int dist = 0;
+				uint dist = 0;
 				KmerType ll, rr;
 				bliss::debruijn::simple_biedge<KmerType> md;
 				::bliss::debruijn::operation::chain::chain_update<KmerType> chain_updater;
@@ -755,6 +755,8 @@ namespace graph
 
 				// check if all chains are compacted
 				BL_BENCH_START(p_rank);
+				uint dist_in, dist_out;
+				bool term_in, term_out;
 
 				// loop until everything is compacted (except for cycles)
 				while (!all_compacted) {
@@ -768,29 +770,34 @@ namespace graph
 						// each is a pair with kmer, <in kmer, out kmer, in dist, out dist>
 						// constructing 2 edges <in, out> and <out, in>  distance is sum of the 2.
 						// indication of whether edge destination is a terminus depend only on the sign of distance to that node.
-
-						dist = abs(std::get<2>(md)) + abs(std::get<3>(md));   // this double the distance...
+						dist_in = ::bliss::debruijn::get_chain_dist(std::get<2>(md));
+						dist_out = ::bliss::debruijn::get_chain_dist(std::get<3>(md));
+						term_in = ::bliss::debruijn::is_chain_terminal(std::get<2>(md));
+						term_out = ::bliss::debruijn::is_chain_terminal(std::get<3>(md));
+						dist = dist_in + dist_out;   // this double the distance...
 
 						// and below pointer jumps.
 
 						// construct forward edge, from ll to rr, only if current node is not a terminus for the "in" side
-						if (std::get<2>(md) != 0)  {
+						if (!term_in)  {
 							// send rr to ll.  also let ll know if rr is a terminus.  orientation is OUT
 							updates.emplace_back(std::get<0>(md),
-									update_md((std::get<3>(md) == 0) ? t.first : std::get<1>(md),
-											((std::get<3>(md) > 0) ? dist : -dist),     // if md.3 <= 0, then finished, so use negative dist.
-											bliss::debruijn::operation::OUT));		// update target (md.0)'s out edge
+												update_md(term_out ? t.first : std::get<1>(md),
+															::bliss::debruijn::points_to_chain_node(std::get<3>(md)) ? dist : ::bliss::debruijn::mark_as_point_to_terminal(dist),     // if md.3 <= 0, then finished, so use negative dist.
+															bliss::debruijn::operation::OUT
+														)
+												);		// update target (md.0)'s out edge
 							// if out dist is 0, then this node is a terminal node.  sent self as target.  else use right kmer.
 							// if out dist is negative, then out kmer (rr) points to a terminus, including self (dist = 0), set update distance to negative to indicate so.
 
 						}  // else case is same as below
 
 						// construct backward edge, from out to in, only if current node is not a terminus for the "out" side
-						if (std::get<3>(md) != 0) {
+						if (!term_out) {
 							// send ll to rr.  also let rr know if ll is a terminus.  orientation is IN
 							updates.emplace_back(std::get<1>(md),
-									update_md((std::get<2>(md) == 0) ? t.first : std::get<0>(md),
-											((std::get<2>(md) > 0) ? dist : -dist),  // if md.3 <= 0, then finished, so use negative dist.
+									update_md(term_in ? t.first : std::get<0>(md),
+											::bliss::debruijn::points_to_chain_node(std::get<2>(md)) ? dist : ::bliss::debruijn::mark_as_point_to_terminal(dist),  // if md.3 <= 0, then finished, so use negative dist.
 											bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
 							// if target is a terminus, then set self as target.  else use left kmer
 							// if target points to a terminus, including self (dist = 0), set update distance to negative to indicate so.
@@ -1060,7 +1067,7 @@ namespace graph
 				if (comm.rank() == 0)
 				std::cout << "SIZES chain_update_md size is " << sizeof(update_md) << std::endl;
 
-				int dist = 0, ldist = 0, rdist = 0;
+				uint dist = 0, ldist = 0, rdist = 0;
 				KmerType ll, rr;
 				bliss::debruijn::simple_biedge<KmerType> md;
 				KmerType km;
@@ -1083,14 +1090,14 @@ namespace graph
 
 						ldist = std::get<2>(md);
 						rdist = std::get<3>(md);
-						dist = abs(ldist) + abs(rdist);   // this double the distance...
+						dist = ::bliss::debruijn::get_chain_dist(ldist) + ::bliss::debruijn::get_chain_dist(rdist);   // this double the distance...
 
 						// and below pointer jumps.
 
 						// switch based on node type
-						if ((ldist > 0) && (rdist > 0)) {
+						if (::bliss::debruijn::points_to_chain_node(ldist) && ::bliss::debruijn::points_to_chain_node(rdist)) {
 							// type 1.
-							// udpate left
+							// update left
 							// send rr to ll.  also let ll know if rr is a terminus.  orientation is OUT
 							updates.emplace_back(std::get<0>(md),
 									update_md(std::get<1>(md),
@@ -1105,7 +1112,7 @@ namespace graph
 											 	 dist,  // if md.3 <= 0, then finished, so use negative dist.
 											bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
 
-						} else if ((ldist < 0) && (rdist < 0)) {
+						} else if (::bliss::debruijn::points_to_terminal(ldist) && ::bliss::debruijn::points_to_terminal(rdist)) {
 //							// type 4.  because of filter, this would never be called.
 //							if ((ldist == rdist) || (ldist == (rdist - 1))) {
 //								// update left
@@ -1120,20 +1127,20 @@ namespace graph
 //												bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
 //
 //							}
-              throw std::logic_error("both distances are negative. should be filtered already and not get here");
+			              throw std::logic_error("both distances are negative. should be filtered already and not get here");
 
-						} else if ((ldist == 0) && (rdist == 0)){  // types 5. do nothing.  never be called either.
+						} else if (dist == 0){  // types 5. do nothing. both distances are 0.  never be called either.
 						} else {  // types 2 and 3.  one of 2 edges points to terminus but not the other.
 							// ((ldist <= 0) && (rdist > 0)) || ((ldist < 0) && (rdist >= 0)) ||
 							// ((ldist > 0) && (rdist <= 0)) || ((ldist >= 0) && (rdist < 0))
 							// handle type 2 here
 						  // should only happen for nodes that are less than 2^iter away from terminal.
-							if (ldist <= 0) {  // and rdist > 0
+							if (::bliss::debruijn::points_to_chain_node(rdist)) {  // rdist > 0 and ldist <= 0, in side is done.
 								// left is terminus.  send to right then
 								// update right.
 								updates.emplace_back(std::get<1>(md),
-										update_md((std::get<2>(md) == 0) ? km : std::get<0>(md),
-												-dist,  // if md.3 <= 0, then finished, so use negative dist.
+										update_md((::bliss::debruijn::get_chain_dist(ldist) == 0) ? km : std::get<0>(md),
+												::bliss::debruijn::mark_as_point_to_terminal(dist),  // if md.3 <= 0, then finished, so use negative dist.
 												bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
 
 								// handle type 3 here - these are never satistfied.
@@ -1150,8 +1157,8 @@ namespace graph
 								// right is terminus.  send to left then
 								// update left
 								updates.emplace_back(std::get<0>(md),
-										update_md((std::get<3>(md) == 0) ? km : std::get<1>(md),
-													-dist,     // if md.3 <= 0, then finished, so use negative dist.
+										update_md((::bliss::debruijn::get_chain_dist(rdist) == 0) ? km : std::get<1>(md),
+												::bliss::debruijn::mark_as_point_to_terminal(dist),     // if md.3 <= 0, then finished, so use negative dist.
 												bliss::debruijn::operation::OUT));		// update target (md.0)'s out edge
 								// handle type 3 here
 								if (dist == (2 << iterations)) { // iter i updates a node at max of 2^(i+1) distance away.
@@ -1160,7 +1167,7 @@ namespace graph
 //											update_md(std::get<0>(md),
 //													dist,  // if md.3 <= 0, then finished, so use negative dist.
 //													bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
-                  throw std::logic_error("total distance at 2^t and trying to update terminal. should not get here");
+				                  throw std::logic_error("total distance at 2^t and trying to update terminal. should not get here");
 								}
 							}
 						}
