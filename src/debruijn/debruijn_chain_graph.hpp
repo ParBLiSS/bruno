@@ -449,6 +449,24 @@ namespace graph
 		   return results;
 	   }
 
+		// make a separate chain_graph that only has terminal chain nodes.
+	   debruijn_chain_graph<KmerType> make_terminal_chain_graph() {
+		   // assume cycles are excluded.
+
+			debruijn_chain_graph<KmerType> termini;
+			termini.insert(this->get_terminal_nodes(), ::bliss::transform::identity, true);  // local insert only.
+
+			return termini;
+	   }
+		debruijn_chain_graph<KmerType> make_representative_chain_graph() {
+		   // assume cycles are excluded.
+
+			debruijn_chain_graph<KmerType> reps;
+			reps.insert(this->get_chain_representatives(), ::bliss::transform::identity, true);  // local insert only.
+
+			return reps;
+	   }
+
 	   /**
 	    * @brief extract chains from a debruijn graph
 	    * @note	 existing chain map is cleared.
@@ -1345,120 +1363,6 @@ namespace graph
 	};
 
 
-	// to do proper filtering, need to
-	//   1. compute chain statistics - frequency min, max, mean, stdev.
-	//	 2. then we can perform filtering
-	//   3. then we can perform recompaction (using chain representatives)
-	//   4. and new cycle detection and removal (sum of distances of all nodes is power of 2 (probably not strictly enough)
-
-
-	//========= graph topological filtering.
-
-//	/**
-//	 * @brief return a vector of chain representatives, each a separate deadend.
-//	 */
-//	template <typename somedatatype, >
-//	somedatatype find_deadends(std::pair<dbg, chain_graph> const & x, predicate) {
-//
-//	}
-//	/**
-//	 * @brief return a vector of chain representatives, each a separate deadend.
-//	 */
-//	template <typename somedatatype, >
-//	somedatatype count_deadends(std::pair<dbg, chain_graph> const & x, predicate) {
-//
-//	}
-//	/**
-//	 * @brief return a vector of chain representatives, each a separate deadend.
-//	 */
-//	template <typename somedatatype, >
-//	somedatatype erase_deadends(std::pair<dbg, chain_graph> const & x, predicate) {
-//
-//	}
-//	/**
-//	 * @brief return a vector of chain representatives, each a separate deadend.
-//	 * @note  do special operations with deadends.
-//	 */
-//	template <typename somedatatype, >
-//	somedatatype update_deadends(std::pair<dbg, chain_graph> const & x, updater, predicate) {
-//
-//	}
-//
-//
-//
-//	/**
-//	 * @brief return a vector of chain representatives, each a separate deadend.
-//	 */
-//	template <typename somedatatype, >
-//	somedatatype find_bubbles(std::pair<dbg, chain_graph> const & x, predicate) {
-//
-//	}
-//	/**
-//	 * @brief return a vector of chain representatives, each a separate deadend.
-//	 */
-//	template <typename somedatatype, >
-//	somedatatype count_bubbles(std::pair<dbg, chain_graph> const & x, predicate) {
-//
-//	}
-//	/**
-//	 * @brief return a vector of chain representatives, each a separate deadend.
-//	 */
-//	template <typename somedatatype, >
-//	somedatatype erase_bubbles(std::pair<dbg, chain_graph> const & x, predicate) {
-//
-//	}
-//	/**
-//	 * @brief return a vector of chain representatives, each a separate deadend.
-//	 */
-//	template <typename somedatatype, >
-//	somedatatype recursively_erase_bubbles(std::pair<dbg, chain_graph> const & x, predicate) {
-//
-//	}
-//	/**
-//	 * @brief return a vector of chain representatives, each a separate deadend.
-//	 * @note  do special operations with bubbles, such as merging both sides, etc.
-//	 */
-//	template <typename somedatatype, >
-//	somedatatype update_bubbles(std::pair<dbg, chain_graph> const & x, updater, predicate) {
-//
-//	}
-//	/**
-//	 * @brief return a vector of chain representatives, each a separate deadend.
-//	 * @note  do special operations with bubbles, such as merging both sides, etc.
-//	 */
-//	template <typename somedatatype, >
-//	somedatatype recursively_update_bubbles(std::pair<dbg, chain_graph> const & x, updater, predicate) {
-//
-//	}
-//
-
-
-
-//
-//	template <typename KmerType, template <typename> class MapType>
-//	class compressed_debruijn_graph : public debruijn_graph<KmerType> {
-//
-//	protected:
-//		// branch node table
-//
-//		// compressed chains.
-//
-//	public:
-//		compressed_debruijn_graph(chained_debruijn_graph<KmerType> const & chained) {
-//
-//		}
-//
-//		compressed_debruijn_graph(chained_debruijn_graph<KmerType> && chained) {
-//
-//		}
-//
-//		// compact
-//		virtual void compact() {
-//
-//		}
-//
-//
-//	};
 
 
 } // ns: graph
