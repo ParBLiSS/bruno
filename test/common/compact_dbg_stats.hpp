@@ -341,11 +341,20 @@ void print_k2mer_frequencies(
 			ss << (((ch >> 4) > 0) && 
 				::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(
 				key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch >> 4]],
-				kmer) ? "i" : " ");
+				kmer) ? "i" : 
+				(((ch >> 4) > 0) && 
+				::bliss::common::kmer::kmer_traits<key_type>::is_k1pair_rc_palindrome(
+				key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch >> 4]],
+				kmer) ? "I" : " ")
+				);
 			ss << (((ch & 0xF) > 0) && 
 				::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(kmer, 
 				key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch & 0xF]]
-				) ? "o" : " ");
+				) ? "o" : (((ch & 0xF) > 0) && 
+				::bliss::common::kmer::kmer_traits<key_type>::is_k1pair_rc_palindrome(kmer, 
+				key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch & 0xF]]
+				) ? "O" : " ")
+				);
 			ss << (((ch >> 4) > 0) && ((ch & 0xF) > 0) && 
 				::bliss::common::kmer::kmer_traits<key_type>::is_k2_rc_palindrome(
 				key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch >> 4]], 

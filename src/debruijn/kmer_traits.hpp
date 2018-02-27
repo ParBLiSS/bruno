@@ -74,12 +74,14 @@ namespace bliss
 
             // check to see if k+1-mer and its rc are identical.  
             static inline bool is_k1_rc_palindrome(KmerType const & k, unsigned char const & r, bool palindromic_kminus1_low) {
+                assert((r < ALPHABET::SIZE) && "character in wrong alphabet" );
                 if (std::is_same<ALPHABET, ::bliss::common::DNA>::value && ((KMER_SIZE & 0x1) == 0)) return false;  // even DNA.  so k-1-mer cannot be palindromic
                 if (k.getCharsAtPos(KMER_SIZE - 1, 1) != ALPHABET::to_complement(r)) return false;   // two sides are not the same so not a rc_palindrome.
 		return palindromic_kminus1_low;
             }
             // check to see if k+1-mer and its rc are identical. 
             static inline bool is_k1_rc_palindrome(unsigned char const & l, KmerType const & k, bool palindromic_kminus1_high) {
+                assert((l < ALPHABET::SIZE) && "character in wrong alphabet" );
                 if (std::is_same<ALPHABET, ::bliss::common::DNA>::value && ((KMER_SIZE & 0x1) == 0)) return false;  // even DNA.  so k-1-mer cannot be palindromic
                 if (k.getCharsAtPos(0, 1) != ALPHABET::to_complement(l)) return false;   // two sides are not the same so not a rc_palindrome.
 		return palindromic_kminus1_high;
@@ -87,6 +89,7 @@ namespace bliss
             // two k-mers form k1pair rc_palindrome when each, when extended with an edge in the same direction, forms the other kmer.  rc(x[2..k]c)=y, and rc(y[2..k]d) = x.  c=rc(y[1]), d=rc(x[1])
                 //   so rc(x[2..k]) = y[2..k], and vice versa, so x[2..k] and y[2..k] are palindromes.
             static inline bool is_k1pair_rc_palindrome(KmerType const & k, unsigned char const & r, bool palindromic_kminus1_low) {
+                assert((r < ALPHABET::SIZE) && "character in wrong alphabet" );
                 if (std::is_same<ALPHABET, ::bliss::common::DNA>::value && ((KMER_SIZE & 0x1) == 0)) return false;  // even DNA.  so k-1-mer cannot be palindromic
                 if (k.getCharsAtPos(KMER_SIZE - 1, 1) != r) return false;   // two sides are not the same so not a rc_palindrome.
 		return palindromic_kminus1_low;
@@ -94,6 +97,7 @@ namespace bliss
             // two k-mers form k1pair rc_palindrome when each, when extended with an edge in the same direction, forms the other kmer.  rc(x[2..k]c)=y, and rc(y[2..k]d) = x.  c=rc(y[1]), d=rc(x[1])
                 //   so rc(x[2..k]) = y[2..k], and vice versa, so x[2..k] and y[2..k] are palindromes.
             static inline bool is_k1pair_rc_palindrome(unsigned char const & l, KmerType const & k, bool palindromic_kminus1_high) {
+                assert((l < ALPHABET::SIZE) && "character in wrong alphabet" );
                 if (std::is_same<ALPHABET, ::bliss::common::DNA>::value && ((KMER_SIZE & 0x1) == 0)) return false;  // even DNA.  so k-1-mer cannot be palindromic
                 if (k.getCharsAtPos(0, 1) != l) return false;   // two sides are not the same so not a rc_palindrome.
 		return palindromic_kminus1_high;
@@ -102,6 +106,7 @@ namespace bliss
 	    // ==============  combination check for k1 and k1pair palindrome
 
             static inline unsigned char is_k1_k1pair_rc_palindrome(KmerType const & k, unsigned char const & r, bool palindromic_kminus1_low) {
+                assert((r < ALPHABET::SIZE) && "character in wrong alphabet" );
                 if (std::is_same<ALPHABET, ::bliss::common::DNA>::value && ((KMER_SIZE & 0x1) == 0)) return 0;  // even DNA.  so k-1-mer cannot be palindromic
                 
                 if (!palindromic_kminus1_low) return 0;  // masked compare excluding 1 most significant character.
@@ -110,6 +115,7 @@ namespace bliss
                  ((k.getCharsAtPos(KMER_SIZE - 1, 1) == r) ? 2 : 0);   // paired palindrome.
             }
             static inline unsigned char is_k1_k1pair_rc_palindrome(unsigned char const & l, KmerType const & k, bool palindromic_kminus1_high) {
+                assert((l < ALPHABET::SIZE) && "character in wrong alphabet" );
                 if (std::is_same<ALPHABET, ::bliss::common::DNA>::value && ((KMER_SIZE & 0x1) == 0)) return 0;  // even DNA.  so k-1-mer cannot be palindromic
 
                 if (!palindromic_kminus1_high) return 0;  // masked compare excluding 1 most significant character.
@@ -122,6 +128,7 @@ namespace bliss
 
             // check to see if k+2-mer and its rc are identical.  
             static inline bool is_k2_rc_palindrome(unsigned char const & l, KmerType const & k, unsigned char const & r, bool palindromic_k) {
+                assert((r < ALPHABET::SIZE) && (l < ALPHABET::SIZE) && "character in wrong alphabet" );
                 if (std::is_same<ALPHABET, ::bliss::common::DNA>::value && ((KMER_SIZE & 0x1) > 0)) return false;  // odd DNA.  so k2-mer cannot be palindromic
                 if (r != ALPHABET::to_complement(l)) return false;   // two sides are not the same so not a rc_palindrome.
                 return palindromic_k;
@@ -200,6 +207,7 @@ namespace bliss
             // }
             // check to see if k-mer and k+2-mer are rc_palindromic.  3: kmer and k2mer.  1. kmer only.
             static inline unsigned char is_k_k2_rc_palindrome(unsigned char const & l, KmerType const & k, unsigned char const & r) {
+                assert((r < ALPHABET::SIZE) && (l < ALPHABET::SIZE) && "character in wrong alphabet" );
                 if (std::is_same<ALPHABET, ::bliss::common::DNA>::value && ((KMER_SIZE & 0x1) > 0)) return false;  // even DNA.  so k-1-mer cannot be palindromic
                 unsigned char res = ((k == k.reverse_complement()) ? 3 : 0);
                 if (r != ALPHABET::to_complement(l)) res &= 1;   // two sides are not the same so not a rc_palindrome.

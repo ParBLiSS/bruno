@@ -97,7 +97,7 @@ namespace bliss
 			assert(neighbors.size() < 2);   // should not have more than 1 neighbors.
 			if (neighbors.size() == 1) {
 				std::get<0>(node) = neighbors[0];
-				std::get<2>(node) = 1;
+				std::get<2>(node) = static_cast<uint>(1);
 			} // else if there is no neighbor, leave kmer as blank and distance as 0
 //			else {
 //				std::cout << " node without IN edge: " << t << std::endl;
@@ -109,7 +109,7 @@ namespace bliss
 			assert(neighbors.size() < 2);   // should not have more than 1 neighbors.
 			if (neighbors.size() == 1) {
 				std::get<1>(node) = neighbors[0];
-				std::get<3>(node) = 1;
+				std::get<3>(node) = static_cast<uint>(1);
 			} // else if there is no neighbor, leave kmer as blank and distance as 0
 //			else {
 //				std::cout << " node without OUT edge: " << t << std::endl;
@@ -130,7 +130,7 @@ namespace bliss
 			assert(neighbors.size() < 2);   // should not have more than 1 neighbors.
 			if (neighbors.size() == 1) {
 				std::get<0>(node) = neighbors[0];
-				std::get<2>(node) = 1;
+				std::get<2>(node) = static_cast<uint>(1);
 			}
 
 			// get the out neighbor
@@ -139,7 +139,7 @@ namespace bliss
 			assert(neighbors.size() < 2);   // should not have more than 1 neighbors.
 			if (neighbors.size() == 1) {
 				std::get<1>(node) = neighbors[0];
-				std::get<3>(node) = 1;
+				std::get<3>(node) = static_cast<uint>(1);
 			}
 
     		return std::make_pair(t.first, node);
