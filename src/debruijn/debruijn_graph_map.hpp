@@ -836,6 +836,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		BL_BENCH_END(local_insert, "k2mer_sort", k2counts.size());
 
 		// key_type trouble;
+		// CTATATACTATATACTAGTATATAGTATATA
 		// trouble.nextFromChar(1);
 		// trouble.nextFromChar(3);
 		// trouble.nextFromChar(0);
@@ -867,6 +868,41 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		// trouble.nextFromChar(0);
 		// trouble.nextFromChar(3);
 		// trouble.nextFromChar(0);
+/*
+		// TACTATATACTAGTATATAGTATATTAAATA
+		 trouble.nextFromChar(3);
+		 trouble.nextFromChar(0);
+		 trouble.nextFromChar(1);
+		 trouble.nextFromChar(3);
+		 trouble.nextFromChar(0);
+		 trouble.nextFromChar(3);
+		 trouble.nextFromChar(0);
+		 trouble.nextFromChar(3);
+		 trouble.nextFromChar(0);
+		 trouble.nextFromChar(1);
+		 trouble.nextFromChar(3);
+		 trouble.nextFromChar(0);
+		 trouble.nextFromChar(2);
+		 trouble.nextFromChar(3);
+		 trouble.nextFromChar(0);
+		 trouble.nextFromChar(3);
+		 trouble.nextFromChar(0);
+		 trouble.nextFromChar(3);
+		 trouble.nextFromChar(0);
+		 trouble.nextFromChar(2);
+		 trouble.nextFromChar(3);
+		 trouble.nextFromChar(0);
+		 trouble.nextFromChar(3);
+		 trouble.nextFromChar(0);
+		 trouble.nextFromChar(3);
+		 trouble.nextFromChar(3);
+		 trouble.nextFromChar(0);
+		 trouble.nextFromChar(0);
+		 trouble.nextFromChar(0);
+		 trouble.nextFromChar(3);
+		 trouble.nextFromChar(0);
+*/
+
 
 		{ // scope to clear filter_flag later.
 			// step 4: do per block sum
@@ -905,20 +941,20 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 				for (; it != k2counts.end(); ++it) {
 					if (it->first.first != k) {  // start of new block
 
-						// if (k == trouble) {
-						// 	std::cout << "summary " <<
-						// 		k << " f " << k_f << " in [" <<
-						// 		static_cast<size_t>(k1in_f[0]) << "," << 
-						// 		static_cast<size_t>(k1in_f[1]) << "," <<
-						// 		static_cast<size_t>(k1in_f[2]) << "," <<
-						// 		static_cast<size_t>(k1in_f[3]) << "], out [" <<
-						// 		static_cast<size_t>(k1out_f[0]) << "," << 
-						// 		static_cast<size_t>(k1out_f[1]) << "," <<
-						// 		static_cast<size_t>(k1out_f[2]) << "," <<
-						// 		static_cast<size_t>(k1out_f[3]) << "]" << std::endl;
-						// }
+/*					 if ((k == trouble) || (k == trouble.reverse_complement())) {
+					 	std::cout << "summary " <<
+							k << " f " << k_f << " in [" <<
+					 		static_cast<size_t>(k1in_f[0]) << "," << 
+					 		static_cast<size_t>(k1in_f[1]) << "," <<
+					 		static_cast<size_t>(k1in_f[2]) << "," <<
+					 		static_cast<size_t>(k1in_f[3]) << "], out [" <<
+					 		static_cast<size_t>(k1out_f[0]) << "," << 
+					 		static_cast<size_t>(k1out_f[1]) << "," <<
+					 		static_cast<size_t>(k1out_f[2]) << "," <<
+					 		static_cast<size_t>(k1out_f[3]) << "]" << std::endl;
+					 }
 
-					  // cap the counts, could be data type max, and larger than thresh_max.
+*/					  // cap the counts, could be data type max, and larger than thresh_max.
 					  k_f = std::min(cnt_max, k_f);
 					  // average by 2 since this is from palindromic k+1 mer.
 					  	for (ch = 0; ch < 4; ++ch) {
@@ -928,9 +964,9 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 						// accumulation for block complete. filter and record results now.
 						for (; block_it != it; ++block_it, ++flag_it) {
-							// if (k == trouble) {
-							// 	std::cout << (*block_it) <<  std::endl;
-							// }
+//					 if ((k == trouble) || (k == trouble.reverse_complement())) {
+//							 	std::cout << (*block_it) <<  std::endl;
+//							 }
 
 							// step 5: do per block threshold
 							cnt = std::min(cnt_max, static_cast<size_t>(block_it->second));	
@@ -985,34 +1021,47 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 					// if k is palindromic, then revcomp of edges may be present.  AVERAGE. 
 					edges = it->first.second.getData()[0];
 
-					ch = key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[edges >> 4]];
-					split_counts = ::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(ch, k, km1_high_is_palindrome) && (!k_is_palindrome);
-					// if (k == trouble) {
-					// 	std::cout << "km1 high palindrome ? " << (km1_high_is_palindrome ? "Y" : "N") << 
-					// 	" k palindrome ? " << (k_is_palindrome ? "Y" : "N")  << " ch " << 
-					// 	static_cast<size_t>(ch) << ", low val " << k.getCharsAtPos(0, 1) << " split ? " << (split_counts ? "Y" : "N") << std::endl;
-					// }
-					cnt = split_counts ? ((cnt_unsplit+1) >> 1) : cnt_unsplit; 
-					k1in_f[ch] += cnt;
-					if (split_counts) {  // TODO: only handling k+1 palindrome right now.
+					ch = edges >> 4;
+					if (ch > 0) {
+					  if ((ch & (ch - 1)) == 0) {  // power of 2 
+					    ch = key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch]]; // convert to target alphabet
+					    split_counts = ::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(ch, k, km1_high_is_palindrome) && (!k_is_palindrome);
+//					 if ((k == trouble) || (k == trouble.reverse_complement())) {
+//					 	std::cout << "km1 high palindrome ? " << (km1_high_is_palindrome ? "Y" : "N") << 
+//					 	" k palindrome ? " << (k_is_palindrome ? "Y" : "N")  << " ch " << 
+//					 	static_cast<size_t>(ch) << ", low val " << k.getCharsAtPos(0, 1) << " split ? " << (split_counts ? "Y" : "N") << std::endl;
+//					    }
+					    cnt = split_counts ? ((cnt_unsplit+1) >> 1) : cnt_unsplit; 
+					    k1in_f[ch] += cnt;
+					    if (split_counts) {  // TODO: only handling k+1 palindrome right now.
 						k1out_f[(3-ch)] += (cnt_unsplit - cnt);
+					    }
+					  } else {
+					    throw std::logic_error("combination of edges, so not a k2mer.");
+					  }
 					}
+					
 
-
-
-					ch = key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[edges & 0x0F]];
-					split_counts = ::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(k, ch, km1_low_is_palindrome) && (!k_is_palindrome);
-					// if (k == trouble) {
-					// 	std::cout << "km1 low palindrome ? " << (km1_low_is_palindrome ? "Y" : "N") << 
-					// 	" k palindrome ? " << (k_is_palindrome ? "Y" : "N")  << " ch " << 
-					// 	static_cast<size_t>(ch) << ", high val " << k.getCharsAtPos(key_type::size - 1, 1) << " split ? " << (split_counts ? "Y" : "N") << std::endl;
-					// }
-					cnt = split_counts ? ((cnt_unsplit+1) >> 1) : cnt_unsplit; 
-					k1out_f[ch] += cnt;
-					if (split_counts) {  // TODO: only handling k+1 palindrome right now.
+					ch = edges & 0xF;
+					if (ch > 0) {
+					  if ((ch & (ch - 1)) == 0) { // power of 2
+					    ch = key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch]];
+					    split_counts = ::bliss::common::kmer::kmer_traits<key_type>::is_k1_rc_palindrome(k, ch, km1_low_is_palindrome) && (!k_is_palindrome);
+//					 if ((k == trouble) || (k == trouble.reverse_complement())) {
+//					 	std::cout << "km1 low palindrome ? " << (km1_low_is_palindrome ? "Y" : "N") << 
+//					 	" k palindrome ? " << (k_is_palindrome ? "Y" : "N")  << " ch " << 
+//					 	static_cast<size_t>(ch) << ", high val " << k.getCharsAtPos(key_type::size - 1, 1) << " split ? " << (split_counts ? "Y" : "N") << std::endl;
+//					    }
+					    cnt = split_counts ? ((cnt_unsplit+1) >> 1) : cnt_unsplit; 
+					    k1out_f[ch] += cnt;
+					    if (split_counts) {  // TODO: only handling k+1 palindrome right now.
 						k1in_f[3-ch] += (cnt_unsplit - cnt);
+					    }
+					  } else {
+					    throw std::logic_error("combination of edges, so not a k2mer." );
+					  }
 					}
-				}
+				}	
 				// do the final block
 				// cap the counts
 				k_f = std::min(cnt_max, k_f);
@@ -1023,6 +1072,10 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 				}
 
 				for (; block_it != it; ++block_it, ++flag_it) {
+//					 if ((k == trouble) || (k == trouble.reverse_complement())) {
+//					 	std::cout << (*block_it) <<  std::endl;
+//					 }
+
 					// step 5: do per block threshold
 					cnt = std::min(cnt_max, static_cast<size_t>(block_it->second));
 					
