@@ -171,7 +171,7 @@ namespace bliss {
         /// A node that MAY BE part of a cycle.  used during chain compaction for stopping criteria
         ///    also used after compaction to remove true cycle nodes.
         struct IsCycleNode {
-            int max_distance;
+            uint max_distance;
 
             IsCycleNode(size_t const iter) : max_distance(0x1 << iter) {
 				// commented out because it should be valid for list ranking to have an isolated node with distance of 1 to itself.   a
@@ -212,7 +212,7 @@ namespace bliss {
 
         // points to internal node that are not cycles
         struct IsUncompactedNode {
-            int max_distance;
+            uint max_distance;
 
             IsUncompactedNode(size_t const iter) : max_distance(0x1 << iter) {};
 

@@ -1144,7 +1144,7 @@ namespace graph
 												bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
 
 								// handle type 3 here - these are never satistfied.
-								if (dist == (2 << iterations)) { // iter i updates a node at max of 2^(i+1) distance away.
+								if (dist == (static_cast<uint>(2) << iterations)) { // iter i updates a node at max of 2^(i+1) distance away.
 //									// update left
 //									updates.emplace_back(std::get<0>(md),
 //											update_md(std::get<1>(md),  // this cannot be a terminus
@@ -1161,7 +1161,7 @@ namespace graph
 												::bliss::debruijn::mark_as_point_to_terminal(dist),     // if md.3 <= 0, then finished, so use negative dist.
 												bliss::debruijn::operation::OUT));		// update target (md.0)'s out edge
 								// handle type 3 here
-								if (dist == (2 << iterations)) { // iter i updates a node at max of 2^(i+1) distance away.
+								if (dist == (static_cast<uint>(2) << iterations)) { // iter i updates a node at max of 2^(i+1) distance away.
 //									// update right.
 //									updates.emplace_back(std::get<1>(md),
 //											update_md(std::get<0>(md),
