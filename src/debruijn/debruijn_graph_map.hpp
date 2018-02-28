@@ -1033,9 +1033,9 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 //					    }
 					    cnt = split_counts ? ((cnt_unsplit+1) >> 1) : cnt_unsplit; 
 					    k1in_f[ch] += cnt;
-					    if (split_counts) {  // TODO: only handling k+1 palindrome right now.
-						k1out_f[(3-ch)] += (cnt_unsplit - cnt);
-					    }
+		//			    if (split_counts) {  // TODO: only handling k+1 palindrome right now.
+		//				k1out_f[(3-ch)] += (cnt_unsplit - cnt);
+		//			    }
 					  } else {
 					    throw std::logic_error("combination of edges, so not a k2mer.");
 					  }
@@ -1054,9 +1054,9 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 //					    }
 					    cnt = split_counts ? ((cnt_unsplit+1) >> 1) : cnt_unsplit; 
 					    k1out_f[ch] += cnt;
-					    if (split_counts) {  // TODO: only handling k+1 palindrome right now.
-						k1in_f[3-ch] += (cnt_unsplit - cnt);
-					    }
+		//			    if (split_counts) {  // TODO: only handling k+1 palindrome right now.
+		//				k1in_f[3-ch] += (cnt_unsplit - cnt);
+		//			    }
 					  } else {
 					    throw std::logic_error("combination of edges, so not a k2mer." );
 					  }
