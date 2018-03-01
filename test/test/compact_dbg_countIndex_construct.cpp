@@ -81,6 +81,7 @@
 #include "debruijn/debruijn_chain_node.hpp"
 #include "debruijn/debruijn_chain_graph.hpp"
 #include "debruijn/debruijn_chain_operations.hpp"
+#include "debruijn/debruijn_topo_operations.hpp"
 
 
 #include "debruijn/debruijn_stats.hpp"
@@ -225,11 +226,11 @@ using ChainNodeType = ::bliss::debruijn::simple_biedge<KmerType>;
 //template <typename K>
 //using ChainMapParams = typename DBGType::map_params_template<K>;
 //
-//using ChainMapType = ::dsc::densehash_map<KmerType, ChainNodeType,
+//using ChainGraphType = ::dsc::densehash_map<KmerType, ChainNodeType,
 //		ChainMapParams,
 //		 ::bliss::kmer::hash::sparsehash::special_keys<KmerType, true> >;
 
-using ChainMapType = ::bliss::debruijn::graph::debruijn_chain_graph<KmerType>;
+using ChainGraphType = ::bliss::debruijn::graph::debruijn_chain_graph<KmerType>;
 
 template <typename Key>
 using FreqMapParams = ::bliss::index::kmer::CanonicalHashMapParams<Key>;
@@ -444,7 +445,7 @@ void do_benchmark(::std::vector<::bliss::io::file_data> const & file_data, std::
 
 	BL_BENCH_INIT(benchmark);
 
-	ChainMapType chainmap(comm);
+	ChainGraphType chainmap(comm);
 	DBGType idx(comm);
 
 	// =================  make compacted simple DBG, so that we can get chain and branch kmers.
@@ -575,16 +576,25 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	std::string branch_fasta_filename(out_prefix);
 	branch_fasta_filename.append("_branch.fasta");
 
-	std::string double_chain_node_filename(out_prefix);
-	double_chain_node_filename.append("_chainmap.debug");
-	std::string double_chain_node_filename2(out_prefix);
-	double_chain_node_filename2.append("_chainmap_uncomp.debug");
+	std::string chain_biedge_filename(out_prefix);
+	chain_biedge_filename.append("_chainmap.debug");
+	std::string chain_biedge_filename2(out_prefix);
+	chain_biedge_filename2.append("_chainmap_uncomp.debug");
+
+	std::string chain_summary_filename(out_prefix);
+	chain_summary_filename.append("_chainsum.debug");
+
+	std::string chain_deadend_filename(out_prefix);
+	chain_deadend_filename.append("_deadend.debug");
+
+	std::string chain_bubble_filename(out_prefix);
+	chain_bubble_filename.append("_bubble.debug");
 
 	BL_BENCH_INIT(work);
 
 
 	BL_BENCH_START(work);
-	ChainMapType chainmap(comm);
+	ChainGraphType chainmap(comm);
 	CountDBGType idx(comm);
 
 
@@ -641,8 +651,8 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	// == DONE == make chain map
 
 	BL_BENCH_START(work);
-	print_double_chain_nodes(double_chain_node_filename2, chainmap, comm);
-	BL_BENCH_COLLECTIVE_END(work, "print_double_chain_node_uncomp", chainmap.local_size(), comm);
+	print_chain_biedges(chain_biedge_filename2, chainmap, comm);
+	BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge_uncomp", chainmap.local_size(), comm);
 
 
 	// ===== parallel list ranking for chain compaction
@@ -659,8 +669,44 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	// =============================================================
 	// below is for printing.
 	BL_BENCH_START(work);
-	print_double_chain_nodes(double_chain_node_filename, chainmap, comm);
-	BL_BENCH_COLLECTIVE_END(work, "print_double_chain_node", chainmap.local_size(), comm);
+	print_chain_biedges(chain_biedge_filename, chainmap, comm);
+	BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge", chainmap.local_size(), comm);
+
+
+	{
+		// =============================================================
+		// generate chain_summaries
+		BL_BENCH_START(work);
+		auto summaries = chainmap.to_summarized_chains();
+		BL_BENCH_COLLECTIVE_END(work, "chain_summaries", summaries.size(), comm);
+		
+		BL_BENCH_START(work);
+		print_chain_summaries(chain_summary_filename, summaries, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
+	}
+
+	{
+		// =============================================================
+		// find deadends
+		BL_BENCH_START(work);
+		auto deadends = ::bliss::debruijn::topology::find_deadends(chainmap);
+		BL_BENCH_COLLECTIVE_END(work, "deadends", deadends.size(), comm);
+
+		BL_BENCH_START(work);
+		print_chain_summaries(chain_deadend_filename, deadends, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print_deadend", deadends.size(), comm);
+	}
+	{
+		// =============================================================
+		// find bubbles
+		BL_BENCH_START(work);
+		auto bubbles = ::bliss::debruijn::topology::find_bubbles(chainmap, comm);
+		BL_BENCH_COLLECTIVE_END(work, "bubbles", bubbles.size(), comm);
+
+		BL_BENCH_START(work);
+		print_chain_summaries(chain_bubble_filename, bubbles, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print_bubbles", bubbles.size(), comm);
+	}
 
 
 	// =========== remove cycles and isolated
@@ -964,7 +1010,6 @@ int main(int argc, char** argv) {
 	// == DONE == reading
 
 	BL_BENCH_START(app);
-	ChainMapType chainmap(comm);
 	if (benchmark) {
 
 		do_benchmark(file_data, out_prefix, thresholding, benchmark, LRoptimized, compress, mpiio, threshes, comm);

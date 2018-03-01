@@ -289,7 +289,7 @@ void print_branch_fasta(
 
 
 // DEPRECATED
-//ListRankedChainNodeVecType to_compacted_chain(ChainMapType const & chainmap,
+//ListRankedChainNodeVecType to_compacted_chain(ChainGraphType const & chainmap,
 //		mxx::comm const & comm) {
 //
 //	BL_BENCH_INIT(chain_convert);
@@ -486,17 +486,17 @@ void print_chain_nodes(std::string const & filename,
 
 }
 
-void print_double_chain_nodes(std::string const & filename,
-		ChainMapType const & chainmap,
+void print_chain_biedges(std::string const & filename,
+		ChainGraphType const & chainmap,
 		mxx::comm const & comm) {
 
-	BL_BENCH_INIT(print_double_chain_nodes);
+	BL_BENCH_INIT(print_chain_biedges);
 
 	//===  print chain nodes (1)
 	if (comm.rank() == 0) printf("PRINT CHAINMAP Nodes\n");
 
 	// print out.
-	BL_BENCH_START(print_double_chain_nodes);
+	BL_BENCH_START(print_chain_biedges);
 	{
 		std::stringstream ss2;
 
@@ -507,9 +507,40 @@ void print_double_chain_nodes(std::string const & filename,
 
 	}
 	//      std::cout << ss.str() << std::endl;
-	BL_BENCH_COLLECTIVE_END(print_double_chain_nodes, "print double chains", chainmap.local_size(), comm);
+	BL_BENCH_COLLECTIVE_END(print_chain_biedges, "print chain biedges", chainmap.local_size(), comm);
 
-	BL_BENCH_REPORT_MPI_NAMED(print_double_chain_nodes, "print_double_chain", comm);
+	BL_BENCH_REPORT_MPI_NAMED(print_chain_biedges, "print_chain_biedges", comm);
+
+}
+
+template <typename CHAIN_SUM>
+void print_chain_summaries(std::string const & filename,
+		std::vector<CHAIN_SUM> const & chains,
+		mxx::comm const & comm) {
+
+	BL_BENCH_INIT(print_chain_summaries);
+
+	//===  print chain nodes (1)
+	if (comm.rank() == 0) printf("PRINT CHAIN SUMMARIES\n");
+
+	// print out.
+	BL_BENCH_START(print_chain_summaries);
+	{
+		std::stringstream ss2;
+
+		for (auto it = chains.cbegin(); it != chains.cend(); ++it) {
+			ss2 << std::get<0>(*it) << " " << std::get<1>(*it) << " " << 
+			std::get<2>(*it) << " " << std::get<3>(*it) << " " << 
+			std::get<4>(*it) << " " << static_cast<size_t>(std::get<5>(*it)) << " " << static_cast<size_t>(std::get<6>(*it)) <<
+			std::endl;
+		}
+		write_mpiio(filename, ss2.str().c_str(), ss2.str().length(), comm);
+
+	}
+	//      std::cout << ss.str() << std::endl;
+	BL_BENCH_COLLECTIVE_END(print_chain_summaries, "print chain summaries", chains.size(), comm);
+
+	BL_BENCH_REPORT_MPI_NAMED(print_chain_summaries, "", comm);
 
 }
 

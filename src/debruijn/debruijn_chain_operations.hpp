@@ -483,6 +483,23 @@ namespace bliss {
     }  // ns transform
 
 
+namespace chain
+{
+
+	template <typename KMER>
+	inline KMER get_chain_rep(::std::pair<KMER, ::bliss::debruijn::simple_biedge<KMER> > const & terminus) {
+
+		// if this is end node, L is set to node k-mer.  else left edge k-mer (and right k-mer revcomp)
+		KMER L = ::bliss::debruijn::is_chain_terminal(std::get<2>(terminus.second)) ? terminus.first : std::get<0>(terminus.second);
+		KMER R = ::bliss::debruijn::is_chain_terminal(std::get<3>(terminus.second)) ? terminus.first.reverse_complement() :
+				std::get<1>(terminus.second).reverse_complement();
+
+		// now compare L and R, the smaller is the "representative" of a chain
+		// choosing one also chooses a strand.  prefer Left.
+		return (L <= R) ? L : R;
+	}
+}
+
 
   } //namespace debruijn
 } //namespace bliss

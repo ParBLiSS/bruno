@@ -42,6 +42,7 @@ namespace bliss
 namespace debruijn
 {
 
+
 namespace graph
 {
 
@@ -447,24 +448,6 @@ namespace graph
 			   return x.first;
 		   });
 		   return results;
-	   }
-
-		// make a separate chain_graph that only has terminal chain nodes.
-	   debruijn_chain_graph<KmerType> make_terminal_chain_graph() {
-		   // assume cycles are excluded.
-
-			debruijn_chain_graph<KmerType> termini;
-			termini.insert(this->get_terminal_nodes(), ::bliss::transform::identity<mutable_value_type>(), true);  // local insert only.
-
-			return termini;
-	   }
-		debruijn_chain_graph<KmerType> make_representative_chain_graph() {
-		   // assume cycles are excluded.
-
-			debruijn_chain_graph<KmerType> reps;
-			reps.insert(this->get_chain_representatives(), ::bliss::transform::identity<mutable_value_type>(), true);  // local insert only.
-
-			return reps;
 	   }
 
 	   /**
@@ -1365,6 +1348,193 @@ namespace graph
 
 	     return compressed_chains;
 	   }
+
+
+
+		// make a separate chain_graph that only has terminal chain nodes.
+	   debruijn_chain_graph<KmerType> make_terminal_chain_graph() {
+		   // assume cycles are excluded.
+
+			debruijn_chain_graph<KmerType> termini;
+			termini.insert(this->get_terminal_nodes(), ::bliss::transform::identity<mutable_value_type>(), true);  // local insert only.
+
+			return termini;
+	   }
+		debruijn_chain_graph<KmerType> make_representative_chain_graph() {
+		   // assume cycles are excluded.
+
+			debruijn_chain_graph<KmerType> reps;
+			reps.insert(this->get_chain_representatives(), ::bliss::transform::identity<mutable_value_type>(), true);  // local insert only.
+
+			return reps;
+	   }
+
+	/**
+	 * @brief return a vector of chain terminals from deadends.  isolated chain nodes are ignored as they are NOT deadends.
+	 * 		
+	 */
+	std::vector<::bliss::debruijn::chain::summarized_chain<KmerType> > to_summarized_chains() const {
+		// Question: what is the "next" for a deadend terminal node?
+			// in chain graph, AAAAAA with dist 0.
+			// may be confused with true AAAAAA branch?  yes. (although in reality not too many of those)
+			// to real branch:  <TAAAAA, <XXXXXX, AAAAAA, X, 0> >
+			// to deadend:  <YYYYYY, <XXXXXX, AAAAAA, X, 0> >
+			// and reverse comp becomes TTTTTT?
+			// 0 is indicating pointing to end, and deadend.
+			//  instead, dist should have type uint, with top bit indicating pointer to termini if dist is not 0, and pointing to self (no neighbor) if dist is 0.
+
+		
+		// either search for terminal with no next, then search again for terminals with matching - 
+		//	this would require sorted structure, or hash table on a chainrep instead of node k-mer as key, for searching.
+	    //   O(2M/P) for deadends,
+		// or search for all terminal then distributed sort by chain rep, then send one to prev, then scan to filter out non-deadends
+		//   O(2M/P) for getting termini, sort in O(2* (2M/P) log (2M/p) + distribute_cost), then scan O(2M/P).
+		// search all termini then sort is SIMPLER.
+
+		std::vector<mutable_value_type> termini = this->get_terminal_nodes();
+		std::vector<::bliss::debruijn::chain::summarized_chain<KmerType> > results;
+
+		// evenly redistribute.
+		mxx::distribute_inplace(termini, comm);
+		
+		// participate only if there is at least one entry.
+		bool has_data = (termini.size() > 0);
+		bool all_has_data = ::mxx::all_of(has_data, comm);
+		mxx::comm subcomm = all_has_data ? comm.copy() : comm.split(has_data);
+
+		if (has_data) {
+			// now sort by chain representatives
+			mxx::sort(termini.begin(), termini.end(),
+				[](mutable_value_type const & lhs, mutable_value_type const & rhs){
+					// get chain representatives, then compare.
+					return ::bliss::debruijn::chain::get_chain_rep(lhs) < ::bliss::debruijn::chain::get_chain_rep(rhs);
+			}, subcomm);
+			
+			// termini comes in pairs, except for isolated kmers.  ship first element to prev
+			mutable_value_type first = termini.front();
+			auto first_chain_rep = ::bliss::debruijn::chain::get_chain_rep(first);
+
+			mutable_value_type second = mxx::left_shift(first, subcomm);
+			auto curr_chain_rep = ::bliss::debruijn::chain::get_chain_rep(second);
+			// if same as last, then insert to the back.  would not introduce a new chain, or duplicate an isolated.
+			if (::bliss::debruijn::chain::get_chain_rep(termini.back()) == curr_chain_rep) {
+				termini.emplace_back(second);
+			}  // this means that the last entries will be isolated, or paired.
+
+			// insert the first one in the chain if it is length 1 (guarantee next is going to have different chain rep)
+			if (::bliss::debruijn::is_chain_terminal(std::get<2>(first.second)) &&  // if both 2 and 3 are termini, then this is an isolated one.
+				::bliss::debruijn::is_chain_terminal(std::get<3>(first.second)) ) { // Forward, Reverse.
+					results.emplace_back(::bliss::debruijn::chain::make_summarized_chain(
+						first.first, first.second,
+						first.first, first.second
+						)); 
+				}  // else the first one is actually the second terminus, or the first terminus.
+
+			// iterate over all termini to summarize deadend chains
+			size_t i = 1;
+			// then scan to locate deadends.  we must have a start and an end.  compact in place.  isolated are ignored.  process current 
+			for (; i < termini.size(); ++i) {
+
+				curr_chain_rep = ::bliss::debruijn::chain::get_chain_rep(termini[i]);
+				// decide if we are at first, or second terminus
+				if (curr_chain_rep != first_chain_rep ) {  // 
+					first = termini[i];   // new chain, reset first.
+					first_chain_rep = curr_chain_rep;
+
+					// insert if length 1.  next one is guaranteed to have different chain rep.
+					if (::bliss::debruijn::is_chain_terminal(std::get<2>(first.second)) &&  // if both 2 and 3 are termini, then this is an isolated one.
+						::bliss::debruijn::is_chain_terminal(std::get<3>(first.second)) ) { // Forward, Reverse.
+							results.emplace_back(::bliss::debruijn::chain::make_summarized_chain(
+								first.first, first.second,
+								first.first, first.second
+								)); 
+						}  // mutually exclusive with successive "chain rep" being equal...
+				}  // end case with switching to new chain terminus (potentially pairs). 
+				else {
+					second = termini[i];   // found the termini of 1 chain.  
+
+					// begin conversion.  check ordering.
+
+					// <kmer1, <L1, R1, uint, uint> >   and <kmer2, <L2, R2, uint, uint> >.  the chain reps are same, so termini k-mers are same.
+					// just need to determine the order. within terminus we are on the same strand.  between termini, terminal dist plus chain rep can be used to infer orientation
+					// one of these has the chain representative as the kmer.
+					if (::bliss::debruijn::is_chain_terminal(std::get<2>(first.second)) &&  // 2 and 3 are mutually exclusive within a terminus
+						::bliss::debruijn::is_chain_terminal(std::get<3>(second.second)) ) { // Forward, Reverse.
+						if (first.first == curr_chain_rep) {  // and first is rep.  order is 1, 2
+							results.emplace_back(::bliss::debruijn::chain::make_summarized_chain(
+								first.first, first.second,
+								second.first, second.second
+								)); 
+						} else if (second.first.reverse_complement() == curr_chain_rep) { // and second is rep.  order is rc(2), rc(1)
+							results.emplace_back(::bliss::debruijn::chain::make_summarized_chain(
+								second.first.reverse_complement(), ::bliss::debruijn::transform::reverse_complement(second.second),
+								first.first.reverse_complement(), ::bliss::debruijn::transform::reverse_complement(first.second)
+								)); 
+						} else {
+							throw std::logic_error("ERROR! chain rep does not match the kmers on the expected strand. case 1");
+						}
+					} else if (::bliss::debruijn::is_chain_terminal(std::get<2>(first.second)) &&  // 2 and 3 are mutually exclusive within a terminus
+						::bliss::debruijn::is_chain_terminal(std::get<2>(second.second)) ) { // Forward, Forward.
+						if (first.first == curr_chain_rep) {  // and first is rep order is 1, rc(2)
+							results.emplace_back(::bliss::debruijn::chain::make_summarized_chain(
+								first.first, first.second,
+								second.first.reverse_complement(), ::bliss::debruijn::transform::reverse_complement(second.second)
+								));
+						} else if (second.first == curr_chain_rep) { // and second is rep, then order is 2, rc(1)
+							results.emplace_back(::bliss::debruijn::chain::make_summarized_chain(
+								second.first, second.second,
+								first.first.reverse_complement(), ::bliss::debruijn::transform::reverse_complement(first.second)
+								));
+						} else {
+							throw std::logic_error("ERROR! chain rep does not match the kmers on the expected strand. case 2");
+						}
+					} else if (::bliss::debruijn::is_chain_terminal(std::get<3>(first.second)) &&  // 2 and 3 are mutually exclusive within a terminus
+						::bliss::debruijn::is_chain_terminal(std::get<3>(second.second)) ) { // Reverse, Reverse.
+						if (first.first.reverse_complement() == curr_chain_rep) {  // and first is rep.  order is rc(1), 2
+							results.emplace_back(::bliss::debruijn::chain::make_summarized_chain(
+								first.first.reverse_complement(), ::bliss::debruijn::transform::reverse_complement(first.second),
+								second.first, second.second
+								)); 
+						
+						} else if (second.first.reverse_complement() == curr_chain_rep) { // and second is rep.  order is rc(2), 1
+							results.emplace_back(::bliss::debruijn::chain::make_summarized_chain(
+								second.first.reverse_complement(), ::bliss::debruijn::transform::reverse_complement(second.second),
+								first.first, first.second
+								));
+						} else {
+							throw std::logic_error("ERROR! chain rep does not match the kmers on the expected strand. case 3");
+
+						}
+					} else if (::bliss::debruijn::is_chain_terminal(std::get<3>(first.second)) &&  // 2 and 3 are mutually exclusive within a terminus
+						::bliss::debruijn::is_chain_terminal(std::get<2>(second.second)) ) { // reverse, Forward.
+						if (first.first.reverse_complement() == curr_chain_rep) {  // and first is rep order is rc(1), rc(2)
+							results.emplace_back(::bliss::debruijn::chain::make_summarized_chain(
+								first.first.reverse_complement(), ::bliss::debruijn::transform::reverse_complement(first.second),
+								second.first.reverse_complement(), ::bliss::debruijn::transform::reverse_complement(second.second)
+								)); 
+
+						} else if (second.first == curr_chain_rep) { // and second is rep, then order is 2, 1
+							results.emplace_back(::bliss::debruijn::chain::make_summarized_chain(
+								second.first, second.second,
+								first.first, first.second
+								)); 
+
+						} else {
+							throw std::logic_error("ERROR! chain rep does not match the kmers on the expected strand. case 4");
+						}
+					} else {
+						throw std::logic_error("ERROR! orientation of the two termini is confused.");
+					}
+
+					
+				} // end case for chain with 2 termini
+
+			}
+
+		}
+		return results;
+	}
+
 
 
 	};

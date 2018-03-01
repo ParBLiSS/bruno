@@ -767,12 +767,12 @@ int main(int argc, char** argv) {
 
 	// std::string graph_filename(out_prefix);
 	// graph_filename.append("_graph.edges.debug");
-	std::string double_chain_node_filename(out_prefix);
-	double_chain_node_filename.append("_chainmap.debug");
+	std::string chain_biedge_filename(out_prefix);
+	chain_biedge_filename.append("_chainmap.debug");
 	// std::string graph_filename(out_prefix);
 	// graph_filename.append("_graph.edges.debug");
-	std::string double_chain_node_filename2(out_prefix);
-	double_chain_node_filename2.append("_chainmap_uncomp.debug");
+	std::string chain_biedge_filename2(out_prefix);
+	chain_biedge_filename2.append("_chainmap_uncomp.debug");
 
 
   BL_BENCH_INIT(app);
@@ -889,8 +889,8 @@ int main(int argc, char** argv) {
 
 	if (!benchmark) {
 		BL_BENCH_START(app);
-		print_double_chain_nodes(double_chain_node_filename2, chainmap, comm);
-		BL_BENCH_COLLECTIVE_END(app, "print_double_chain_node_uncomp", chainmap.local_size(), comm);
+		print_chain_biedges(chain_biedge_filename2, chainmap, comm);
+		BL_BENCH_COLLECTIVE_END(app, "print_chain_biedge_uncomp", chainmap.local_size(), comm);
 	}
 
 	// ===== parallel list ranking for chain compaction
@@ -934,8 +934,8 @@ int main(int argc, char** argv) {
 
 	if (!benchmark) {
 		BL_BENCH_START(app);
-		print_double_chain_nodes(double_chain_node_filename, chainmap, comm);
-		BL_BENCH_COLLECTIVE_END(app, "print_double_chain_node", chainmap.local_size(), comm);
+		print_chain_biedges(chain_biedge_filename, chainmap, comm);
+		BL_BENCH_COLLECTIVE_END(app, "print_chain_biedge", chainmap.local_size(), comm);
 
 		// =========== remove cycles and isolated
 		BL_BENCH_START(app);

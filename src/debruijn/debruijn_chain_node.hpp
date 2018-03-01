@@ -27,6 +27,7 @@
 
 #include "bliss-config.hpp"
 
+#include <stdint.h>
 #include <tuple>        // tuple and utility functions
 
 //#include "common/alphabets.hpp"
@@ -164,6 +165,38 @@ namespace bliss
       using listranked_chain_node = ::std::tuple<KMER, KMER, int>;
 
       //static_assert(sizeof(listranked_chain_node<::bliss::common::Kmer<31, ::bliss::common::DNA> >) == sizeof(::bliss::common::Kmer<31, ::bliss::common::DNA>) * 2 + sizeof(int), "size of compacted chain node is not what's expected");
+
+
+      /**
+       * @brief summarized chain.
+       *
+       * @tparam KMER		first KMER field is the kmer 5' to the the 5' terminus (branch or deadend)
+       * @tparam KMER 		second KMER field is the chain representative, also the 5' terminus
+       * @tparam KMER 		3' terminus.
+       * @tparam KMER		3' to the 3' terminus.  (branch or deadend)
+       * @tparam uint		chain length
+       * @tparam uint8		5' self reference?  0 means has branch neighbor.
+       * @tparam uint8		3' self reference?  1 means pointing to self (same definition as the dists).
+	   * 
+       */
+	  template <typename KMER>
+	  using summarized_chain = ::std::tuple<KMER, KMER, KMER, KMER, uint, uint8_t, uint8_t>;
+
+	  /// make a summarized chain.  assumes that the termini are at left of first and right of second, and first has kmer corresponding to chain representative
+	  template <typename KMER>
+	  inline ::bliss::debruijn::chain::summarized_chain<KMER> make_summarized_chain(KMER const & ff, simple_biedge<KMER> const & fs,
+	  	 KMER const & sf, simple_biedge<KMER> const & ss ) {
+			return std::make_tuple(
+			std::get<0>(fs),  // prev at 5'
+			ff,		// 5', also chain rep
+			sf,		// 3', all same strand as chain rep.
+			std::get<1>(ss),  // next at 3'
+			::bliss::debruijn::get_chain_dist(std::get<3>(fs)),	 // dist.
+			::bliss::debruijn::points_to_self(std::get<2>(fs)),  // 5' terminal
+			::bliss::debruijn::points_to_self(std::get<3>(ss))  // 3' terminal
+			);
+	  }
+
     }/*namespace chain*/
 
 
@@ -178,6 +211,19 @@ namespace bliss
                                                       std::get<3>(x), std::get<2>(x));
       }
 
+
+      // reverse complement the chain summary.
+      template <typename KMER>
+      inline ::bliss::debruijn::chain::summarized_chain<KMER>
+      reverse_complement(::bliss::debruijn::chain::summarized_chain<KMER> const & x) {
+        return ::bliss::debruijn::chain::summarized_chain<KMER>(
+			std::get<3>(x).reverse_complement(),
+            std::get<2>(x).reverse_complement(),
+			std::get<1>(x).reverse_complement(),
+            std::get<0>(x).reverse_complement(),
+			std::get<4>(x),
+			std::get<6>(x), std::get<5>(x));
+      }
 
     } // namespace transform
 
