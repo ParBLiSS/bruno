@@ -188,11 +188,11 @@ using ChainNodeType = ::bliss::debruijn::simple_biedge<KmerType>;
 //template <typename K>
 //using ChainMapParams = typename DBGType::map_params_template<K>;
 //
-//using ChainMapType = ::dsc::densehash_map<KmerType, ChainNodeType,
+//using ChainGraphType = ::dsc::densehash_map<KmerType, ChainNodeType,
 //		ChainMapParams,
 //		 ::bliss::kmer::hash::sparsehash::special_keys<KmerType, true> >;
 
-using ChainMapType = ::bliss::debruijn::graph::debruijn_chain_graph<KmerType>;
+using ChainGraphType = ::bliss::debruijn::graph::debruijn_chain_graph<KmerType>;
 
 template <typename Key>
 using FreqMapParams = ::bliss::index::kmer::CanonicalHashMapParams<Key>;
@@ -598,7 +598,7 @@ int main(int argc, char** argv) {
   // == DONE == reading
 
 	::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> > selected_edges;
-	ChainMapType chainmap(comm);
+	ChainGraphType chainmap(comm);
   DBGType idx(comm);
 
 	// =================  make compacted simple DBG, so that we can get chain and branch kmers.
