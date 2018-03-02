@@ -210,6 +210,56 @@ namespace bliss
             counts[2 * maxEdgeCount] = sat_add(counts[2 * maxEdgeCount], cnt);
           }
 
+          inline void overwrite(EdgeInputType const & edges, CountType const & cnt)
+          {
+            // take care of out
+            uint8_t out = edges.getData()[0] & 0xF;
+            if (FROM_DNA16[out] < maxEdgeCount) counts[FROM_DNA16[out]] = cnt;
+
+            // take care of in.
+            uint8_t in = edges.getData()[0] >> 4;
+            if (FROM_DNA16[in] < maxEdgeCount) counts[FROM_DNA16[in] + maxEdgeCount] = cnt;
+          }
+          inline void erase(EdgeInputType const & edges)
+          {
+            overwrite(edges, static_cast<CountType>(0));
+          }
+          // essentially copying.
+          inline void overwrite(compact_multi_biedge const & edges)
+          {
+            memmove(counts, edges.counts, 2*maxEdgeCount);
+          }
+          // non zero indicate the ones that need to be removed.  kmer freq is not affected.
+          inline void erase(compact_multi_biedge const & edges)
+          {
+            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+              if (edges.counts[i] > 0) counts[i] = 0;
+            }
+          }
+          template <typename Predicate>
+          inline compact_multi_biedge select(Predicate const & pred) const
+          {
+            compact_multi_biedge output;
+            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+              if (pred(counts[i])) output.counts[i] = counts[i];
+            }
+            return output;
+          }
+          // template <typename Predicate>
+          // inline void erase(Predicate const & pred)
+          // {
+          //   for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+          //     if (pred(counts[i])) counts[i] = 0;
+          //   }
+          // }
+
+          inline void intersect(compact_multi_biedge const & other) {
+            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+              if (other.counts[i] == 0) counts[i] = 0;
+            }
+          }
+          
+
           inline void merge(compact_multi_biedge const & other) {
             for (int i = 0; i <= 2 * maxEdgeCount; ++i) {
               counts[i] = sat_add(counts[i], other.counts[i]);
@@ -445,6 +495,53 @@ namespace bliss
             if (FROM_DNA16[in] < maxEdgeCount) counts[FROM_DNA16[in] + maxEdgeCount] = sat_add(counts[FROM_DNA16[in] + maxEdgeCount], cnt);
 
             counts[2 * maxEdgeCount] = sat_add(counts[2 * maxEdgeCount], cnt);
+          }
+          inline void overwrite(EdgeInputType const & edges, CountType const & cnt)
+          {
+            // take care of out
+            uint8_t out = edges.getData()[0] & 0xF;
+            if (FROM_DNA16[out] < maxEdgeCount) counts[FROM_DNA16[out]] = cnt;
+
+            // take care of in.
+            uint8_t in = edges.getData()[0] >> 4;
+            if (FROM_DNA16[in] < maxEdgeCount) counts[FROM_DNA16[in] + maxEdgeCount] = cnt;
+          }
+          inline void erase(EdgeInputType const & edges)
+          {
+            overwrite(edges, static_cast<CountType>(0));
+          }
+          inline void overwrite(compact_multi_biedge const & edges)
+          {
+            memmove(counts, edges.counts, 2*maxEdgeCount);
+          }
+          // non zero indicate the ones that need to be removed.  kmer freq is not affected.
+          inline void erase(compact_multi_biedge const & edges)
+          {
+            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+              if (edges.counts[i] > 0) counts[i] = 0;
+            }
+          }
+          template <typename Predicate>
+          inline compact_multi_biedge select(Predicate const & pred) const
+          {
+            compact_multi_biedge output;
+            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+              if (pred(counts[i])) output.counts[i] = counts[i];
+            }
+            return output;
+          }
+          // template <typename Predicate>
+          // inline void erase(Predicate const & pred)
+          // {
+          //   for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+          //     if (pred(counts[i])) counts[i] = 0;
+          //   }
+          // }
+
+          inline void intersect(compact_multi_biedge const & other) {
+            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+              if (other.counts[i] == 0) counts[i] = 0;
+            }
           }
 
 
@@ -686,7 +783,53 @@ namespace bliss
 
             counts[2 * maxEdgeCount] = sat_add(counts[2 * maxEdgeCount], cnt);
           }
+          inline void overwrite(EdgeInputType const & edges, CountType const & cnt)
+          {
+            // take care of out
+            uint8_t out = edges.getData()[0] & 0xF;
+            if (FROM_DNA16[out] < maxEdgeCount) counts[FROM_DNA16[out]] = cnt;
 
+            // take care of in.
+            uint8_t in = edges.getData()[0] >> 4;
+            if (FROM_DNA16[in] < maxEdgeCount) counts[FROM_DNA16[in] + maxEdgeCount] = cnt;
+          }
+          inline void erase(EdgeInputType const & edges)
+          {
+            overwrite(edges, static_cast<CountType>(0));
+          }
+          inline void overwrite(compact_multi_biedge const & edges)
+          {
+            memmove(counts, edges.counts, 2*maxEdgeCount);
+          }
+          // non zero indicate the ones that need to be removed.  kmer freq is not affected.
+          inline void erase(compact_multi_biedge const & edges)
+          {
+            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+              if (edges.counts[i] > 0) counts[i] = 0;
+            }
+          }
+          template <typename Predicate>
+          inline compact_multi_biedge select(Predicate const & pred) const
+          {
+            compact_multi_biedge output;
+            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+              if (pred(counts[i])) output.counts[i] = counts[i];
+            }
+            return output;
+          }
+          // template <typename Predicate>
+          // inline void erase(Predicate const & pred)
+          // {
+          //   for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+          //     if (pred(counts[i])) counts[i] = 0;
+          //   }
+          // }
+
+          inline void intersect(compact_multi_biedge const & other) {
+            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+              if (other.counts[i] == 0) counts[i] = 0;
+            }
+          }
 
           inline void merge(compact_multi_biedge const & other) {
             for (int i = 0; i <= 2 * maxEdgeCount; ++i) {
@@ -881,6 +1024,49 @@ namespace bliss
 //				 out, FROM_DNA16[out], 0x1 << (FROM_DNA16[out]));
 
           }
+          inline void overwrite(EdgeInputType const & edges, CountType const & cnt)
+          {
+            if (cnt > 0) {
+              update(edges);
+            } else {
+              erase(edges);
+            }
+          }
+          inline void erase(EdgeInputType const & edges)
+          {
+            counts &= ~(edges.getData()[0]);
+          }
+          inline void overwrite(compact_multi_biedge const & edges)
+          {
+            counts = edges.counts;
+          }
+          // non zero indicate the ones that need to be removed.  kmer freq is not affected.
+          inline void erase(compact_multi_biedge const & edges)
+          {
+            counts &= ~(edges.counts);
+          }
+          // // this is probably a slow way to do this.
+          template <typename Predicate>
+          inline compact_multi_biedge select(Predicate const & pred) const
+          {
+            compact_multi_biedge output;
+            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+              if (pred((counts >> i) & 0x1)) output.counts |= (0x1 << i);
+            }
+            return output;
+          }
+          // template <typename Predicate>
+          // inline void erase(Predicate const & pred)
+          // {
+          //   for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+          //     if (pred((counts >> i) & 0x1)) counts &= ~(0x1 << i);
+          //   }
+          // }
+
+          inline void intersect(compact_multi_biedge const & other) {
+            counts &= other.counts;
+          }
+
 
           inline void merge(compact_multi_biedge const & other) {
             counts |= other.counts;
@@ -1062,6 +1248,60 @@ namespace bliss
 //				 in, FROM_DNA16[in], 0x1 << (FROM_DNA16[in]),
 //				 out, FROM_DNA16[out], 0x1 << (FROM_DNA16[out]));
           }
+          inline void overwrite(EdgeInputType const & edges, CountType const & cnt)
+          {
+            if (cnt > 0) {
+              update(edges);
+            } else {
+              erase(edges);
+            }
+          }
+          inline void erase(EdgeInputType const & edges)
+          {
+              // take care of out
+            uint8_t out = edges.getData()[0] & 0xF;
+            counts[0] &= ~(0x1 << (FROM_DNA16[out]));
+
+            // take care of in.
+            uint8_t in = (edges.getData()[0] >> 4) & 0xF;
+            counts[1] &= ~(0x1 << (FROM_DNA16[in]));
+          }
+          inline void overwrite(compact_multi_biedge const & edges)
+          {
+            counts[0] = edges.counts[0];
+            counts[1] = edges.counts[1];
+          }
+          // non zero indicate the ones that need to be removed.  kmer freq is not affected.
+          inline void erase(compact_multi_biedge const & edges)
+          {
+            counts[0] &= ~(edges.counts[0]);
+            counts[1] &= ~(edges.counts[1]);
+          }
+          // // this is probably a slow way to do this.
+          template <typename Predicate>
+          inline compact_multi_biedge select(Predicate const & pred) const
+          {
+            compact_multi_biedge output;
+            for (int i = 0; i < maxEdgeCount; ++i) {
+              if (pred((counts[0] >> i) & 0x1)) output.counts[0] |= (0x1 << i);
+              if (pred((counts[1] >> i) & 0x1)) output.counts[1] |= (0x1 << i);
+            }
+            return output;
+          }
+          // template <typename Predicate>
+          // inline void erase(Predicate const & pred)
+          // {
+          //   for (int i = 0; i < maxEdgeCount; ++i) {
+          //     if (pred((counts[0] >> i) & 0x1)) counts[0] &= ~(0x1 << i);
+          //     if (pred((counts[1] >> i) & 0x1)) counts[1] &= ~(0x1 << i);
+          //   }
+          // }
+
+          inline void intersect(compact_multi_biedge const & other) {
+            counts[0] &= other.counts[0];
+            counts[1] &= other.counts[1];
+          }
+
 
           inline void merge(compact_multi_biedge const & other) {
             counts[0] |= other.counts[0];
@@ -1219,6 +1459,61 @@ namespace bliss
 //				 out, FROM_DNA16[out], 0x1 << (FROM_DNA16[out]));
 
           }
+          inline void overwrite(EdgeInputType const & edges, CountType const & cnt)
+          {
+            if (cnt > 0) {
+              update(edges);
+            } else {
+              erase(edges);
+            }
+          }
+          inline void erase(EdgeInputType const & edges)
+          {
+              // take care of out
+            uint8_t out = edges.getData()[0] & 0xF;
+            counts[0] &= ~(0x1 << (FROM_DNA16[out]));
+
+            // take care of in.
+            uint8_t in = (edges.getData()[0] >> 4) & 0xF;
+            counts[1] &= ~(0x1 << (FROM_DNA16[in]));
+          }
+          inline void overwrite(compact_multi_biedge const & edges)
+          {
+            counts[0] = edges.counts[0];
+            counts[1] = edges.counts[1];
+          }
+          // non zero indicate the ones that need to be removed.  kmer freq is not affected.
+          inline void erase(compact_multi_biedge const & edges)
+          {
+            counts[0] &= ~(edges.counts[0]);
+            counts[1] &= ~(edges.counts[1]);
+          }
+          // // this is probably a slow way to do this.
+          template <typename Predicate>
+          inline compact_multi_biedge select(Predicate const & pred) const
+          {
+            compact_multi_biedge output;
+            for (int i = 0; i < maxEdgeCount; ++i) {
+              if (pred((counts[0] >> i) & 0x1)) output.counts[0] |= (0x1 << i);
+              if (pred((counts[1] >> i) & 0x1)) output.counts[1] |= (0x1 << i);
+            }
+            return output;
+          }
+          // template <typename Predicate>
+          // inline void erase(Predicate const & pred)
+          // {
+          //   for (int i = 0; i < maxEdgeCount; ++i) {
+          //     if (pred((counts[0] >> i) & 0x1)) counts[0] &= ~(0x1 << i);
+          //     if (pred((counts[1] >> i) & 0x1)) counts[1] &= ~(0x1 << i);
+          //   }
+          // }
+
+
+          inline void intersect(compact_multi_biedge const & other) {
+            counts[0] &= other.counts[0];
+            counts[1] &= other.counts[1];
+          }
+
 
           inline void merge(compact_multi_biedge const & other) {
             counts[0] |= other.counts[0];

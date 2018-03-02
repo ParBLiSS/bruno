@@ -68,6 +68,7 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 	using key_type              = typename local_container_type::key_type;
 	using mapped_type           = typename local_container_type::mapped_type;
 	using value_type            = typename local_container_type::value_type;
+	using mutable_value_type    = std::pair<key_type, mapped_type>;
 	using hasher                = typename local_container_type::hasher;
 	using key_equal             = typename local_container_type::key_equal;
 	using allocator_type        = typename local_container_type::allocator_type;
@@ -415,6 +416,442 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 	debruijn_graph_map(const mxx::comm& _comm) : Base(_comm) {/*do nothing*/}
 
 	virtual ~debruijn_graph_map() {/*do nothing*/};
+
+
+	/// ====== edge and node erase and find operations.
+
+	protected:
+		// given multi-biedges, compute the reverse edges.
+		std::vector<std::pair<key_type, typename Edge::EdgeInputType> >
+		get_remote_edges(std::vector<mutable_value_type> & targets) {
+
+			// ===  then disconnect the edges
+			// ===== extract edges (in reverse form, still 5' to 3')
+			std::vector<std::pair<key_type, typename Edge::EdgeInputType> > edges_to_remove;
+			std::vector<std::pair<key_type, typename Edge::CountType> > neighbors;
+			typename Edge::EdgeInputType out;
+			typename Edge::EdgeInputType in;
+			
+			for (auto x : targets) {
+				// process in edges
+				out.setCharsAtPos(
+					Edge::EdgeInputType::KmerAlphabet::FROM_ASCII[
+						key_type::KmerAlphabet::TO_ASCII[x.first.getCharsAtPos(0, 1)]],
+					0, 1);
+				neighbors.clear();
+				x.second.get_in_neighbors(x.first, neighbors);
+				for (auto n : neighbors) {
+					edges_to_remove.emplace_back(n.first, out);  // reverse version of 
+				}
+				// process out edges
+				in.setCharsAtPos(
+					Edge::EdgeInputType::KmerAlphabet::FROM_ASCII[
+						key_type::KmerAlphabet::TO_ASCII[x.first.getCharsAtPos(key_type::size - 1, 1)]],
+					1, 1);
+				neighbors.clear();
+				x.second.get_out_neighbors(x.first, neighbors);
+				for (auto n : neighbors) {
+					edges_to_remove.emplace_back(n.first, in);  // reverse version of 
+				}
+			}
+
+			return edges_to_remove;
+		}
+
+		// given simple-biedges, compute the reverse edges.
+		std::vector<std::pair<key_type, typename Edge::EdgeInputType> >
+		get_remote_edges(std::vector<std::pair<key_type, typename Edge::EdgeInputType> > & targets) {
+
+			// ===  then disconnect the edges
+			// ===== extract edges (in reverse form, still 5' to 3')
+			std::vector<std::pair<key_type, typename Edge::EdgeInputType> > edges_to_remove;
+			edges_to_remove.reserve(targets.size());
+			typename Edge::EdgeInputType out, in;
+			uint8_t ch;
+			
+			for (auto x : targets) {
+				// process in edges
+				ch = x.second.getCharsAtPos(1,1);
+				if ((ch > 0) && ((ch & (ch-1)) == 0)) {  // has 1 and only 1 character at the in edge position (DNA16)
+					out.setCharsAtPos(
+						Edge::EdgeInputType::KmerAlphabet::FROM_ASCII[
+							key_type::KmerAlphabet::TO_ASCII[x.first.getCharsAtPos(0, 1)]],
+						0, 1);
+					key_type y = x.first;
+					y.nextReverseFromChar(
+						key_type::KmerAlphabet::FROM_ASCII[ Edge::EdgeInputType::KmerAlphabet::TO_ASCII[ch]]);
+					edges_to_remove.emplace_back(y, out);
+				}
+				ch = x.second.getCharsAtPos(0,1);
+				if ((ch > 0) && ((ch & (ch-1)) == 0)) {  // has 1 and only 1 character at the in edge position (DNA16)
+					in.setCharsAtPos(
+						Edge::EdgeInputType::KmerAlphabet::FROM_ASCII[
+							key_type::KmerAlphabet::TO_ASCII[x.first.getCharsAtPos(key_type::size - 1, 1)]],
+						1, 1);
+					key_type y = x.first;
+					y.nextFromChar(
+						key_type::KmerAlphabet::FROM_ASCII[ Edge::EdgeInputType::KmerAlphabet::TO_ASCII[ch]]);
+					edges_to_remove.emplace_back(y, in);
+				}
+			}
+
+			return edges_to_remove;
+		}
+
+		// erase simple biedges from map.  distributed.
+		inline void erase_simple_biedges(std::vector<std::pair<key_type, typename Edge::EdgeInputType> > & query) {
+			this->update(query, false, 
+				[](mapped_type & curr, typename Edge::EdgeInputType const & val){
+					size_t before = curr.get_in_edge_count() + curr.get_out_edge_count();
+					curr.erase(val);
+					return curr.get_in_edge_count() + curr.get_out_edge_count() - before;
+			});
+		}
+		// erase multi biedge from map.  distributed.
+		inline void erase_multi_biedges(std::vector<mutable_value_type > & query) {
+			this->update(query, false, 
+				[](mapped_type & curr, mapped_type const & val){
+					size_t before = curr.get_in_edge_count() + curr.get_out_edge_count();
+					curr.erase(val);
+					return curr.get_in_edge_count() + curr.get_out_edge_count() - before;
+
+			});
+		}
+
+	public:
+		//================== find edges given predicate.  predicate is also a filter operation that modifies the results..
+		/// find edges, only ones that exist are returned.  this is probably not the most efficient
+		/// however, the alternative would be the dig into distributed hash map to allow per element filter.
+		std::vector<std::pair<key_type, typename Edge::EdgeInputType> > 
+		find_edges(std::vector<std::pair<key_type, typename Edge::EdgeInputType>> &query) const {
+			local_container_type localc;
+
+			{
+				// first get kmer vector.
+				std::vector<key_type> kmers;   
+				kmers.reserve(query.size());
+				for (size_t i = 0; i < query.size(); ++i) {
+					kmers.emplace_back(query[i].first);
+				}
+
+				// then do a standard query and insert results into a local hash table.  TODO: if we have one-to-one matching, then this is not needed.
+				auto res = this->find(kmers);
+				localc.insert(res);
+			}
+
+			// canonicalize so it matches with the local input.
+			this->transform_input(query);
+
+			// then match them up 
+			typename local_container_type::iterator it;
+			std::vector<std::pair<key_type, typename Edge::EdgeInputType> > results;
+			uint8_t ch;
+			for (size_t i = 0; i < query.size(); ++i) {
+				it = localc.find(query[i].first);
+
+				if (it != localc.end()) {
+					// compare left and right.
+					ch = query[i].second.getCharsAtPos(1, 1);
+					if ((ch > 0) && ((ch & (ch-1)) == 0)) {  // has 1 and only 1 character at the in edge position (DNA16)
+						if ((*it).second.get_in_edge_frequency(key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch]]) == 0)
+							query[i].second.setCharsAtPos(static_cast<uint8_t>(0), 1, 1); 
+					}
+					ch = query[i].second.getCharsAtPos(0, 1);
+					if ((ch > 0) && ((ch & (ch-1)) == 0)) {  // has 1 and only 1 character at the in edge position (DNA16)
+						if ((*it).second.get_out_edge_frequency(key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch]]) == 0)
+							query[i].second.setCharsAtPos(static_cast<uint8_t>(0), 0, 1); 
+					}
+					if (query[i].second.getData()[0] > 0) {
+						results.emplace_back(query[i]);
+					}
+				}
+			}
+			return results;
+		}
+
+		/// matching edges are kept.  others are removed.
+		std::vector<mutable_value_type> 
+		find_edges(std::vector<mutable_value_type> &query) const {
+			local_container_type localc;
+
+			{
+				// first get kmer vector.
+				std::vector<key_type> kmers;   
+				kmers.reserve(query.size());
+				for (size_t i = 0; i < query.size(); ++i) {
+					kmers.emplace_back(query[i].first);
+				}
+
+				// then do a standard query and insert results into a local hash table.  TODO: if we have one-to-one matching, then this is not needed.
+				auto res = this->find(kmers);
+				localc.insert(res);
+			}
+
+			// canonicalize so it matches with the local input.
+			this->transform_input(query);
+
+			// then match them up 
+			typename local_container_type::iterator it;
+			std::vector<std::pair<key_type, typename Edge::EdgeInputType> > results;
+			for (size_t i = 0; i < query.size(); ++i) {
+				it = localc.find(query[i].first);
+
+				if (it != localc.end()) {
+					query[i].second.intersect((*it).second);
+
+					// compare left and right.
+					if ((query[i].second.get_in_edge_count() + query[i].second.get_out_edge_count()) > 0) {
+						results.emplace_back(query[i]);
+					}
+				}
+			}
+			return results;
+		}
+
+		/// find edges matching the specified edges and satisfy the predicates.
+		template <typename Predicate>
+		std::vector<std::pair<key_type, typename Edge::EdgeInputType> > 
+		find_edges(std::vector<std::pair<key_type, typename Edge::EdgeInputType> > &query, 
+		Predicate const &pred) const {
+			local_container_type localc;
+
+			{
+				// first get kmer vector.
+				std::vector<key_type> kmers;   
+				kmers.reserve(query.size());
+				for (size_t i = 0; i < query.size(); ++i) {
+					kmers.emplace_back(query[i].first);
+				}
+
+				// then do a standard query and insert results into a local hash table.  TODO: if we have one-to-one matching, then this is not needed.
+				auto res = this->find(kmers);
+				localc.insert(res);
+			}
+
+			// canonicalize so it matches with the local input.
+			this->transform_input(query);
+
+			// then match them up 
+			typename local_container_type::iterator it;
+			std::vector<std::pair<key_type, typename Edge::EdgeInputType> > results;
+			uint8_t ch;
+			mapped_type val;
+			for (size_t i = 0; i < query.size(); ++i) {
+				it = localc.find(query[i].first);
+				
+				if (it != localc.end()) {
+					val = (*it).second.select(pred);
+					// compare left and right.
+					ch = query[i].second.getCharsAtPos(1, 1);
+					if ((ch > 0) && ((ch & (ch-1)) == 0)) {  // has 1 and only 1 character at the in edge position (DNA16)
+						if (val.get_in_edge_frequency(key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch]]) == 0)
+							query[i].second.setCharsAtPos(static_cast<uint8_t>(0), 1, 1); 
+					}
+					ch = query[i].second.getCharsAtPos(0, 1);
+					if ((ch > 0) && ((ch & (ch-1)) == 0)) {  // has 1 and only 1 character at the in edge position (DNA16)
+						if (val.get_out_edge_frequency(key_type::KmerAlphabet::FROM_ASCII[::bliss::common::DNA16::TO_ASCII[ch]]) == 0)
+							query[i].second.setCharsAtPos(static_cast<uint8_t>(0), 0, 1); 
+					}
+					if (query[i].second.getData()[0] > 0) {
+						results.emplace_back(query[i]);
+					}
+				}
+			}
+			return results;
+		}
+
+		/// matching edges are kept.  others are removed.
+		template <typename Predicate>
+		std::vector<mutable_value_type> 
+		find_edges(std::vector<mutable_value_type> &query, 
+		Predicate const &pred) const {
+			local_container_type localc;
+
+			{
+				// first get kmer vector.
+				std::vector<key_type> kmers;   
+				kmers.reserve(query.size());
+				for (size_t i = 0; i < query.size(); ++i) {
+					kmers.emplace_back(query[i].first);
+				}
+
+				// then do a standard query and insert results into a local hash table.  TODO: if we have one-to-one matching, then this is not needed.
+				auto res = this->find(kmers);
+				localc.insert(res);
+			}
+
+			// canonicalize so it matches with the local input.
+			this->transform_input(query);
+
+			// then match them up 
+			typename local_container_type::iterator it;
+			std::vector<std::pair<key_type, typename Edge::EdgeInputType> > results;
+			for (size_t i = 0; i < query.size(); ++i) {
+				it = localc.find(query[i].first);
+
+				if (it != localc.end()) {
+					query[i].second.intersect((*it).second.select(pred));
+
+					// compare left and right.
+					if ((query[i].second.get_in_edge_count() + query[i].second.get_out_edge_count()) > 0) {
+						results.emplace_back(query[i]);
+					}
+				}
+			}
+			return results;
+		}
+
+		// find edges matching criteria.  LOCAL.
+		template <typename Predicate>
+		std::vector<mutable_value_type> find_edges(Predicate const &pred) const {
+
+          ::std::vector<mutable_value_type > results;
+
+          if (this->local_empty()) {
+            //printf("rank %d local is empty\n", this->comm.rank());
+            return results;
+          }
+          results.reserve(this->c.size() / 2);
+		  mutable_value_type val;
+          for (auto it = this->c.begin(); it != this->c.end(); ++it) {
+			// make a copy.
+			val.first = (*it).first;
+			val.second = (*it).second.select(pred);  // check the value field.
+			// if some edges are left, and push into results.
+			if ((val.second.get_out_edge_count() + val.second.get_in_edge_count()) > 0) {
+				results.emplace_back(val);
+			} 
+          }
+
+          return results;
+		}
+
+		// ALL erase functions need to erase edges in both directions, so query first then erase in both directions.
+
+	protected:
+		//================== erase edges.  WE ASSUME THAT REVERSE EDGES ALSO NEED TO BE REMOVED.
+		/// unconditional erase.  no predicate.  NOTE THAT DEST NODE's FREQUENCY IS NOT MAINTAINED.
+		void erase_edges_internal(std::vector<std::pair<key_type, typename Edge::EdgeInputType> > & query) {
+			// get the reverse query  - these should be simple_biedges.
+			{
+				std::vector<std::pair<key_type, typename Edge::EdgeInputType> > rev_edges =
+					this->get_remote_edges(query);  // do before distributed query - to avoid query being modified.
+
+				this->erase_simple_biedges(rev_edges);  // distributed.
+			}
+
+			this->erase_simple_biedges(query);  // distributed.
+
+		}
+		void erase_edges_internal(std::vector<mutable_value_type > & query) {
+			// get the reverse query  - these should be simple_biedges.
+			{
+				std::vector<std::pair<key_type, typename Edge::EdgeInputType> > rev_edges =
+					this->get_remote_edges(query);  // do before distributed query - to avoid query being modified.
+
+				this->erase_simple_biedges(rev_edges);
+			}
+
+			this->erase_multi_biedges(query);
+		}
+	public:
+		void erase_edges(std::vector<std::pair<key_type, typename Edge::EdgeInputType> > & query) {
+			erase_edges_internal(query);
+		}
+		void erase_edges(std::vector<mutable_value_type > & query) {
+			erase_edges_internal(query);
+		}
+		/// conditional erase. predicate operates on the edges.
+		/// use for deleting specified edges that also is low frequency, for example.
+		/// predicate is BINARY, , using val to select data in compact_multi_biedge for evaluation.
+		template <typename Predicate>
+		void erase_edges(std::vector<std::pair<key_type, typename Edge::EdgeInputType> > & query, Predicate const &pred) {
+			// apply predicate to find edges and not erase_edges_internal, so that we don't have half edges left.
+			auto res = this->find_edges(query, pred);
+			this->erase_edges_internal(res);
+		}
+
+		template <typename Predicate>
+		void erase_edges(std::vector<mutable_value_type > & query, Predicate const &pred) {
+			// apply predicate to find edges and not erase_edges, so that we don't have half edges left.
+			auto res = this->find_edges(query, pred);
+			this->erase_edges_internal(res);
+		}
+
+		/// predicate evaluates for each edge.  only edges matching predicate are erased.
+		/// used for deleting all nodes with low frequency, for example.
+		/// predicate needs to provide a UNARY operator that select the nodes (param is compact_multi_biedge)
+		///    and a UNARY operator that selects the 
+		template <typename Predicate>
+		void erase_edges(Predicate const &pred) {
+			// apply predicate to find edges and not erase_edges, so that we don't have half edges left.
+			std::vector<mutable_value_type > query = this->find_edges(pred);   // local.
+
+			{
+				std::vector<std::pair<key_type, typename Edge::EdgeInputType> > rev_edges =
+					this->get_remote_edges(query);  // do before distributed query - to avoid query being modified.
+				this->erase_simple_biedges(rev_edges);     // distributed.
+			}
+			// this part is local, because we know the query refer to local content.
+			this->c.update(query,
+				[](mapped_type & curr, mapped_type const & val){
+					size_t before = curr.get_in_edge_count() + curr.get_out_edge_count();
+					curr.erase(val);
+					return curr.get_in_edge_count() + curr.get_out_edge_count() - before;
+			});
+		}
+		//=================== erase nodes.  maintains graph consistency. =================================
+
+	protected:
+
+		/// unconditional erase.  no predicate.  NOTE THAT DEST NODE's FREQUENCY IS NOT MAINTAINED.
+		void erase_nodes_and_edges(std::vector<mutable_value_type > & q) {
+			// now erase the nodes.
+			{
+				// ===  first find the nodes and get the edges.
+				std::vector<key_type> q2;
+				q2.reserve(q.size());
+				for (size_t i = 0; i < q.size(); ++i) {
+					q2.push_back(q[i].first);
+				}
+				// ===  finally erase the nodes
+				this->erase(q2);    // distributed
+			}
+
+			// erase the reverse edges.
+			this->erase_simple_biedges(this->get_remote_edges(q));  // distributed
+		}
+		
+	public:
+
+
+		/// unconditional erase.  no predicate.  NOTE THAT DEST NODE's FREQUENCY IS NOT MAINTAINED.
+		void erase_nodes(std::vector<key_type> &query) {
+			this->erase_nodes_and_edges(this->find(query));    // distributed
+		}
+
+		/// conditional erase. predicate is UNARY and operates on the nodes, including all edges of the nodes.
+		/// use for deleting specified nodes that also is low frequency, for example.
+		template <typename Predicate>
+		void erase_nodes(std::vector<key_type> &query, Predicate const &pred) {
+			this->erase_nodes_and_edges(this->find(query, false, pred));  // distributed
+		}
+
+		/// predicate is UNARY evaluates for the entire node.  all edges of the nodes are erased.
+		/// used for deleting all nodes with low frequency, for example.
+		template <typename Predicate>
+		void erase_nodes(Predicate const &pred) {
+			// ===  erase remote edges of the matching nodes.
+			this->erase_simple_biedges(  // distributed
+				this->get_remote_edges(
+					this->find(pred)));  // local
+
+			// remove the nodes
+			this->erase(pred);   // local.
+		}
+
+
+
 
 	/*transform function*/
 
