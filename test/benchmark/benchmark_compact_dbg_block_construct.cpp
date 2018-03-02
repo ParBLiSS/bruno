@@ -462,7 +462,7 @@ int main(int argc, char** argv) {
 	mxx::env e(argc, argv);
 	mxx::comm comm;
 
-	if (comm.rank() == 0) printf("WARNING: logic in this program needs to be updated to latest\n", argv[0]);
+	if (comm.rank() == 0) printf("WARNING: logic in this program %s needs to be updated to latest\n", argv[0]);
 
 	if (comm.rank() == 0) printf("EXECUTING %s\n", argv[0]);
 
