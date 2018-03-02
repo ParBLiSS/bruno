@@ -232,7 +232,7 @@ namespace bliss
           // non zero indicate the ones that need to be removed.  kmer freq is not affected.
           inline void erase(compact_multi_biedge const & edges)
           {
-            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+            for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
               if (edges.counts[i] > 0) counts[i] = 0;
             }
           }
@@ -240,7 +240,7 @@ namespace bliss
           inline compact_multi_biedge select(Predicate const & pred) const
           {
             compact_multi_biedge output;
-            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+            for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
               if (pred(counts[i])) output.counts[i] = counts[i];
             }
             return output;
@@ -248,20 +248,20 @@ namespace bliss
           // template <typename Predicate>
           // inline void erase(Predicate const & pred)
           // {
-          //   for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+          //   for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
           //     if (pred(counts[i])) counts[i] = 0;
           //   }
           // }
 
           inline void intersect(compact_multi_biedge const & other) {
-            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+            for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
               if (other.counts[i] == 0) counts[i] = 0;
             }
           }
           
 
           inline void merge(compact_multi_biedge const & other) {
-            for (int i = 0; i <= 2 * maxEdgeCount; ++i) {
+            for (size_t i = 0; i <= 2 * maxEdgeCount; ++i) {
               counts[i] = sat_add(counts[i], other.counts[i]);
             }
           }
@@ -517,7 +517,7 @@ namespace bliss
           // non zero indicate the ones that need to be removed.  kmer freq is not affected.
           inline void erase(compact_multi_biedge const & edges)
           {
-            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+            for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
               if (edges.counts[i] > 0) counts[i] = 0;
             }
           }
@@ -525,7 +525,7 @@ namespace bliss
           inline compact_multi_biedge select(Predicate const & pred) const
           {
             compact_multi_biedge output;
-            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+            for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
               if (pred(counts[i])) output.counts[i] = counts[i];
             }
             return output;
@@ -533,20 +533,20 @@ namespace bliss
           // template <typename Predicate>
           // inline void erase(Predicate const & pred)
           // {
-          //   for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+          //   for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
           //     if (pred(counts[i])) counts[i] = 0;
           //   }
           // }
 
           inline void intersect(compact_multi_biedge const & other) {
-            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+            for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
               if (other.counts[i] == 0) counts[i] = 0;
             }
           }
 
 
           inline void merge(compact_multi_biedge const & other) {
-            for (int i = 0; i <= 2 * maxEdgeCount; ++i) {
+            for (size_t i = 0; i <= 2 * maxEdgeCount; ++i) {
               counts[i] = sat_add(counts[i], other.counts[i]);
             }
           }
@@ -804,7 +804,7 @@ namespace bliss
           // non zero indicate the ones that need to be removed.  kmer freq is not affected.
           inline void erase(compact_multi_biedge const & edges)
           {
-            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+            for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
               if (edges.counts[i] > 0) counts[i] = 0;
             }
           }
@@ -812,7 +812,7 @@ namespace bliss
           inline compact_multi_biedge select(Predicate const & pred) const
           {
             compact_multi_biedge output;
-            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+            for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
               if (pred(counts[i])) output.counts[i] = counts[i];
             }
             return output;
@@ -820,19 +820,19 @@ namespace bliss
           // template <typename Predicate>
           // inline void erase(Predicate const & pred)
           // {
-          //   for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+          //   for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
           //     if (pred(counts[i])) counts[i] = 0;
           //   }
           // }
 
           inline void intersect(compact_multi_biedge const & other) {
-            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+            for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
               if (other.counts[i] == 0) counts[i] = 0;
             }
           }
 
           inline void merge(compact_multi_biedge const & other) {
-            for (int i = 0; i <= 2 * maxEdgeCount; ++i) {
+            for (size_t i = 0; i <= 2 * maxEdgeCount; ++i) {
               counts[i] = sat_add(counts[i], other.counts[i]);
             }
           }
@@ -1050,7 +1050,7 @@ namespace bliss
           inline compact_multi_biedge select(Predicate const & pred) const
           {
             compact_multi_biedge output;
-            for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+            for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
               if (pred((counts >> i) & 0x1)) output.counts |= (0x1 << i);
             }
             return output;
@@ -1058,7 +1058,7 @@ namespace bliss
           // template <typename Predicate>
           // inline void erase(Predicate const & pred)
           // {
-          //   for (int i = 0; i < 2 * maxEdgeCount; ++i) {
+          //   for (size_t i = 0; i < 2 * maxEdgeCount; ++i) {
           //     if (pred((counts >> i) & 0x1)) counts &= ~(0x1 << i);
           //   }
           // }
@@ -1282,7 +1282,7 @@ namespace bliss
           inline compact_multi_biedge select(Predicate const & pred) const
           {
             compact_multi_biedge output;
-            for (int i = 0; i < maxEdgeCount; ++i) {
+            for (size_t i = 0; i < maxEdgeCount; ++i) {
               if (pred((counts[0] >> i) & 0x1)) output.counts[0] |= (0x1 << i);
               if (pred((counts[1] >> i) & 0x1)) output.counts[1] |= (0x1 << i);
             }
@@ -1291,7 +1291,7 @@ namespace bliss
           // template <typename Predicate>
           // inline void erase(Predicate const & pred)
           // {
-          //   for (int i = 0; i < maxEdgeCount; ++i) {
+          //   for (size_t i = 0; i < maxEdgeCount; ++i) {
           //     if (pred((counts[0] >> i) & 0x1)) counts[0] &= ~(0x1 << i);
           //     if (pred((counts[1] >> i) & 0x1)) counts[1] &= ~(0x1 << i);
           //   }
@@ -1493,7 +1493,7 @@ namespace bliss
           inline compact_multi_biedge select(Predicate const & pred) const
           {
             compact_multi_biedge output;
-            for (int i = 0; i < maxEdgeCount; ++i) {
+            for (size_t i = 0; i < maxEdgeCount; ++i) {
               if (pred((counts[0] >> i) & 0x1)) output.counts[0] |= (0x1 << i);
               if (pred((counts[1] >> i) & 0x1)) output.counts[1] |= (0x1 << i);
             }
@@ -1502,7 +1502,7 @@ namespace bliss
           // template <typename Predicate>
           // inline void erase(Predicate const & pred)
           // {
-          //   for (int i = 0; i < maxEdgeCount; ++i) {
+          //   for (size_t i = 0; i < maxEdgeCount; ++i) {
           //     if (pred((counts[0] >> i) & 0x1)) counts[0] &= ~(0x1 << i);
           //     if (pred((counts[1] >> i) & 0x1)) counts[1] &= ~(0x1 << i);
           //   }
