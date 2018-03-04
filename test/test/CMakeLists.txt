@@ -129,6 +129,11 @@ foreach(k 31)
         #     PROPERTIES COMPILE_FLAGS "-DpDNA=${dna} -DpPARSER=FASTA -DpK=${k}")
         # target_link_libraries(compact_debruijn_graph_fasta_A${dna}_K${k}_freq ${EXTRA_LIBS})
 
+        add_executable(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_minimizer compact_dbg_countIndex_construct.cpp)
+        SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_minimizer
+            PROPERTIES COMPILE_FLAGS "-DpDNA=${dna} -DpPARSER=FASTQ -DpK=${k} -DMINIMIZER")
+        target_link_libraries(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_minimizer ${EXTRA_LIBS})
+
 
 
         add_executable(compact_debruijn_graph_fastq_A${dna}_K${k}_incr compact_debruijn_graph_block_construct.cpp)
@@ -145,6 +150,12 @@ foreach(k 31)
         SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_incr
             PROPERTIES COMPILE_FLAGS "-DpDNA=${dna} -DpPARSER=FASTQ -DpK=${k} -DMIN_MEM")
         target_link_libraries(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_incr ${EXTRA_LIBS})
+
+        add_executable(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_incr_minimizer compact_dbg_countIndex_construct.cpp)
+        SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_incr_minimizer
+            PROPERTIES COMPILE_FLAGS "-DpDNA=${dna} -DpPARSER=FASTQ -DpK=${k} -DMIN_MEM -DMINIMIZER")
+        target_link_libraries(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_incr_minimizer ${EXTRA_LIBS})
+
 
     endforeach(dna)
 

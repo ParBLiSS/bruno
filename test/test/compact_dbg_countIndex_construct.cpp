@@ -85,7 +85,7 @@
 
 
 #include "debruijn/debruijn_stats.hpp"
-#include "debruijn/minimizer_hash.hpp"
+#include "utils/minimizer_hash.hpp"
 
 #include "utils/benchmark_utils.hpp"
 #include "utils/exception_handling.hpp"
@@ -202,10 +202,10 @@
 #endif
 
 #if defined(MINIMIZER)
-template <KmerType>
+template <typename KmerType>
 using KmerDistHash = ::bliss::kmer::hash::minimizer::murmur<KmerType, true>;
 #else
-template <KmerType>
+template <typename KmerType>
 using KmerDistHash = ::bliss::kmer::hash::murmur<KmerType, true>;
 #endif
 
@@ -224,12 +224,13 @@ using SeqIterType = bliss::io::SequencesIterator<Iterator, SeqParser>;
 using FileReaderType = ::bliss::io::parallel::partitioned_file<::bliss::io::posix_file, FileParser >;
 
 // using DBGMapType = ::bliss::debruijn::graph::simple_hash_debruijn_graph_map<KmerType>;
-// using DBGType = ::bliss::debruijn::graph::debruijn_graph<KmerType, bool>;
+// used by benchmark?
+using DBGType = ::bliss::debruijn::graph::debruijn_graph<KmerType, bool, KmerDistHash>;
 
 //using CountDBGMapType = ::bliss::debruijn::graph::count_hash_debruijn_graph_map<KmerType, CountType>;
 using CountDBGType = ::bliss::debruijn::graph::debruijn_graph<KmerType, CountType, KmerDistHash>;
 
-//using ChainNodeType = ::bliss::debruijn::simple_biedge<KmerType>;
+using ChainNodeType = ::bliss::debruijn::simple_biedge<KmerType>;
 
 //template <typename K>
 //using ChainMapParams = typename DBGType::map_params_template<K>;
@@ -244,12 +245,11 @@ template <typename Key>
 using FreqMapParams = ::bliss::index::kmer::CanonicalHashMapParams<Key, KmerDistHash>;
 
 
-
-// using CountMapType = ::dsc::counting_densehash_map<KmerType, CountType,
-// 		FreqMapParams,
-// 		::bliss::kmer::hash::sparsehash::special_keys<KmerType, true> >;
-
-// using CountIndexType = ::bliss::index::kmer::CountIndex2<CountMapType>;
+// here for compilation purpose.  there are functions in compact_dbg_stats that need these.  this class does not.
+ using CountMapType = ::dsc::counting_densehash_map<KmerType, CountType,
+ 		FreqMapParams,
+ 		::bliss::kmer::hash::sparsehash::special_keys<KmerType, true> >;
+ using CountIndexType = ::bliss::index::kmer::CountIndex2<CountMapType>;
 
 
 using FreqSummaryType = std::tuple<size_t, size_t, CountType, CountType>;
@@ -336,9 +336,9 @@ build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data,
 
 		}
 	}
-
+#ifndef NDEBUG
 	print_k2mer_frequencies(k2mer_filename, k2_counter, comm);
-
+#endif
 	// then filter the k2mers and insert into dbg (no need to touch files again)
 	BL_BENCH_START(build);
 	std::vector<size_t> lthreshes(threshes.begin(), threshes.end());
@@ -413,9 +413,9 @@ size_t build_index_thresholded_incremental(::std::vector<::bliss::io::file_data>
 		BL_BENCH_COLLECTIVE_END(build, "count_k2mer_incr", k2_counter.size(), comm);
 
 	}
-
+#ifndef NDEBUG
 	print_k2mer_frequencies(k2mer_filename, k2_counter, comm);
-
+#endif
 
 	// then filter the k2mers and insert into dbg (no need to touch files again)
 	BL_BENCH_START(build);

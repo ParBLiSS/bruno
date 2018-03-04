@@ -67,7 +67,7 @@ namespace bliss
     };
 
 
-    template <typename Kmer, template <typename> DistHash = ::bliss::index::kmer::DistHashMurmur >
+    template <typename Kmer, template <typename> class DistHash = ::bliss::index::kmer::DistHashMurmur >
     using CanonicalDeBruijnHashMapParams = ::dsc::HashMapParams<
         Kmer,
         ::bliss::debruijn::lex_less,  // precanonalizer.  OPERATES ON VALUE AS WELL

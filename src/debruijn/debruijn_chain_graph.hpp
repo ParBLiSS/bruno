@@ -123,7 +123,7 @@ namespace graph
 	 *
 	 * @note:  not subclassing.  this is just the chain part.
 	 */
-	template <typename KmerType, template <typename> DistHash = ::bliss::index::kmer::DistHashMurmur>
+	template <typename KmerType, template <typename> class DistHash = ::bliss::index::kmer::DistHashMurmur>
 	class debruijn_chain_graph {
 
 	public:
@@ -455,7 +455,7 @@ namespace graph
 	    * @note	 existing chain map is cleared.
 	    */
 		template <typename C>
-		void extract_chains(::bliss::debruijn::graph::debruijn_graph<KmerType, C> const & idx) {
+		void extract_chains(::bliss::debruijn::graph::debruijn_graph<KmerType, C, DistHash> const & idx) {
 
 			size_t total_idx_size = idx.size();
 			if (total_idx_size == 0) return;

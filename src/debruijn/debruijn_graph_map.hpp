@@ -1618,12 +1618,12 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 };
 
-template<typename Kmer, template <typename> MapParams = ::bliss::debruijn::CanonicalDeBruijnHashMapParamsMurmur>
+template<typename Kmer, template <typename> class MapParams = ::bliss::debruijn::CanonicalDeBruijnHashMapParamsMurmur>
 using simple_hash_debruijn_graph_map = ::bliss::debruijn::graph::debruijn_graph_map<Kmer,
 		::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, bool>,
 		MapParams>;
 
-template<typename Kmer, typename Count = uint32_t, template <typename> MapParams = ::bliss::debruijn::CanonicalDeBruijnHashMapParamsMurmur >
+template<typename Kmer, typename Count = uint32_t, template <typename> class MapParams = ::bliss::debruijn::CanonicalDeBruijnHashMapParamsMurmur >
 using count_hash_debruijn_graph_map = ::bliss::debruijn::graph::debruijn_graph_map<Kmer,
 		::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, Count>,
 		MapParams>;
