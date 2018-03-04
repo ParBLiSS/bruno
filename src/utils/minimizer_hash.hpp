@@ -96,8 +96,8 @@ namespace bliss {
         // currently supports only DNA and DNA16-mers (not DNA5), and limits to 16 bit output (64k processors)
         class minimizer {
           protected:
-            uint8_t temp[16];
-            __m128i mask;
+            mutable uint8_t temp[16];
+            const __m128i mask;
           public:
 
             minimizer() : mask(_mm_setr_epi16(0x0, 0x0, 0x0, 0xFFFF, 0x0, 0x0, 0x0, 0xFFFF)) {}
@@ -111,8 +111,8 @@ namespace bliss {
             // good for 31-mer or smaller: loads 1byte shifted into higher 64bit lane
             template <unsigned int KMER_SIZE, typename WORD_TYPE=WordType,
               typename std::enable_if<(KMER_SIZE <= 31), int>::type = 1>
-            uint16_t operator()(::bliss::common::kmer<KMER_SIZE, ::bliss::common::DNA, WORD_TYPE> const & kmer) {
-              using Kmer = ::bliss::common::kmer<KMER_SIZE, ::bliss::common::DNA, WORD_TYPE>;
+            uint16_t operator()(::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA, WORD_TYPE> const & kmer) const {
+              using Kmer = ::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA, WORD_TYPE>;
 
               // first make a copy. then set the padding bits to 1
               Kmer k0 = kmer;
@@ -121,15 +121,27 @@ namespace bliss {
               
               // next start iterating.  3 uint16_t each iteration, 2 offsets at a time, so shifting by 6 bytes at a time.
               __m128i curr, total;
+#if defined(__INTEL_COMPILER)
+  #pragma warning push
+  #pragma warning disable 592
+#else  // last one is gcc, since everyone defines __GNUC__
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wuninitialized"
+#endif
               total = _mm_cmpeq_epi8(curr, curr);  // set total with all 1 bit.
+#if defined(__INTEL_COMPILER)
+  #pragma warning pop
+#else  // last one is gcc, since everyone defines __GNUC__
+  #pragma GCC diagnostic pop
+#endif
 
               // 31-mer or smaller. the highest 2 bytes in each 64bit lane will not correspond to any usable bits.
               // we can iterate just once.
               // at exactly 32-mer, we'd need another iteration, and rely on the 0xFF of the rest of the register, so use the other version
                 // load the data.
                 memset(temp, 0xFF, 16);  // for the case where there is partial fill
-                memcpy(&(temp[0]), data, std::min(8, Kmer::nBytes));
-                memcpy(&(temp[1]), data + 1, std::min(8, Kmer::nBytes - 1));
+                memcpy(&(temp[0]), data, std::min(8U, Kmer::nBytes));
+                memcpy(&(temp[1]), data + 1, std::min(8U, Kmer::nBytes - 1U));
                 // load the values
                 curr = _mm_lddqu_si128(reinterpret_cast<__m128i *>(temp));
 
@@ -150,7 +162,7 @@ namespace bliss {
               total = _mm_or_si128(total, mask);
               
               // hmin
-              __m128i res = _mm_minpos_epi16(total);
+              __m128i res = _mm_minpos_epu16(total);
               
               // lower 32 bit has the position and value (lowest 16 bit). should always be unsigned
               return static_cast<uint32_t>(_mm_cvtsi128_si32(res)) & static_cast<uint16_t>(0xFFFF);  
@@ -159,8 +171,8 @@ namespace bliss {
             // good for 32-mer or larger:  loads 6 byte shifted into upper lane and do 7 shifts (fewer mem access)
             template <unsigned int KMER_SIZE, typename WORD_TYPE=WordType,
               typename std::enable_if<(KMER_SIZE > 31), int>::type = 1>
-            uint16_t operator()(::bliss::common::kmer<KMER_SIZE, ::bliss::common::DNA, WORD_TYPE> const & kmer) {
-              using Kmer = ::bliss::common::kmer<KMER_SIZE, ::bliss::common::DNA, WORD_TYPE>;
+            uint16_t operator()(::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA, WORD_TYPE> const & kmer) const {
+              using Kmer = ::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA, WORD_TYPE>;
 
               // first make a copy. then set the padding bits to 1
               Kmer k0 = kmer;
@@ -169,16 +181,29 @@ namespace bliss {
               
               // next start iterating.  3 uint16_t each iteration, 2 offsets at a time, so shifting by 6 bytes at a time.
               __m128i curr, total;
+#if defined(__INTEL_COMPILER)
+  #pragma warning push
+  #pragma warning disable 592
+#else  // last one is gcc, since everyone defines __GNUC__
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wuninitialized"
+#endif
               total = _mm_cmpeq_epi8(curr, curr);  // set total with all 1 bit.
+#if defined(__INTEL_COMPILER)
+  #pragma warning pop
+#else  // last one is gcc, since everyone defines __GNUC__
+  #pragma GCC diagnostic pop
+#endif
+
 
               // 32-mer or larger. the highest 2 bytes in each 64bit lane will not correspond to any usable bits.
-              for (size_t i = 0; i < Kmer::nBytes; ) {
+              for (unsigned int i = 0; i < Kmer::nBytes; ) {
                 // load the data.
                 memset(temp, 0xFF, 16);  // for the case where there is partial fill
-                memcpy(&(temp[0]), data + i, std::min(8, Kmer::nBytes - i));
+                memcpy(&(temp[0]), data + i, std::min(8U, Kmer::nBytes - i));
                 i+=6;
                 if (Kmer::nBytes > i) {
-                  memcpy(&(temp[1]), data + i, std::min(8, Kmer::nBytes - i));
+                  memcpy(&(temp[1]), data + i, std::min(8U, Kmer::nBytes - i));
                   i+=6;
                 }
                 // load the values
@@ -199,7 +224,7 @@ namespace bliss {
               total = _mm_or_si128(total, mask);
               
               // hmin
-              __m128i res = _mm_minpos_epi16(total);
+              __m128i res = _mm_minpos_epu16(total);
               
               // lower 32 bit has the position and value (lowest 16 bit). should always be unsigned
               return static_cast<uint32_t>(_mm_cvtsi128_si32(res)) & static_cast<uint16_t>(0xFFFF);  
@@ -209,8 +234,8 @@ namespace bliss {
             // good for 31-mer or smaller: loads 1byte shifted into higher 64bit lane
             template <unsigned int KMER_SIZE, typename WORD_TYPE=WordType,
               typename std::enable_if<(KMER_SIZE <= 15), int>::type = 1>
-            uint16_t operator()(::bliss::common::kmer<KMER_SIZE, ::bliss::common::DNA16, WORD_TYPE> const & kmer) {
-              using Kmer = ::bliss::common::kmer<KMER_SIZE, ::bliss::common::DNA16, WORD_TYPE>;
+            uint16_t operator()(::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA16, WORD_TYPE> const & kmer) const {
+              using Kmer = ::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA16, WORD_TYPE>;
 
               // first make a copy. then set the padding bits to 1
               Kmer k0 = kmer;
@@ -219,15 +244,27 @@ namespace bliss {
               
               // next start iterating.  3 uint16_t each iteration, 2 offsets at a time, so shifting by 6 bytes at a time.
               __m128i curr, total;
+ #if defined(__INTEL_COMPILER)
+  #pragma warning push
+  #pragma warning disable 592
+#else  // last one is gcc, since everyone defines __GNUC__
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wuninitialized"
+#endif
               total = _mm_cmpeq_epi8(curr, curr);  // set total with all 1 bit.
+#if defined(__INTEL_COMPILER)
+  #pragma warning pop
+#else  // last one is gcc, since everyone defines __GNUC__
+  #pragma GCC diagnostic pop
+#endif
 
               // 31-mer or smaller. the highest 2 bytes in each 64bit lane will not correspond to any usable bits.
               // we can iterate just once.
               // at exactly 32-mer, we'd need another iteration, and rely on the 0xFF of the rest of the register, so use the other version
                 // load the data.
                 memset(temp, 0xFF, 16);  // for the case where there is partial fill
-                memcpy(&(temp[0]), data, std::min(8, Kmer::nBytes));
-                memcpy(&(temp[1]), data + 1, std::min(8, Kmer::nBytes - 1));
+                memcpy(&(temp[0]), data, std::min(8U, Kmer::nBytes));
+                memcpy(&(temp[1]), data + 1, std::min(8U, Kmer::nBytes - 1U));
                 // load the values
                 curr = _mm_lddqu_si128(reinterpret_cast<__m128i *>(temp));
 
@@ -244,7 +281,7 @@ namespace bliss {
               total = _mm_or_si128(total, mask);
               
               // hmin
-              __m128i res = _mm_minpos_epi16(total);
+              __m128i res = _mm_minpos_epu16(total);
               
               // lower 32 bit has the position and value (lowest 16 bit). should always be unsigned
               return static_cast<uint32_t>(_mm_cvtsi128_si32(res)) & static_cast<uint16_t>(0xFFFF);  
@@ -253,8 +290,8 @@ namespace bliss {
             // good for 32-mer or larger:  loads 6 byte shifted into upper lane and do 7 shifts (fewer mem access)
             template <unsigned int KMER_SIZE, typename WORD_TYPE=WordType,
               typename std::enable_if<(KMER_SIZE > 15), int>::type = 1>
-            uint16_t operator()(::bliss::common::kmer<KMER_SIZE, ::bliss::common::DNA16, WORD_TYPE> const & kmer) {
-              using Kmer = ::bliss::common::kmer<KMER_SIZE, ::bliss::common::DNA16, WORD_TYPE>;
+            uint16_t operator()(::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA16, WORD_TYPE> const & kmer) const {
+              using Kmer = ::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA16, WORD_TYPE>;
 
               // first make a copy. then set the padding bits to 1
               Kmer k0 = kmer;
@@ -263,16 +300,28 @@ namespace bliss {
               
               // next start iterating.  3 uint16_t each iteration, 2 offsets at a time, so shifting by 6 bytes at a time.
               __m128i curr, total;
+  #if defined(__INTEL_COMPILER)
+  #pragma warning push
+  #pragma warning disable 592
+#else  // last one is gcc, since everyone defines __GNUC__
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wuninitialized"
+#endif
               total = _mm_cmpeq_epi8(curr, curr);  // set total with all 1 bit.
+#if defined(__INTEL_COMPILER)
+  #pragma warning pop
+#else  // last one is gcc, since everyone defines __GNUC__
+  #pragma GCC diagnostic pop
+#endif
 
               // 32-mer or larger. the highest 2 bytes in each 64bit lane will not correspond to any usable bits.
-              for (size_t i = 0; i < Kmer::nBytes; ) {
+              for (unsigned int i = 0; i < Kmer::nBytes; ) {
                 // load the data.
                 memset(temp, 0xFF, 16);  // for the case where there is partial fill
-                memcpy(&(temp[0]), data + i, std::min(8, Kmer::nBytes - i));
+                memcpy(&(temp[0]), data + i, std::min(8U, Kmer::nBytes - i));
                 i+=6;
                 if (Kmer::nBytes > i) {
-                  memcpy(&(temp[1]), data + i, std::min(8, Kmer::nBytes - i));
+                  memcpy(&(temp[1]), data + i, std::min(8U, Kmer::nBytes - i));
                   i+=6;
                 }
                 // load the values
@@ -293,7 +342,7 @@ namespace bliss {
               total = _mm_or_si128(total, mask);
               
               // hmin
-              __m128i res = _mm_minpos_epi16(total);
+              __m128i res = _mm_minpos_epu16(total);
               
               // lower 32 bit has the position and value (lowest 16 bit). should always be unsigned
               return static_cast<uint32_t>(_mm_cvtsi128_si32(res)) & static_cast<uint16_t>(0xFFFF);  
@@ -389,9 +438,9 @@ namespace bliss {
             uint64_t h[2];
             // let compiler optimize out all except one of these.
             if (sizeof(void*) == 8)
-              MurmurHash3_x64_128(minimizer, 2, seed, h);
+              MurmurHash3_x64_128(reinterpret_cast<char *>(&minimizer), 2, seed, h);
             else if (sizeof(void*) == 4)
-              MurmurHash3_x86_128(minimizer, 2, seed, h);
+              MurmurHash3_x86_128(reinterpret_cast<char *>(&minimizer), 2, seed, h);
             else
               throw ::std::logic_error("ERROR: neither 32 bit nor 64 bit system");
 
@@ -435,9 +484,9 @@ namespace bliss {
             uint16_t minimizer = mini(kmer);
 
             if (Prefix)
-              return ::util::Hash64WithSeed(reinterpret_cast<const char*>(&minimizer), 2, (seed << 1) - 1);
+              return ::util::Hash64WithSeed(reinterpret_cast<char*>(&minimizer), 2, (seed << 1) - 1);
             else
-              return ::util::Hash64WithSeed(reinterpret_cast<const char*>(&minimizer), 2, seed);
+              return ::util::Hash64WithSeed(reinterpret_cast<char*>(&minimizer), 2, seed);
           }
 
       };
