@@ -336,9 +336,9 @@ build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data,
 
 		}
 	}
-
+#ifndef NDEBUG
 	print_k2mer_frequencies(k2mer_filename, k2_counter, comm);
-
+#endif
 	// then filter the k2mers and insert into dbg (no need to touch files again)
 	BL_BENCH_START(build);
 	std::vector<size_t> lthreshes(threshes.begin(), threshes.end());
@@ -413,9 +413,9 @@ size_t build_index_thresholded_incremental(::std::vector<::bliss::io::file_data>
 		BL_BENCH_COLLECTIVE_END(build, "count_k2mer_incr", k2_counter.size(), comm);
 
 	}
-
+#ifndef NDEBUG
 	print_k2mer_frequencies(k2mer_filename, k2_counter, comm);
-
+#endif
 
 	// then filter the k2mers and insert into dbg (no need to touch files again)
 	BL_BENCH_START(build);
