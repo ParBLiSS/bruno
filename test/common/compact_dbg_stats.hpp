@@ -166,7 +166,7 @@ void count_edges_old(std::vector<KmerType> const & selected,
 
 	BL_BENCH_INIT(count_edge);
 
-	using mapped_type = typename CountDBGMapType::mapped_type;
+	using mapped_type = typename CountDBGType::map_type::mapped_type;
 
 	// pre populate the count index.  SAME DISTRIBUTION AS input (input is from hashmap with same hashed distribution
 	BL_BENCH_START(count_edge);
@@ -890,7 +890,7 @@ void print_chain_frequencies(std::string const & filename,
 	bool lterm, rterm;
 	// get query vector
 	BL_BENCH_START(print_chain_freq);
-	typename CountDBGMapType::local_container_type R_freq_map;
+	typename CountDBGType::map_type::local_container_type R_freq_map;
 	{
 		std::vector<KmerType> R_query;
 		for (auto x : chain_reps) {
@@ -923,7 +923,7 @@ void print_chain_frequencies(std::string const & filename,
 	BL_BENCH_START(print_chain_freq);
 	bliss::debruijn::lex_less<KmerType> canonical;
 	auto compact_edgeL = idx2.get_map().get_local_container().find(KmerType());
-  typename CountDBGMapType::local_container_type::iterator compact_edgeR;
+  typename CountDBGType::map_type::local_container_type::iterator compact_edgeR;
   typename FreqMapType::local_container_type::const_iterator fre;
 
 	for (auto x : chain_reps) {

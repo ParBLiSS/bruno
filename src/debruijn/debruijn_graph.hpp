@@ -42,12 +42,12 @@ namespace graph
 
 
 	/// a class representing a debruijn graph
-	template <typename KmerType, typename FreqValueType>
+	template <typename KmerType, typename FreqValueType, template <typename> DistHash = ::bliss::index::kmer::DistHashMurmur>
 	class debruijn_graph {
 
 	public:
 		template <typename KMER>
-		using map_params_template = ::bliss::debruijn::CanonicalDeBruijnHashMapParams<KMER>;
+		using map_params_template = ::bliss::debruijn::CanonicalDeBruijnHashMapParams<KMER, DistHash>;
 		using map_params_type =
 				map_params_template<KmerType>;
 

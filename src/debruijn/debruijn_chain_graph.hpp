@@ -123,12 +123,12 @@ namespace graph
 	 *
 	 * @note:  not subclassing.  this is just the chain part.
 	 */
-	template <typename KmerType>
+	template <typename KmerType, template <typename> DistHash = ::bliss::index::kmer::DistHashMurmur>
 	class debruijn_chain_graph {
 
 	public:
 		template <typename KMER>
-		using map_params_template = ::bliss::debruijn::CanonicalDeBruijnHashMapParams<KMER>;
+		using map_params_template = ::bliss::debruijn::CanonicalDeBruijnHashMapParams<KMER, DistHash>;
 		using map_params_type =
 				map_params_template<KmerType>;
 
@@ -1289,7 +1289,7 @@ namespace graph
 	     if (comm.size() > 1) {
 			// reshuffle data
 			BL_BENCH_START(compress_chain);
-			::bliss::debruijn::operation::chain::chain_node_to_proc<::bliss::debruijn::CanonicalDeBruijnHashMapParams, KmerType> mapper(comm.size());
+			::bliss::debruijn::operation::chain::chain_node_to_proc<map_params_template, KmerType> mapper(comm.size());
 			// distribute the data
 
 			std::vector<size_t> recv_counts;

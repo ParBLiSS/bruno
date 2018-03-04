@@ -67,17 +67,20 @@ namespace bliss
     };
 
 
-    template <typename Kmer >
+    template <typename Kmer, template <typename> DistHash = ::bliss::index::kmer::DistHashMurmur >
     using CanonicalDeBruijnHashMapParams = ::dsc::HashMapParams<
         Kmer,
         ::bliss::debruijn::lex_less,  // precanonalizer.  OPERATES ON VALUE AS WELL
          ::bliss::transform::identity,  // only one that makes sense given InputTransform
-          ::bliss::index::kmer::DistHashMurmur,
+          DistHash,
           ::std::equal_to,
            ::bliss::transform::identity,
             ::bliss::index::kmer::StoreHashMurmur,
             ::std::equal_to
           >;
+
+    template <typename Kmer >
+    using CanonicalDeBruijnHashMapParamsMurmur = CanonicalDeBruijnHashMapParams<Kmer, ::bliss::index::kmer::DistHashMurmur >;
 
   }/*namespace debruijn*/
 }/*namespace bliss*/

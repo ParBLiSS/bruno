@@ -1618,15 +1618,15 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 };
 
-template<typename Kmer>
+template<typename Kmer, template <typename> MapParams = ::bliss::debruijn::CanonicalDeBruijnHashMapParamsMurmur>
 using simple_hash_debruijn_graph_map = ::bliss::debruijn::graph::debruijn_graph_map<Kmer,
 		::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, bool>,
-		 ::bliss::debruijn::CanonicalDeBruijnHashMapParams>;
+		MapParams>;
 
-template<typename Kmer, typename Count = uint32_t >
+template<typename Kmer, typename Count = uint32_t, template <typename> MapParams = ::bliss::debruijn::CanonicalDeBruijnHashMapParamsMurmur >
 using count_hash_debruijn_graph_map = ::bliss::debruijn::graph::debruijn_graph_map<Kmer,
 		::bliss::debruijn::graph::compact_multi_biedge<typename Kmer::KmerAlphabet, Count>,
-		 ::bliss::debruijn::CanonicalDeBruijnHashMapParams>;
+		MapParams>;
 
 } // namespace graph
 }/*debruijn*/
