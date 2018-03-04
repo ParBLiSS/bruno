@@ -97,10 +97,11 @@ namespace bliss {
         class minimizer {
           protected:
             mutable uint8_t temp[16];
-            const __m128i mask;
+            const __m128i mask, ones;
           public:
 
-            minimizer() : mask(_mm_setr_epi16(0x0, 0x0, 0x0, 0xFFFF, 0x0, 0x0, 0x0, 0xFFFF)) {}
+            minimizer() : mask(_mm_setr_epi16(0x0, 0x0, 0x0, 0xFFFF, 0x0, 0x0, 0x0, 0xFFFF)),
+			ones(_mm_setr_epi32(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF)) {}
 
             //  leverages the 2 lanes for offsets, each lane loads a 1 byte offset pair.
             // since shift operation introduces 0, we negate first (min->max), shift, negate (max->min) then take the min operation.
@@ -121,30 +122,20 @@ namespace bliss {
               
               // next start iterating.  3 uint16_t each iteration, 2 offsets at a time, so shifting by 6 bytes at a time.
               __m128i curr, total;
-#if defined(__INTEL_COMPILER)
-  #pragma warning push
-  #pragma warning disable 592
-#else  // last one is gcc, since everyone defines __GNUC__
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Wuninitialized"
-#endif
-              total = _mm_cmpeq_epi8(curr, curr);  // set total with all 1 bit.
-#if defined(__INTEL_COMPILER)
-  #pragma warning pop
-#else  // last one is gcc, since everyone defines __GNUC__
-  #pragma GCC diagnostic pop
-#endif
+		total = ones;
 
+//		std::cout << "total init: " << _mm_cvtsi128_si64(total) << std::endl;
               // 31-mer or smaller. the highest 2 bytes in each 64bit lane will not correspond to any usable bits.
               // we can iterate just once.
               // at exactly 32-mer, we'd need another iteration, and rely on the 0xFF of the rest of the register, so use the other version
                 // load the data.
                 memset(temp, 0xFF, 16);  // for the case where there is partial fill
                 memcpy(&(temp[0]), data, std::min(8U, Kmer::nBytes));
-                memcpy(&(temp[1]), data + 1, std::min(8U, Kmer::nBytes - 1U));
+                memcpy(&(temp[8]), data + 1, std::min(8U, Kmer::nBytes - 1U));
                 // load the values
                 curr = _mm_lddqu_si128(reinterpret_cast<__m128i *>(temp));
 
+//		std::cout << "curr low: " << *(reinterpret_cast<size_t*>(temp)) << " hi: " << *(reinterpret_cast<size_t*>(temp + 8)) << std::endl;
                 // we load into the 2 lanes 64 bits that are shifted by 1 byte because 
                 // we have to shift in zeros, which makes the results of the last short inaccurate.
                 //  but we can reprocess this byte later.  we avoid more complex shift.
@@ -163,7 +154,10 @@ namespace bliss {
               
               // hmin
               __m128i res = _mm_minpos_epu16(total);
-              
+             
+
+//	    std::cout << "kmer: " << kmer << " copy " << k0 << " minimizer " << (_mm_cvtsi128_si32(res) & 0xFFFF) << " at pos " << (_mm_cvtsi128_si32(res) >> 16) << std::endl;
+// 		printf("minimizer %u at pos %u\n", (_mm_cvtsi128_si32(res) & 0xFFFF), (_mm_cvtsi128_si32(res) >> 16));
               // lower 32 bit has the position and value (lowest 16 bit). should always be unsigned
               return static_cast<uint32_t>(_mm_cvtsi128_si32(res)) & static_cast<uint16_t>(0xFFFF);  
             }
@@ -181,20 +175,7 @@ namespace bliss {
               
               // next start iterating.  3 uint16_t each iteration, 2 offsets at a time, so shifting by 6 bytes at a time.
               __m128i curr, total;
-#if defined(__INTEL_COMPILER)
-  #pragma warning push
-  #pragma warning disable 592
-#else  // last one is gcc, since everyone defines __GNUC__
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Wuninitialized"
-#endif
-              total = _mm_cmpeq_epi8(curr, curr);  // set total with all 1 bit.
-#if defined(__INTEL_COMPILER)
-  #pragma warning pop
-#else  // last one is gcc, since everyone defines __GNUC__
-  #pragma GCC diagnostic pop
-#endif
-
+		total = ones;
 
               // 32-mer or larger. the highest 2 bytes in each 64bit lane will not correspond to any usable bits.
               for (unsigned int i = 0; i < Kmer::nBytes; ) {
@@ -203,7 +184,7 @@ namespace bliss {
                 memcpy(&(temp[0]), data + i, std::min(8U, Kmer::nBytes - i));
                 i+=6;
                 if (Kmer::nBytes > i) {
-                  memcpy(&(temp[1]), data + i, std::min(8U, Kmer::nBytes - i));
+                  memcpy(&(temp[8]), data + i, std::min(8U, Kmer::nBytes - i));
                   i+=6;
                 }
                 // load the values
@@ -244,19 +225,7 @@ namespace bliss {
               
               // next start iterating.  3 uint16_t each iteration, 2 offsets at a time, so shifting by 6 bytes at a time.
               __m128i curr, total;
- #if defined(__INTEL_COMPILER)
-  #pragma warning push
-  #pragma warning disable 592
-#else  // last one is gcc, since everyone defines __GNUC__
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Wuninitialized"
-#endif
-              total = _mm_cmpeq_epi8(curr, curr);  // set total with all 1 bit.
-#if defined(__INTEL_COMPILER)
-  #pragma warning pop
-#else  // last one is gcc, since everyone defines __GNUC__
-  #pragma GCC diagnostic pop
-#endif
+		total = ones;
 
               // 31-mer or smaller. the highest 2 bytes in each 64bit lane will not correspond to any usable bits.
               // we can iterate just once.
@@ -264,7 +233,7 @@ namespace bliss {
                 // load the data.
                 memset(temp, 0xFF, 16);  // for the case where there is partial fill
                 memcpy(&(temp[0]), data, std::min(8U, Kmer::nBytes));
-                memcpy(&(temp[1]), data + 1, std::min(8U, Kmer::nBytes - 1U));
+                memcpy(&(temp[8]), data + 1, std::min(8U, Kmer::nBytes - 1U));
                 // load the values
                 curr = _mm_lddqu_si128(reinterpret_cast<__m128i *>(temp));
 
@@ -300,19 +269,7 @@ namespace bliss {
               
               // next start iterating.  3 uint16_t each iteration, 2 offsets at a time, so shifting by 6 bytes at a time.
               __m128i curr, total;
-  #if defined(__INTEL_COMPILER)
-  #pragma warning push
-  #pragma warning disable 592
-#else  // last one is gcc, since everyone defines __GNUC__
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Wuninitialized"
-#endif
-              total = _mm_cmpeq_epi8(curr, curr);  // set total with all 1 bit.
-#if defined(__INTEL_COMPILER)
-  #pragma warning pop
-#else  // last one is gcc, since everyone defines __GNUC__
-  #pragma GCC diagnostic pop
-#endif
+		total = ones;
 
               // 32-mer or larger. the highest 2 bytes in each 64bit lane will not correspond to any usable bits.
               for (unsigned int i = 0; i < Kmer::nBytes; ) {
@@ -321,7 +278,7 @@ namespace bliss {
                 memcpy(&(temp[0]), data + i, std::min(8U, Kmer::nBytes - i));
                 i+=6;
                 if (Kmer::nBytes > i) {
-                  memcpy(&(temp[1]), data + i, std::min(8U, Kmer::nBytes - i));
+                  memcpy(&(temp[8]), data + i, std::min(8U, Kmer::nBytes - i));
                   i+=6;
                 }
                 // load the values
@@ -433,6 +390,7 @@ namespace bliss {
           inline uint64_t operator()(const KMER & kmer) const
           {
             uint16_t minimizer = mini(kmer);
+
 
             // produces 128 bit hash.
             uint64_t h[2];
