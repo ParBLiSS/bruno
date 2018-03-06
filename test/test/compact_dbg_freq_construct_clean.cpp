@@ -545,9 +545,9 @@ struct edge_freq_filter {
 
 // deadend filter applies to chain summaries to select ones that are shorter than some length, k
 struct deadend_filter {
-	uint max_len = std::numeric_limits<uint>::max() >> 1;
+	uint max_len;
 
-	deadend_filter(uint length) : max_len(length) {}
+	deadend_filter(uint length = 1) : max_len(length) {}
 
 	template <typename SUMMARY>
 	bool operator()(SUMMARY const & x) const {
@@ -558,11 +558,12 @@ struct deadend_filter {
 // bubble filter applies to chain summaries to select paths in bubble with similar lengths, at least k  (can't be smaller than k and still be a bubble)
 // assume sorting by length. for now, just say difference is less than or equal to 1.
 struct bubble_filter {
+
 	template <typename SUMMARY>
 	bool operator()(SUMMARY const & lhs, SUMMARY const & rhs) const {	
 		uint l = std::get<4>(lhs);
 		uint r = std::get<4>(rhs);
-
+		//printf("bubble lengths l %u r %u\n", l, r );
 		return (std::max(l, r) - std::min(l, r)) <= 1;
 	}
 };
@@ -677,46 +678,47 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	}
 
 
-	{
-		//==============================================================
-		// spurious link.  if these are arising from deadend merging, then
-		// we expect higher frequencies for the common kmers than the kmers closer to the branch
-		// specifically, a sharp increase in frequency.
-		// these can be filtered node by node before chain forming.
-		spurious_link_filter spurious_link_filt;
+// 	{
+// 		// predicate is not right yet...
+// 		//==============================================================
+// 		// spurious link.  if these are arising from deadend merging, then
+// 		// we expect higher frequencies for the common kmers than the kmers closer to the branch
+// 		// specifically, a sharp increase in frequency.
+// 		// these can be filtered node by node before chain forming.
+// 		spurious_link_filter spurious_link_filt;
 
-#ifndef NDEBUG
-		// find low freq
-		BL_BENCH_START(work);
-		auto spur_links = idx.get_map().find(spurious_link_filt);
-		BL_BENCH_COLLECTIVE_END(work, "find_spur_links", spur_links.size(), comm);
+// #ifndef NDEBUG
+// 		// find low freq
+// 		BL_BENCH_START(work);
+// 		auto spur_links = idx.get_map().find(spurious_link_filt);
+// 		BL_BENCH_COLLECTIVE_END(work, "find_spur_links", spur_links.size(), comm);
 
-		BL_BENCH_START(work);
-		std::string spur_filename(out_prefix);
-		spur_filename.append("_spurious.edges");
-		print_graph_nodes(spur_filename, spur_links, comm);
-		BL_BENCH_COLLECTIVE_END(work, "print_low_freq", spur_links.size(), comm);
-#endif
+// 		BL_BENCH_START(work);
+// 		std::string spur_filename(out_prefix);
+// 		spur_filename.append("_spurious.edges");
+// 		print_graph_nodes(spur_filename, spur_links, comm);
+// 		BL_BENCH_COLLECTIVE_END(work, "print_low_freq", spur_links.size(), comm);
+// #endif
 
-		BL_BENCH_START(work);
-		idx.get_map().erase_nodes(spurious_link_filt);
-		idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
-		BL_BENCH_COLLECTIVE_END(work, "erase_spurious", idx.local_size(), comm);
+// 		BL_BENCH_START(work);
+// 		idx.get_map().erase_nodes(spurious_link_filt);
+// 		idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+// 		BL_BENCH_COLLECTIVE_END(work, "erase_spurious", idx.local_size(), comm);
 
-		BL_BENCH_START(work);
-		std::string graph_filename(out_prefix);
-		graph_filename.append("_graph.no_spurious.nodes");
-		print_graph_edge_frequencies(graph_filename, idx, comm);
-		BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
+// 		BL_BENCH_START(work);
+// 		std::string graph_filename(out_prefix);
+// 		graph_filename.append("_graph.no_spurious.nodes");
+// 		print_graph_edge_frequencies(graph_filename, idx, comm);
+// 		BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
 		
-#ifndef NDEBUG
-		BL_BENCH_START(work);
-		if (comm.rank() == 0) printf("rank 0 checking spurious links removed index\n");
-		print_edge_histogram(idx, comm);
-		check_index(idx, comm);
-		BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
-#endif
-	}
+// #ifndef NDEBUG
+// 		BL_BENCH_START(work);
+// 		if (comm.rank() == 0) printf("rank 0 checking spurious links removed index\n");
+// 		print_edge_histogram(idx, comm);
+// 		check_index(idx, comm);
+// 		BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
+// #endif
+// 	}
 
 
 
@@ -828,12 +830,12 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	}
 
 
+		edge_freq_filter edge_freq_filt;
+		deadend_filter deadend_filt(2 * KmerType::size - 1);
+		bubble_filter bubble_filt;
+
 #if defined(RECOMPACT)
 	{
-
-		edge_freq_filter edge_freq_filt;
-		deadend_filter deadend_filt(KmerType::size);
-		bubble_filter bubble_filt;
 
 		ChainGraphType old_chains(comm);
 		ChainGraphType new_chains(comm);
@@ -927,7 +929,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			// remove the deadend edges with freq smaller than some threshold
 			BL_BENCH_START(work);
 			idx.get_map().erase_edges(branch_nodes, edge_freq_filt);   // also has to meet edge frequency requirements.
-			idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+			//idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());  don't erase isolated yet.
 			BL_BENCH_COLLECTIVE_END(work, "find_deadend_branches", branch_nodes.size(), comm);
 
 			BL_BENCH_START(work);
@@ -943,7 +945,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			BL_BENCH_START(work);
 			if (comm.rank() == 0) printf("rank 0 checking deadend-removed index\n");
 			print_edge_histogram(idx, comm);
-			check_index(idx, comm);
+			// check_index(idx, comm);
 			BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
 #endif
 
@@ -988,7 +990,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 			BL_BENCH_START(work);
 			idx.get_map().erase_edges(branch_nodes, edge_freq_filt);
-			idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+			// idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());  don't erase isolated yet.
 			BL_BENCH_COLLECTIVE_END(work, "erase_bubbles", branch_nodes.size(), comm);
 
 			BL_BENCH_START(work);
@@ -1004,7 +1006,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			BL_BENCH_START(work);
 			if (comm.rank() == 0) printf("rank 0 checking bubble removed index\n");
 			print_edge_histogram(idx, comm);
-			check_index(idx, comm);
+			// check_index(idx, comm);
 			BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
 #endif
 
@@ -1015,8 +1017,10 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			
 			BL_BENCH_START(work);
 			chainmap.merge(new_chains);
+			::bliss::debruijn::topology::recompact_finalize(chainmap, comm);
+
 			old_chains.clear();
-			new_chains.make_terminal_chain_graph(old_chains);
+			new_chains.make_terminal_chain_graph(old_chains);  // exclude isolated also.
 			new_chains.clear();
 			BL_BENCH_COLLECTIVE_END(work, "merge_new_chains", chainmap.size(), comm);
 
@@ -1071,15 +1075,22 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			++iteration;
 		}
 
-		// finalize compaction
-		::bliss::debruijn::topology::recompact_finalize(chainmap, comm);
+		// don't erase the isolated - else the freq map computation would be incorrect.
+		// BL_BENCH_START(work);
+		// idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());  //now erase the isolated so we can check idx.
+		// BL_BENCH_COLLECTIVE_END(work, "finalize_idx", idx.local_size(), comm);
+
+	#ifndef NDEBUG
+		BL_BENCH_START(work);
+		if (comm.rank() == 0) printf("rank 0 checking deadend-removed index\n");
+		print_edge_histogram(idx, comm);
+		check_index(idx, comm);
+		BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
+	#endif
+
 	}
 #else
 	{
-
-		edge_freq_filter edge_freq_filt;
-		deadend_filter deadend_filt(KmerType::size);
-		bubble_filter bubble_filt;
 
 		ChainGraphType new_chains(comm);
 		chainmap.make_terminal_chain_graph(new_chains);
@@ -1101,7 +1112,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		{
 			BL_BENCH_START(work);
 			std::string chain_deadend_filename(out_prefix);
-			chain_deadend_filename.append("_deadend.summary");
+			chain_deadend_filename.append("_deadend.summary.");
 			chain_deadend_filename.append(std::to_string(0));
 			print_chain_summaries(chain_deadend_filename, deadends, comm);
 			BL_BENCH_COLLECTIVE_END(work, "print_deadend", deadends.size(), comm);
@@ -1121,12 +1132,9 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		size_t iteration = 0;
 		std::vector<std::pair<KmerType, ::bliss::debruijn::biedge::compact_simple_biedge> > branch_nodes;
 		::bliss::debruijn::biedge::compact_simple_biedge r, l;
-		std::vector<KmerType> modified;
-
+		
 		while (!done_clean) {
 			if (comm.rank()  == 0) printf("cleaning iteration %lu\n", iteration);
-
-			modified.clear();
 
 			//---------- remove deadends.
 			// extract the edges as nodes.
@@ -1139,8 +1147,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 						0, 1);
 					branch_nodes.emplace_back(std::get<0>(deadends[i]), r);
 
-					modified.emplace_back(std::get<0>(deadends[i]));
-					modified.emplace_back(std::get<1>(deadends[i]));
 				}
 				if (::bliss::debruijn::points_to_branch(std::get<6>(deadends[i]))) {
 					l.setCharsAtPos(
@@ -1149,8 +1155,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 						1, 1);			
 					branch_nodes.emplace_back(std::get<3>(deadends[i]), l);
 
-					modified.emplace_back(std::get<2>(deadends[i]));
-					modified.emplace_back(std::get<3>(deadends[i]));
 				}
 			}
 
@@ -1203,16 +1207,12 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 						KmerType::KmerAlphabet::TO_ASCII[std::get<1>(bubbles[i]).getCharsAtPos(0, 1)]],
 					0, 1);
 				branch_nodes.emplace_back(std::get<0>(bubbles[i]), r);
-				modified.emplace_back(std::get<0>(bubbles[i]));
-				modified.emplace_back(std::get<1>(bubbles[i]));
 
 				l.setCharsAtPos(
 					::bliss::common::DNA16::FROM_ASCII[
 						KmerType::KmerAlphabet::TO_ASCII[std::get<2>(bubbles[i]).getCharsAtPos(KmerType::size - 1, 1)]],
 					1, 1);			
 				branch_nodes.emplace_back(std::get<3>(bubbles[i]), l);
-				modified.emplace_back(std::get<2>(bubbles[i]));
-				modified.emplace_back(std::get<3>(bubbles[i]));
 
 			}
 
@@ -1332,7 +1332,13 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 			++iteration;
 		}
-
+#ifndef NDEBUG
+			BL_BENCH_START(work);
+			if (comm.rank() == 0) printf("rank 0 checking bubble removed index\n");
+			print_edge_histogram(idx, comm);
+			check_index(idx, comm);
+			BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
+#endif
 	}
 #endif  // RECOMPACT def
 

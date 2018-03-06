@@ -494,17 +494,21 @@ namespace topology
 			// LOCAL OP, assuming chainmap and graph have the same DISTHASH
 			::bliss::debruijn::filter::graph::IsChainNode is_chain;
 			::bliss::debruijn::to_simple_biedge<typename ChainGraph::kmer_type> to_biedge;
-			auto not_found = dbg.get_map().get_local_container().cend();
+			// auto not_found = dbg.get_map().get_local_container().cend();
+			auto c_not_found = new_chains.get_map().get_local_container().end();
 			for (auto kmer : local_modified) {
 				// kmer is canonicalized in the same way as new_chain and dbg.
 				auto it = dbg.get_map().get_local_container().find(kmer);
-				assert((it != not_found) && "modified item should always be found when searched.");
+				// if(it == not_found) {
+				//  	std::cout << "STATUS: not found, likely removed during filtering. shouldnot remove nodes. the target kmer is " << kmer << std::endl;
+				// 	 continue;
+				// } 
 				if (! is_chain(*it)) continue;
 
 				// 7. insert new chain nodes into, and update existing node if new deadend in, new ChainGraph
 				auto biedge = to_biedge(*it);
 				auto cit = new_chains.get_map().get_local_container().find(biedge.first);
-				if (cit == new_chains.get_map().get_local_container().end()) {  // does not exist. so add.
+				if (cit == c_not_found) {  // does not exist. so add.
 					new_chains.get_map().get_local_container().insert(biedge);
 				} else {  // exists, so recheck to see if edge to branch has been deleted.
 					if (bliss::debruijn::points_to_self(std::get<2>(biedge.second))) {  // if new edge points to self, then update
@@ -529,7 +533,9 @@ namespace topology
 			// after return, copy returned into chains, replacing as needed.
 	}
 
-	// update the distances and chains. to their final values.
+	// update the distances and chains. to their final values during the iteration.
+	// have to call every iteration as terminal may become internal and therefore not updated in a later iteration
+	//  logarithmic, iterations.  however, at least it's not log squared....
 	template <typename ChainGraph >
 	void recompact_finalize(ChainGraph & chains, 
 		::mxx::comm const & comm) {
@@ -570,21 +576,33 @@ namespace topology
 			//          internal->terminal - not possible.
 			//			internal->deadend - not possible unless spurious links.
 			//			internal->internal - add dist should be fine.
+			uint rdist = 0;
 			for (auto it = chains.get_map().get_local_container().begin();
 					it != end; ++it) {
-				if (! bliss::debruijn::points_to_self(std::get<2>((*it).second))) {
+				if (! bliss::debruijn::points_to_self(std::get<2>((*it).second))) {  
 					// if not deadend
 					edge_kmer = std::get<0>((*it).second);
 					auto found = res.find(edge_kmer);
 					auto found2 = res.find(edge_kmer.reverse_complement());
 					if (found != res_end) {
 						// matched.  // update left.
-						std::get<0>((*it).second) = std::get<0>((*found).second);
-						std::get<2>((*it).second) =  std::get<2>((*found).second) + bliss::debruijn::get_chain_dist(std::get<2>((*it).second)); 
+						rdist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second));
+
+						std::get<0>((*it).second) = (rdist == 0) ? (*found).first : std::get<0>((*found).second);
+						std::get<2>((*it).second) = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second)) + 
+													::bliss::debruijn::get_chain_dist(std::get<2>((*it).second)); 
+						::bliss::debruijn::mark_as_point_to_terminal(std::get<2>((*it).second));
 					} else if (found2 != res_end) {
 						// reverse complement matched.  search result is flipped.
-						std::get<0>((*it).second) = std::get<1>((*found).second).reverse_complement();
-						std::get<2>((*it).second) =  std::get<3>((*found).second) + bliss::debruijn::get_chain_dist(std::get<2>((*it).second)); 
+						rdist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found).second));
+
+						std::get<0>((*it).second) = (rdist == 0) ? (*found).first.reverse_complement() : 
+							std::get<1>((*found).second).reverse_complement();
+
+						std::get<2>((*it).second) = ::bliss::debruijn::get_chain_dist(std::get<3>((*found).second)) + 
+													::bliss::debruijn::get_chain_dist(std::get<2>((*it).second)); 
+						::bliss::debruijn::mark_as_point_to_terminal(std::get<2>((*it).second));
+
 					} else {
 						std::cout << "ERROR: not matched L: " << edge_kmer << std::endl;
 					}
@@ -596,12 +614,22 @@ namespace topology
 					auto found2 = res.find(edge_kmer.reverse_complement());
 					if (found != res_end) {
 						// matched.  // update left.
-						std::get<1>((*it).second) = std::get<1>((*found).second);
-						std::get<3>((*it).second) =  std::get<3>((*found).second) + bliss::debruijn::get_chain_dist(std::get<3>((*it).second)); 
+						rdist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found).second));
+
+						std::get<1>((*it).second) = (rdist == 0) ? (*found).first : std::get<1>((*found).second);
+						std::get<3>((*it).second) = ::bliss::debruijn::get_chain_dist(std::get<3>((*found).second)) + 
+													::bliss::debruijn::get_chain_dist(std::get<3>((*it).second)); 
+						::bliss::debruijn::mark_as_point_to_terminal(std::get<3>((*it).second));
 					} else if (found2 != res_end) {
 						// reverse complement matched.  search result is flipped.
-						std::get<1>((*it).second) = std::get<0>((*found).second).reverse_complement();
-						std::get<3>((*it).second) =  std::get<2>((*found).second) + bliss::debruijn::get_chain_dist(std::get<3>((*it).second)); 
+						rdist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second));
+
+						std::get<1>((*it).second) = (rdist == 0) ? (*found).first.reverse_complement() : 
+							std::get<0>((*found).second).reverse_complement();
+
+						std::get<3>((*it).second) = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second)) + 
+													::bliss::debruijn::get_chain_dist(std::get<3>((*it).second)); 
+						::bliss::debruijn::mark_as_point_to_terminal(std::get<3>((*it).second));
 					} else {
 						std::cout << "ERROR: not matched R: " << edge_kmer << std::endl;
 					}

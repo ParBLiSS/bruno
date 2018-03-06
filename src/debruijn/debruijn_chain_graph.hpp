@@ -1558,7 +1558,7 @@ namespace graph
 
 
 
-		// make a separate chain_graph that only has terminal chain nodes.
+		// make a separate chain_graph that only has terminal chain nodes.  exclude completely isolated nodes, but leave in unit chain nodes.(chain length of 1.)
 	   void make_terminal_chain_graph(debruijn_chain_graph<KmerType, DistHash> & termini) {
 		   // assume cycles are excluded.
 		   auto temp = this->get_terminal_nodes();

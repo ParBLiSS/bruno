@@ -122,15 +122,37 @@ namespace bliss {
 
               if (std::get<2>(y) < 0) {  // IN edge
 // commented for performance
-//                if ( ( std::get<2>(x) == 0) ||
-//                    ! ( ( ( std::get<2>(x) < 0 ) && ((dist < -(std::get<2>(x)) ) || ((dist == -(std::get<2>(x))) && (std::get<0>(y) == std::get<0>(x)))) ) ||
-//                        ( ( std::get<2>(x) > 0 ) && ((dist != std::get<2>(x) ) || ((dist == std::get<2>(x)) && (std::get<0>(y) == std::get<0>(x)))) )) )
-//                {
-//
-//                  std::cout << "NEW:\tin dist " << std::get<1>(y) << " kmer: " << ::bliss::utils::KmerUtils::toASCIIString(std::get<0>(y)) << std::endl;
-//                  std::cout << "\tin dist " << std::get<2>(x) << " kmer: " << ::bliss::utils::KmerUtils::toASCIIString(std::get<0>(x)) << std::endl;
-//                  std::cout << "\tout dist " << std::get<3>(x) << " kmer: " << ::bliss::utils::KmerUtils::toASCIIString(std::get<1>(x)) << std::endl;
-//                }
+                uint distx = ::bliss::debruijn::get_chain_dist(std::get<2>(x));
+
+              //  if (!( 
+              //    ( ::bliss::debruijn::points_to_terminal(std::get<2>(x)) && 
+              //             ( (dist < distx ) || 
+              //               ( (dist == distx ) &&
+              //                 (std::get<0>(y) == std::get<0>(x) )
+              //               )
+              //             ) 
+              //           ) ||
+              //           ( ::bliss::debruijn::points_to_chain_node(std::get<2>(x)) && 
+              //             ( (dist != distx ) ||
+              //               ( (dist == distx ) &&
+              //                 (std::get<0>(y) == std::get<0>(x))
+              //               )
+              //             )
+              //           )
+              //   ))
+              //  {
+
+              //    std::cout << "NEW:\tin dist " << dist << " points to terminal ? " << 
+              //     (::bliss::debruijn::points_to_terminal(std::get<2>(y)) ? "Y" : "N") << 
+              //     " kmer: " << std::get<0>(y) << std::endl;
+              //    std::cout << "\tin dist " << distx <<  " points to terminal ? " << 
+              //    (::bliss::debruijn::points_to_terminal(std::get<2>(x)) ? "Y" : "N") << 
+              //     " kmer: " << std::get<0>(x) << std::endl;
+              //    std::cout << "\tout dist " << ::bliss::debruijn::get_chain_dist(std::get<3>(x)) << 
+              //     " points to terminal ? " << 
+              //    (::bliss::debruijn::points_to_terminal(std::get<3>(x)) ? "Y" : "N") << 
+              //     " kmer: " << std::get<1>(x) << std::endl;
+              //  }
 
 
                 // some checks
@@ -141,7 +163,7 @@ namespace bliss {
  //           		std::cout << "L end: " << x << " update " << y << std::endl;
    //         	}
 //
-                uint distx = ::bliss::debruijn::get_chain_dist(std::get<2>(x));
+                
                 assert( distx > 0);
                 assert( ( ::bliss::debruijn::points_to_terminal(std::get<2>(x)) && 
                           ( (dist < distx ) || 
