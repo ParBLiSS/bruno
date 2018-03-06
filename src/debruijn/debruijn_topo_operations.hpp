@@ -176,6 +176,7 @@ namespace topology
 		return termini;
 	}
 	
+	// both edges are disconnected
 	template <typename ChainGraph >
 	std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> >
 	find_isolated_chains(ChainGraph const & chains) {
@@ -210,7 +211,7 @@ namespace topology
 	}
 
 
-	
+	 // chains that sit between 2 branch nodes.
 	template <typename ChainGraph >
 	std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> >
 	find_unit_chains(ChainGraph const & chains) {
@@ -419,7 +420,190 @@ namespace topology
 	// }
 
 
+	/** recompact chain after dbg modification.   modified is distributed so need to be moved around.  list ranking is distributed. rest are local
+	 * @param graph		dbg, already modified.
+	 * @param modified  nodes recently modified in dbg, should include both branch and the previous termini.  need to generate.  distributed.
+	 * @param chains	original COMPACTED chains.  ASSUME TO HAVE SAME DISTHASH AS DBG
+	 * @return			newly re-compacted chains with compressed nodes (chain termini from chains).  has additional nodes from modified graph 
+	 * 
+	 * 					merge the generated (from original chainmap's termini, and then some) with the origin chainmap
+	 * 					use the generated in the next iteration of filtering and re-compaction.
+	 * 					after all iterations, do a finalize round that updates the original chainmaps (collection of all chain nodes now) to the new distances.
+	 * 
+	 * 					need to get the modified graph node's kmers.
+	 */
+	template <typename Graph, typename ChainGraph >
+	ChainGraph
+	recompact(Graph const & dbg, 
+		std::vector<typename ChainGraph::kmer_type> const & modified,
+		ChainGraph const & chains, 
+		::mxx::comm const & comm) {
 
+			// 1. create new instance of ChainGraph
+			ChainGraph new_chains;
+
+			// 2. get the termini, reset the distance to not mark as pointing to terminal
+			// 3. insert all termini locally (because kmer already partitioned, and same hash function).
+			// LOCAL
+			{
+				auto termini = chains.get_terminal_nodes();
+				uint dist;
+				for (auto terminus : termini) {
+					if (::bliss::debruijn::points_to_self(std::get<2>(terminus.second)) &&
+					::bliss::debruijn::points_to_self(std::get<3>(terminus.second)) ) continue;  // skip isolated.
+
+					dist = std::get<2>(terminus.second);
+					if (bliss::debruijn::points_to_branch(dist)) {
+						std::get<2>(terminus.second) = 1;
+					} else if (bliss::debruijn::points_to_terminal(dist)) {
+						std::get<2>(terminus.second) = bliss::debruijn::get_chain_dist(dist);
+					}  // else if pointing to compacted chain or self, leave as is.
+					dist = std::get<3>(terminus.second);
+					if (bliss::debruijn::points_to_branch(dist)) {
+						std::get<3>(terminus.second) = 1;
+					} else if (bliss::debruijn::points_to_terminal(dist)) {
+						std::get<3>(terminus.second) = bliss::debruijn::get_chain_dist(dist);
+					}  // else if pointing to compacted chain or self, leave as is.
+					new_chains.get_map().get_local_container().insert(terminus)
+				}
+			}		
+			
+			// move ids of modified nodes.
+			std::vector<typename ChainGraph::kmer_type> local_modified;
+			{
+				// 4. transform the modified to canonical.
+				std::vector<typename ChainGraph::kmer_type> temp;
+				dbg.transform_input(modified, temp);
+			
+				// 5. distribute the modified vertex identifiers so access is local.
+				::std::vector<size_t> recv_counts;
+	
+				::imxx::distribute(temp, dbg.key_to_rank, recv_counts, local_modified, comm);
+			}
+
+			// 6. get modified nodes from graph.  modifications may be branch->branch, branch->chain, branch->deadend, chain->deadend
+			// 		chain->deadend involves update existing, because these must be formerly termini.
+			//		branch->chain/deadend involves inserting new chain nodes.
+			//      branch->branch can be filtered out.
+			// LOCAL OP, assuming chainmap and graph have the same DISTHASH
+			::bliss::debruijn::filter::graph::IsChainNode is_chain;
+			::bliss::debruijn::to_simple_biedge<KmerType> to_biedge;
+			auto not_found = dbg.get_map().get_local_container().cend();
+			for (auto kmer : local_modified) {
+				// kmer is canonicalized in the same way as new_chain and dbg.
+				auto it = dbg.get_map().get_local_container().find(kmer);
+				assert((it != not_found) && "modified item should always be found when searched.");
+				if (! is_chain(*it)) continue;
+
+				// 7. insert new chain nodes into, and update existing node if new deadend in, new ChainGraph
+				auto biedge = to_biedge(mod);
+				auto cit = new_chain.get_map().get_local_container().find(biedge.first);
+				if (cit == new_chain.get_map().get_local_container().end()) {  // does not exist. so add.
+					new_chain.get_map().get_local_container().insert(biedge);
+				} else {  // exists, so recheck to see if edge to branch has been deleted.
+					if (bliss::debruijn::points_to_self(std::get<2>(biedge.second))) {  // if new edge points to self, then update
+						std::get<0>((*cit).second) = std::get<0>(biedge.second));
+						std::get<2>((*cit).second) = std::get<2>(biedge.second));
+					}  // else leave the distance as is.
+					if (bliss::debruijn::points_to_self(std::get<3>(biedge.second))) {  // if new edge points to self, then update
+						std::get<1>((*cit).second) = std::get<1>(biedge.second));
+						std::get<3>((*cit).second) = std::get<3>(biedge.second));
+					}  // else leave the distance as is.
+				}
+			}
+
+			// 6. do terminal update in ChainGraph using branch vertices from graph.
+			new_chains.setup_chain_termini(dbg);   // distributed (query may be faster than scan inside this function.)
+
+			// 7. call recompact on new ChainGraph
+			new_chains.list_rank2();    // distributed
+
+			// 8. return new compacted chain graph.
+			return new_chains;
+			// after return, copy returned into chains, replacing as needed.
+	}
+
+	// update the distances and chains. to their final values.
+	template <typename ChainGraph >
+	void recompact_finalize(ChainGraph & chains, 
+		::mxx::comm const & comm) {
+			// TODO MAYBE: do left and right separately to limit memory usage.
+
+			// setup query for all left kmers
+			std::vector<typename ChainGraph::kmer_type> edge_kmers;
+			edge_kmers.reserve(chains.local_size() * 2);
+
+			auto end = chains.get_map().get_local_container().end();
+			for (auto it = chains.get_map().get_local_container().begin();
+					it != end; ++it) {
+				if (! bliss::debruijn::points_to_self(std::get<2>((*it).second))) {
+					// if not deadend
+					edge_kmers.emplace_back(std::get<0>((*it).second));
+				}
+				if (! bliss::debruijn::points_to_self(std::get<3>((*it).second))) {
+					// if not deadend
+					edge_kmers.emplace_back(std::get<1>((*it).second));
+				}
+			}
+
+			// query and insert results into a local hash table.
+			typename ChainGraph::map_type::local_container_type res;
+			{
+				auto results = chains.find(edge_kmers);
+
+				// insert results into a local hash table
+				res.insert(results);
+			}
+
+			// if left kmer is same, update left.  else (reverse complement) update right.
+			typename ChainGraph::kmer_type edge_kmer;
+			auto res_end = res.end();
+			// cases:  deadend - should remain a deadend.
+			// 			terminal->terminal - dists are 0.  fine.
+			//			terminal->internal - add 0 dist, fine
+			//          internal->terminal - not possible.
+			//			internal->deadend - not possible unless spurious links.
+			//			internal->internal - add dist should be fine.
+			for (auto it = chains.get_map().get_local_container().begin();
+					it != end; ++it) {
+				if (! bliss::debruijn::points_to_self(std::get<2>((*it).second))) {
+					// if not deadend
+					edge_kmer = std::get<0>((*it).second);
+					auto found = res.find(edge_kmer);
+					auto found2 = res.find(edge_kmer.reverse_complement());
+					if (found != res_end) {
+						// matched.  // update left.
+						std::get<0>((*it).second) = std::get<0>((*found).second);
+						std::get<2>((*it).second) =  std::get<2>((*found).second) + bliss::debruijn::get_chain_dist(std::get<2>((*it).second)); 
+					} else if (found2 != res_end) {
+						// reverse complement matched.  search result is flipped.
+						std::get<0>((*it).second) = std::get<1>((*found).second).reverse_complement();
+						std::get<2>((*it).second) =  std::get<3>((*found).second) + bliss::debruijn::get_chain_dist(std::get<2>((*it).second)); 
+					} else {
+						std::cout << "ERROR: not matched L: " << edge_kmer << std::endl;
+					}
+				}
+				if (! bliss::debruijn::points_to_self(std::get<3>((*it).second))) {
+					// if not deadend
+					edge_kmer = std::get<1>((*it).second);
+					auto found = res.find(edge_kmer);
+					auto found2 = res.find(edge_kmer.reverse_complement());
+					if (found != res_end) {
+						// matched.  // update left.
+						std::get<1>((*it).second) = std::get<1>((*found).second);
+						std::get<3>((*it).second) =  std::get<3>((*found).second) + bliss::debruijn::get_chain_dist(std::get<3>((*it).second)); 
+					} else if (found2 != res_end) {
+						// reverse complement matched.  search result is flipped.
+						std::get<1>((*it).second) = std::get<0>((*found).second).reverse_complement();
+						std::get<3>((*it).second) =  std::get<2>((*found).second) + bliss::debruijn::get_chain_dist(std::get<3>((*it).second)); 
+					} else {
+						std::cout << "ERROR: not matched R: " << edge_kmer << std::endl;
+					}
+				}
+			}
+
+	}
+	
 
 } // ns: graph
 
