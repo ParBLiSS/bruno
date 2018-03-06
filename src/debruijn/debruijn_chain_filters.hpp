@@ -78,6 +78,10 @@ namespace bliss {
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
               return ::bliss::debruijn::is_chain_terminal(std::get<2>(t.second)) || ::bliss::debruijn::is_chain_terminal(std::get<3>(t.second));
             }
+            template <typename Iter>
+            inline bool operator()(Iter it) const {
+            	return operator()(*it);
+            }
         };
 
 
@@ -230,6 +234,7 @@ namespace bliss {
                          (::bliss::debruijn::get_chain_dist(std::get<3>(t.second)) == max_distance)
                       );  // not both are at max_distance.
             }
+            
         };
 
 

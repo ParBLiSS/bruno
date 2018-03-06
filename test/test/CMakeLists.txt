@@ -206,6 +206,24 @@ foreach(k 21 51 55 63)
 
 endforeach(k)
 
+foreach(k 31)
+
+    #no DNA5 - fails when searching for matching kmers.
+    foreach(dna 4)
+        add_executable(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_clean compact_dbg_freq_construct_clean.cpp)
+        SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_clean
+            PROPERTIES COMPILE_FLAGS "-DpDNA=${dna} -DpPARSER=FASTQ -DpK=${k}")
+        target_link_libraries(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_clean ${EXTRA_LIBS})
+
+        add_executable(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_clean_recompact compact_dbg_freq_construct_clean.cpp)
+        SET_TARGET_PROPERTIES(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_clean_recompact
+            PROPERTIES COMPILE_FLAGS "-DpDNA=${dna} -DpPARSER=FASTQ -DpK=${k} -DRECOMPACT")
+        target_link_libraries(compact_debruijn_graph_fastq_A${dna}_K${k}_freq_clean_recompact ${EXTRA_LIBS})
+
+    endforeach(dna)
+
+endforeach(k)
+
 
 endif(BUILD_EXAMPLE_APPLICATIONS)
 

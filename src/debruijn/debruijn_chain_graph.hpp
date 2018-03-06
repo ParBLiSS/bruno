@@ -452,75 +452,78 @@ namespace graph
 
 		template <typename C>
 		void setup_chain_termini(::bliss::debruijn::graph::debruijn_graph<KmerType, C, DistHash> const & idx) {
-				// allocate input
-				//==  BATCHED version
-				std::vector<std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > > all_neighbors;
+			// allocate input
+			//==  BATCHED version
+			std::vector<std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > > all_neighbors;
+			
+			std::vector<KmerType> neighbors;
+			neighbors.reserve(6); // ACGTN.
 
-				// estimate the largest amount of memory to use.
-				unsigned long free_mem = ::utils::get_free_mem_per_proc(comm);
+			// estimate the largest amount of memory to use.
+			unsigned long free_mem = ::utils::get_free_mem_per_proc(comm);
 
-				// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
-				size_t step = (free_mem / (8 * sizeof(std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > )));  // number of elements that can be held in freemem
-				step = std::max(std::min(step, idx.local_size()), static_cast<size_t>(1));
+			// use 1/8 of space, local 1x, remote 1x, insert 1x, rest is just to be conservative.  this is assuming input is evenly distributed.
+			size_t step = (free_mem / (8 * sizeof(std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > )));  // number of elements that can be held in freemem
+			step = std::max(std::min(step, idx.local_size()), static_cast<size_t>(1));
 
-				if (comm.rank() == 0) std::cout << "estimate num chain terminal updates=" << step << ", value_type size=" <<
-						sizeof(std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > ) << " bytes" << std::endl;
+			if (comm.rank() == 0) std::cout << "estimate num chain terminal updates=" << step << ", value_type size=" <<
+					sizeof(std::pair<KmerType, bliss::debruijn::operation::chain::terminus_update_md<KmerType> > ) << " bytes" << std::endl;
 
 
-				// 8 possible edges, so split the thing into 8 parts to bound the memory usage to about N.  lower in practice
-				//size_t step = idx.size() / this->comm.size() / 8;
-				//if (step == 0) step = this->comm.size();
-				// size_t step = 1000000;
-				all_neighbors.reserve(step);   // do in steps of 1000000
-				size_t nsteps = (idx.local_size() + step - 1) / step;
-				nsteps = mxx::allreduce(nsteps, [](size_t const & x, size_t const & y){
-					return std::max(x, y);
-				}, comm);
+			// 8 possible edges, so split the thing into 8 parts to bound the memory usage to about N.  lower in practice
+			//size_t step = idx.size() / this->comm.size() / 8;
+			//if (step == 0) step = this->comm.size();
+			// size_t step = 1000000;
+			all_neighbors.reserve(step);   // do in steps of 1000000
+			size_t nsteps = (idx.local_size() + step - 1) / step;
+			nsteps = mxx::allreduce(nsteps, [](size_t const & x, size_t const & y){
+				return std::max(x, y);
+			}, comm);
 
-				auto iter = idx.cbegin();
-				auto end = idx.cend();
-				::bliss::debruijn::filter::graph::IsBranchPoint is_branch;
-				::bliss::debruijn::operation::chain::terminus_update<KmerType> updater;
-				size_t count = 0;
+			auto iter = idx.cbegin();
+			auto end = idx.cend();
+			::bliss::debruijn::filter::graph::IsBranchPoint is_branch;
+			::bliss::debruijn::operation::chain::terminus_update<KmerType> updater;
+			size_t count = 0;
 
-				for (size_t s = 0; s < nsteps; ++s) {
+			for (size_t s = 0; s < nsteps; ++s) {
 
-					all_neighbors.clear();
+				all_neighbors.clear();
 
-					// TODO: CONVERT TO USING filter_transform_iterator?
+				// TODO: CONVERT TO USING filter_transform_iterator?
 
-					// extract neighbors of branches
-					for (size_t i = 0; (i < step) && (iter != end); ++i, ++iter) {
-						// compute the chain rep
-						if (!is_branch(*iter)) continue;
-						auto t = *iter;
+				// extract neighbors of branches
+				for (size_t i = 0; (i < step) && (iter != end); ++i, ++iter) {
+					// compute the chain rep
+					if (!is_branch(*iter)) continue;
+					auto t = *iter;
 
-						neighbors.clear();
-						t.second.get_out_neighbors(t.first, neighbors);
-						for (auto n : neighbors) {  // OUT neighbor is used as IN edge
-							// insert as is.  let lex_less handle flipping it.
-							all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
-							
-							// NOT NEEDED - n is same as t.first, which is not a chain node so should not need to be updated.  // HANDLE k1 PALINDROME
-							// if (n.reverse_complement() == t.first) 
-							// 	all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
-						}
-
-						neighbors.clear();
-						t.second.get_in_neighbors(t.first, neighbors);
-						for (auto n : neighbors) {  // IN neighbor is used as OUT edge
-							// insert as is.  let lex_less handle flipping it.
-							all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
-
-							// NOT NEEDED - n is same as t.first, which is not a chain node so should not need to be updated. // HANDLE k1 PALINDROME
-							// if (n.reverse_complement() == t.first) 
-							// 	all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
-						}
+					neighbors.clear();
+					t.second.get_out_neighbors(t.first, neighbors);
+					for (auto n : neighbors) {  // OUT neighbor is used as IN edge
+						// insert as is.  let lex_less handle flipping it.
+						all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
+						
+						// NOT NEEDED - n is same as t.first, which is not a chain node so should not need to be updated.  // HANDLE k1 PALINDROME
+						// if (n.reverse_complement() == t.first) 
+						// 	all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
 					}
 
-					// update the internal nodes.  only ones in chainmap are affected (no insertion)
-					count += map.update(all_neighbors, false, updater );  // collective comm
+					neighbors.clear();
+					t.second.get_in_neighbors(t.first, neighbors);
+					for (auto n : neighbors) {  // IN neighbor is used as OUT edge
+						// insert as is.  let lex_less handle flipping it.
+						all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::OUT));
+
+						// NOT NEEDED - n is same as t.first, which is not a chain node so should not need to be updated. // HANDLE k1 PALINDROME
+						// if (n.reverse_complement() == t.first) 
+						// 	all_neighbors.emplace_back(n, bliss::debruijn::operation::chain::terminus_update_md<KmerType>(t.first, bliss::debruijn::operation::IN));
+					}
 				}
+
+				// update the internal nodes.  only ones in chainmap are affected (no insertion)
+				count += map.update(all_neighbors, false, updater );  // collective comm
+			}
 
 //				// ======= VERSION THAT IS NOT BATCHED.
 //				//=== find branching nodes. local computation.
@@ -573,9 +576,6 @@ namespace graph
 			if (total_idx_size == 0) return;
 
 			BL_BENCH_INIT(chain);
-
-			std::vector<KmerType> neighbors;
-			neighbors.reserve(6); // ACGTN.
 
 	          if (comm.rank() == 0) {
 	        	  std::cout << "SIZES simple biedge size: " << sizeof(::bliss::debruijn::simple_biedge<KmerType>) <<
@@ -670,16 +670,6 @@ namespace graph
 		size_t reseparate_cycles(size_t iterations) {
 			return 0;
 		}
-
-
-		/// list ranking function dispatch
-	   void list_rank_dispatch() {
-		   if (modified) {
-			   if (listranked) list_rerank();  // call rerank only if we previously listranked, and then modified the map.
-			   else list_rank_min_update();  // if not listranked and modified.
-		   }  // else not modified, so nothing to do.
-	   }
-
 
 
 	   /**
@@ -1409,7 +1399,7 @@ namespace graph
 					} else {
 
 						all_compacted = (count == 0) || (terminal_count == 0);
-						if (!all_compacted) printf("rank %d iter %lu updated %lu, unfinished %lu internal chain nodes %lu\n", comm.rank(), iterations, count, unfinished.size(), cycle_node_count);
+						if (!all_compacted) printf("rank %d iter %lu updated %lu, unfinished %lu terminals of unfinished chains %lu\n", comm.rank(), iterations, count, unfinished.size(), terminal_count);
 					}
 					all_compacted = ::mxx::all_of(all_compacted, comm);
 
@@ -1457,6 +1447,14 @@ namespace graph
 					map.get_local_container().insert((*it));
 				}
 			}
+
+			// merge the cycle nodes
+			it = other.cycle_nodes.get_local_container().cbegin();
+			end = other.cycle_nodes.get_local_container().cend();
+			for (; it != end; ++it) {
+				cycle_nodes.get_local_container().insert(*it);
+			}
+
 		}
 
 	   //====== OUTPUT....
@@ -1561,21 +1559,15 @@ namespace graph
 
 
 		// make a separate chain_graph that only has terminal chain nodes.
-	   debruijn_chain_graph<KmerType> make_terminal_chain_graph() {
+	   void make_terminal_chain_graph(debruijn_chain_graph<KmerType, DistHash> & termini) {
 		   // assume cycles are excluded.
-
-			debruijn_chain_graph<KmerType> termini;
-			termini.insert(this->get_terminal_nodes(), ::bliss::transform::identity<mutable_value_type>(), true);  // local insert only.
-
-			return termini;
+		   auto temp = this->get_terminal_nodes();
+			termini.get_map().get_local_container().insert(temp);  // local insert only.
 	   }
-		debruijn_chain_graph<KmerType> make_representative_chain_graph() {
+		void make_representative_chain_graph(debruijn_chain_graph<KmerType, DistHash> & reps) {
 		   // assume cycles are excluded.
-
-			debruijn_chain_graph<KmerType> reps;
-			reps.insert(this->get_chain_representatives(), ::bliss::transform::identity<mutable_value_type>(), true);  // local insert only.
-
-			return reps;
+		   auto temp = this->get_chain_representatives();
+			reps.get_map().get_local_container().insert(temp); //, ::bliss::transform::identity<mutable_value_type>(), true);  // local insert only.
 	   }
 
 	/**

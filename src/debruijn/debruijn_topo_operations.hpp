@@ -143,9 +143,9 @@ namespace topology
 	 * @brief return a vector of chain terminals from deadends.  isolated chain nodes are ignored as they are NOT deadends.
 	 * 		
 	 */
-	template <typename ChainGraph >
+	template <typename ChainGraph, typename Predicate >
 	std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> >
-	find_deadends(ChainGraph const & chains) {
+	find_deadends(ChainGraph const & chains, Predicate const & pred) {
 		// Question: what is the "next" for a deadend terminal node?
 			// in chain graph, AAAAAA with dist 0.
 			// may be confused with true AAAAAA branch?  yes. (although in reality not too many of those)
@@ -168,8 +168,8 @@ namespace topology
 		// iterate over all termini to summarize deadend chains
 		// then scan to locate deadends.  we must have a start and an end.  compact in place.  isolated are ignored.
 		auto end = std::partition(termini.begin(), termini.end(),
-			[](::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> const & x){
-				return (std::get<5>(x) > 0) ^ (std::get<6>(x) > 0);  // at least one edge pointing to self (5. 6).  length can be 1.
+			[&pred](::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> const & x){
+				return pred(x) && ((std::get<5>(x) > 0) ^ (std::get<6>(x) > 0));  // at least one edge pointing to self (5. 6).  length can be 1.
 		});
 		termini.erase(end, termini.end());
 		
@@ -288,9 +288,9 @@ namespace topology
 	 * @brief return a vector of chain terminals from bubbles. 
 	 * 		note that bubble lengths will be at least k for alternate paths to form bubbles
 	 */
-	template <typename ChainGraph >
+	template <typename ChainGraph, typename Predicate >
 	std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> >
-	find_bubbles(ChainGraph const & chains, ::mxx::comm const & comm) {
+	find_bubbles(ChainGraph const & chains, Predicate const & pred, ::mxx::comm const & comm) {
 		// need to bring termini of the same chain together first in order to get the branches.
 		// do this with sort by chain rep, then filter, then sort by the branches, and filter again.
 
@@ -331,13 +331,14 @@ namespace topology
 				}
 			}
 
-			// now sort by 5' branch, then by 3' branch
+			// now sort by 5' branch, then by 3' branch, and finally by length
 			mxx::sort(termini.begin(), termini.end(),
 				[](::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> const & lhs,
 					::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> const & rhs){
 					// get chain representatives, then compare.
 					return (std::get<0>(lhs) < std::get<0>(rhs)) || 
-							((std::get<0>(lhs) == std::get<0>(rhs)) && (std::get<3>(lhs) < std::get<3>(rhs)));
+							((std::get<0>(lhs) == std::get<0>(rhs)) && (std::get<3>(lhs) < std::get<3>(rhs))) ||
+							((std::get<0>(lhs) == std::get<0>(rhs)) && (std::get<3>(lhs) == std::get<3>(rhs)) && (std::get<4>(lhs) < std::get<4>(rhs)));
 			}, subcomm);
 
 
@@ -361,16 +362,18 @@ namespace topology
 				mxx::all2allv(termini.data(), send_counts, subcomm);
 			termini.insert(termini.end(), extras.begin(), extras.end());  // order should be maintained.
 
-			// then scan and keep only bubble entries, regardless of chain lengths.
+			// then scan and keep only bubble entries,  ignore length first.
 			// start with i-th entry.
 			size_t insert_at = 0;
 			i = send_counts[splitter.second];  // these have been sent away.
-			::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> first = termini[i];
+			::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> prev = termini[i];
 			size_t first_i = i;
 			++i;
 			for (; i < termini.size(); ++i) {
-				if ((std::get<0>(first) == std::get<0>(termini[i])) &&
-					(std::get<3>(first) == std::get<3>(termini[i]))) {
+				if ((std::get<0>(prev) == std::get<0>(termini[i])) &&
+					(std::get<3>(prev) == std::get<3>(termini[i])) &&
+					pred(prev, termini[i])) {
+						prev = termini[i];
 					continue;
 				}  // search until different.
 
@@ -381,7 +384,7 @@ namespace topology
 					}
 				}
 
-				first = termini[i];
+				prev = termini[i];
 				first_i = i;
 			}
 			// handle the last part.
@@ -393,6 +396,9 @@ namespace topology
 			}
 			// clear out the remainder.
 			termini.erase(termini.begin() + insert_at, termini.end());
+
+			// now filter successive entries based on user criteria
+
 		}
 
 		return termini;
@@ -433,14 +439,14 @@ namespace topology
 	 * 					need to get the modified graph node's kmers.
 	 */
 	template <typename Graph, typename ChainGraph >
-	ChainGraph
+	void
 	recompact(Graph const & dbg, 
 		std::vector<typename ChainGraph::kmer_type> const & modified,
 		ChainGraph const & chains, 
+		ChainGraph & new_chains,
 		::mxx::comm const & comm) {
 
 			// 1. create new instance of ChainGraph
-			ChainGraph new_chains;
 
 			// 2. get the termini, reset the distance to not mark as pointing to terminal
 			// 3. insert all termini locally (because kmer already partitioned, and same hash function).
@@ -464,7 +470,7 @@ namespace topology
 					} else if (bliss::debruijn::points_to_terminal(dist)) {
 						std::get<3>(terminus.second) = bliss::debruijn::get_chain_dist(dist);
 					}  // else if pointing to compacted chain or self, leave as is.
-					new_chains.get_map().get_local_container().insert(terminus)
+					new_chains.get_map().get_local_container().insert(terminus);
 				}
 			}		
 			
@@ -473,12 +479,12 @@ namespace topology
 			{
 				// 4. transform the modified to canonical.
 				std::vector<typename ChainGraph::kmer_type> temp;
-				dbg.transform_input(modified, temp);
+				dbg.get_map().transform_input(modified, temp);
 			
 				// 5. distribute the modified vertex identifiers so access is local.
 				::std::vector<size_t> recv_counts;
 	
-				::imxx::distribute(temp, dbg.key_to_rank, recv_counts, local_modified, comm);
+				::imxx::distribute(temp, dbg.get_map().get_key_to_rank(), recv_counts, local_modified, comm);
 			}
 
 			// 6. get modified nodes from graph.  modifications may be branch->branch, branch->chain, branch->deadend, chain->deadend
@@ -487,7 +493,7 @@ namespace topology
 			//      branch->branch can be filtered out.
 			// LOCAL OP, assuming chainmap and graph have the same DISTHASH
 			::bliss::debruijn::filter::graph::IsChainNode is_chain;
-			::bliss::debruijn::to_simple_biedge<KmerType> to_biedge;
+			::bliss::debruijn::to_simple_biedge<typename ChainGraph::kmer_type> to_biedge;
 			auto not_found = dbg.get_map().get_local_container().cend();
 			for (auto kmer : local_modified) {
 				// kmer is canonicalized in the same way as new_chain and dbg.
@@ -496,18 +502,18 @@ namespace topology
 				if (! is_chain(*it)) continue;
 
 				// 7. insert new chain nodes into, and update existing node if new deadend in, new ChainGraph
-				auto biedge = to_biedge(mod);
-				auto cit = new_chain.get_map().get_local_container().find(biedge.first);
-				if (cit == new_chain.get_map().get_local_container().end()) {  // does not exist. so add.
-					new_chain.get_map().get_local_container().insert(biedge);
+				auto biedge = to_biedge(*it);
+				auto cit = new_chains.get_map().get_local_container().find(biedge.first);
+				if (cit == new_chains.get_map().get_local_container().end()) {  // does not exist. so add.
+					new_chains.get_map().get_local_container().insert(biedge);
 				} else {  // exists, so recheck to see if edge to branch has been deleted.
 					if (bliss::debruijn::points_to_self(std::get<2>(biedge.second))) {  // if new edge points to self, then update
-						std::get<0>((*cit).second) = std::get<0>(biedge.second));
-						std::get<2>((*cit).second) = std::get<2>(biedge.second));
+						std::get<0>((*cit).second) = std::get<0>(biedge.second);
+						std::get<2>((*cit).second) = std::get<2>(biedge.second);
 					}  // else leave the distance as is.
 					if (bliss::debruijn::points_to_self(std::get<3>(biedge.second))) {  // if new edge points to self, then update
-						std::get<1>((*cit).second) = std::get<1>(biedge.second));
-						std::get<3>((*cit).second) = std::get<3>(biedge.second));
+						std::get<1>((*cit).second) = std::get<1>(biedge.second);
+						std::get<3>((*cit).second) = std::get<3>(biedge.second);
 					}  // else leave the distance as is.
 				}
 			}
@@ -519,7 +525,7 @@ namespace topology
 			new_chains.list_rank2();    // distributed
 
 			// 8. return new compacted chain graph.
-			return new_chains;
+
 			// after return, copy returned into chains, replacing as needed.
 	}
 

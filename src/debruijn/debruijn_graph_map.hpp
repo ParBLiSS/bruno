@@ -417,6 +417,9 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 	virtual ~debruijn_graph_map() {/*do nothing*/};
 
+	typename Base::KeyToRank get_key_to_rank() const {
+		return this->key_to_rank;
+	}
 
 	/// ====== edge and node erase and find operations.
 
@@ -842,9 +845,10 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 		template <typename Predicate>
 		void erase_nodes(Predicate const &pred) {
 			// ===  erase remote edges of the matching nodes.
-			this->erase_simple_biedges(  // distributed
-				this->get_remote_edges(
-					this->find(pred)));  // local
+			auto res = this->find(pred);  // local
+			auto res2 = this->get_remote_edges(res);
+			this->erase_simple_biedges(res2  // distributed
+				);
 
 			// remove the nodes
 			this->erase(pred);   // local.
