@@ -558,10 +558,10 @@ namespace topology
 				}
 			}
 
-			// query and insert results into a local hash table.
+			// query and insert results into a local hash table.  - results should be canonical...
 			typename ChainGraph::map_type::local_container_type res;
 			{
-				auto results = chains.find(edge_kmers);
+				auto results = chains.find(edge_kmers);  // distributed.
 
 				// insert results into a local hash table
 				res.insert(results);
@@ -577,31 +577,38 @@ namespace topology
 			//			internal->deadend - not possible unless spurious links.
 			//			internal->internal - add dist should be fine.
 			uint rdist = 0;
+			uint ldist = 0;
 			for (auto it = chains.get_map().get_local_container().begin();
 					it != end; ++it) {
 				if (! bliss::debruijn::points_to_self(std::get<2>((*it).second))) {  
 					// if not deadend
-					edge_kmer = std::get<0>((*it).second);
+//					if (comm.rank() == 0) std::cout << "L source " << (*it) << std::endl;
+ 					edge_kmer = std::get<0>((*it).second);
 					auto found = res.find(edge_kmer);
 					auto found2 = res.find(edge_kmer.reverse_complement());
+					ldist = ::bliss::debruijn::get_chain_dist(std::get<2>((*it).second));
 					if (found != res_end) {
+//						if (comm.rank() == 0) std::cout << "L dest " << (*found) << std::endl;
+
 						// matched.  // update left.
 						rdist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second));
 
 						std::get<0>((*it).second) = (rdist == 0) ? (*found).first : std::get<0>((*found).second);
-						std::get<2>((*it).second) = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second)) + 
-													::bliss::debruijn::get_chain_dist(std::get<2>((*it).second)); 
-						::bliss::debruijn::mark_as_point_to_terminal(std::get<2>((*it).second));
+						if (ldist == 0) std::get<2>((*it).second) = std::get<2>((*found).second);
+						else std::get<2>((*it).second) = 
+							::bliss::debruijn::mark_as_point_to_terminal(rdist + ldist); 
 					} else if (found2 != res_end) {
+
+//						if (comm.rank() == 0) std::cout << "L dest2 " << (*found2) << std::endl;
 						// reverse complement matched.  search result is flipped.
-						rdist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found).second));
+						rdist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found2).second));
 
-						std::get<0>((*it).second) = (rdist == 0) ? (*found).first.reverse_complement() : 
-							std::get<1>((*found).second).reverse_complement();
+						std::get<0>((*it).second) = (rdist == 0) ? (*found2).first.reverse_complement() : 
+							std::get<1>((*found2).second).reverse_complement();
 
-						std::get<2>((*it).second) = ::bliss::debruijn::get_chain_dist(std::get<3>((*found).second)) + 
-													::bliss::debruijn::get_chain_dist(std::get<2>((*it).second)); 
-						::bliss::debruijn::mark_as_point_to_terminal(std::get<2>((*it).second));
+						if (ldist == 0) std::get<2>((*it).second) = std::get<3>((*found2).second);
+						else std::get<2>((*it).second) = 
+							::bliss::debruijn::mark_as_point_to_terminal(rdist + ldist); 
 
 					} else {
 						std::cout << "ERROR: not matched L: " << edge_kmer << std::endl;
@@ -612,24 +619,29 @@ namespace topology
 					edge_kmer = std::get<1>((*it).second);
 					auto found = res.find(edge_kmer);
 					auto found2 = res.find(edge_kmer.reverse_complement());
+					ldist = ::bliss::debruijn::get_chain_dist(std::get<3>((*it).second));
 					if (found != res_end) {
+//						if (comm.rank() == 0) std::cout << "R dest " << (*found) << std::endl;
 						// matched.  // update left.
 						rdist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found).second));
 
 						std::get<1>((*it).second) = (rdist == 0) ? (*found).first : std::get<1>((*found).second);
-						std::get<3>((*it).second) = ::bliss::debruijn::get_chain_dist(std::get<3>((*found).second)) + 
-													::bliss::debruijn::get_chain_dist(std::get<3>((*it).second)); 
-						::bliss::debruijn::mark_as_point_to_terminal(std::get<3>((*it).second));
+						if (ldist == 0) std::get<3>((*it).second) = std::get<3>((*found).second);
+						else std::get<3>((*it).second) = 
+							::bliss::debruijn::mark_as_point_to_terminal(rdist + ldist); 
+
 					} else if (found2 != res_end) {
+//						if (comm.rank() == 0) std::cout << "R dest2 " << (*found2) << std::endl;
 						// reverse complement matched.  search result is flipped.
-						rdist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second));
+						rdist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found2).second));
 
-						std::get<1>((*it).second) = (rdist == 0) ? (*found).first.reverse_complement() : 
-							std::get<0>((*found).second).reverse_complement();
+						std::get<1>((*it).second) = (rdist == 0) ? (*found2).first.reverse_complement() : 
+							std::get<0>((*found2).second).reverse_complement();
 
-						std::get<3>((*it).second) = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second)) + 
-													::bliss::debruijn::get_chain_dist(std::get<3>((*it).second)); 
-						::bliss::debruijn::mark_as_point_to_terminal(std::get<3>((*it).second));
+						if (ldist == 0) std::get<3>((*it).second) = std::get<2>((*found2).second);
+						else std::get<3>((*it).second) = 
+							::bliss::debruijn::mark_as_point_to_terminal(rdist + ldist); 
+
 					} else {
 						std::cout << "ERROR: not matched R: " << edge_kmer << std::endl;
 					}
