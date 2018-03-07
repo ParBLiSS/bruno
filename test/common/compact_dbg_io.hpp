@@ -73,21 +73,26 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 	/// MPI file handle
 	MPI_File fh;
 
-	int res = MPI_File_open(comm, const_cast<char *>(filename.c_str()), MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &fh);
+	bool has_data = len > 0;
+	mxx::comm subcomm = comm.split(has_data);
+
+	if (has_data) {
+
+	int res = MPI_File_open(subcomm, const_cast<char *>(filename.c_str()), MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &fh);
 	if (res != MPI_SUCCESS) {
-		throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "open", res, comm));
+		throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "open", res, subcomm));
 	}
 
 	res = MPI_File_set_size(fh, 0);
 	if (res != MPI_SUCCESS) {
-		throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "truncate", res, comm));
+		throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "truncate", res, subcomm));
 	}
 
 	// ensure atomicity is turned off
 	MPI_File_set_atomicity(fh, 0);
 
 	// get the global offset.
-	MPI_Offset global_offset = ::mxx::exscan(len, comm);
+	MPI_Offset global_offset = ::mxx::exscan(len, subcomm);
 
 
 	int step = (0x1 << 30);
@@ -98,10 +103,10 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 	// get the maximum number of iterations
 	iterations = ::mxx::allreduce(iterations, [](int const & x, int const & y){
 		return (x >= y) ? x : y;
-	}, comm);
+	}, subcomm);
 
 #ifndef NDEBUG
-	printf("rank %d write mpiio. len %ld offset %lld step %d iterations %d\n", comm.rank(), len, global_offset, step, iterations);
+	printf("rank %d subcomm rank %d write mpiio. len %ld offset %lld step %d iterations %d\n", comm.rank(), subcomm.rank(), len, global_offset, step, iterations);
 #endif
 
 	int remainder = len;
@@ -114,30 +119,30 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 
 		res = MPI_File_write_at_all( fh, global_offset, const_cast<char*>(data), curr_step, MPI_BYTE, &stat);  /// use bytes, no endian issues.
 
-		success = ::mxx::all_of(res == MPI_SUCCESS, comm);
+		success = ::mxx::all_of(res == MPI_SUCCESS, subcomm);
 		if (!success) {
 		  MPI_File_close(&fh);
 
 		  if (res != MPI_SUCCESS)
-		    throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "write", res, stat, comm));
+		    throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "write", res, stat, subcomm));
 		}
 
 		res = MPI_Get_count(&stat, MPI_BYTE, &count);
-    success = ::mxx::all_of(res == MPI_SUCCESS, comm);
+    success = ::mxx::all_of(res == MPI_SUCCESS, subcomm);
 		if (!success) {
       MPI_File_close(&fh);
 
       if (res != MPI_SUCCESS)
-        throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "write count", res, stat, comm));
+        throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "write count", res, stat, subcomm));
 		}
 
-    success = ::mxx::all_of(count == curr_step, comm);
+    success = ::mxx::all_of(count == curr_step, subcomm);
 		if (!success) {
       MPI_File_close(&fh);
 
       if (count != curr_step) {
         std::stringstream ss;
-        ss << "ERROR in mpiio: rank " << comm.rank() << " write error. request " << curr_step << " bytes got " << count << " bytes" << std::endl;
+        ss << "ERROR in mpiio: rank " << comm.rank() << " subcomm rank " << subcomm.rank() << " write error. request " << curr_step << " bytes got " << count << " bytes" << std::endl;
 
         throw ::bliss::utils::make_exception<::bliss::io::IOException>(ss.str());
       }
@@ -150,6 +155,8 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 
 	// close the file when done.
 	MPI_File_close(&fh);
+	}
+
 }
 
 ::std::vector<::bliss::io::file_data> open_files(std::vector<std::string> const & filenames, mxx::comm const & comm, bool mpiio = false) {
