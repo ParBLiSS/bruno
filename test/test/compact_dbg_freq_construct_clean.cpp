@@ -764,7 +764,8 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		print_chain_biedges(chain_biedge_filename, chainmap, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge", chainmap.local_size(), comm);
 	}
-	{
+#endif
+	if (!benchmark) {
 		// =============================================================
 		// generate chain_summaries
 		BL_BENCH_START(work);
@@ -777,7 +778,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		print_chain_summaries(chain_summary_filename, summaries, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
 	}
-#endif
 
 	{
 		// =========== remove cycles and isolated
@@ -857,8 +857,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		BL_BENCH_COLLECTIVE_END(work, "find_bubbles", bubbles.size(), comm);
 
 
-#ifndef NDEBUG  
-		{
+	if (!benchmark)	{
 			BL_BENCH_START(work);
 			std::string chain_deadend_filename(out_prefix);
 			chain_deadend_filename.append(".chain.summary.deadend.");
@@ -873,7 +872,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			print_chain_summaries(chain_bubble_filename, bubbles, comm);
 			BL_BENCH_COLLECTIVE_END(work, "print_bubbles", bubbles.size(), comm);
 		}
-#endif
 
 		bool done_clean = (deadends.size() == 0) && (bubbles.size() == 0);
 		done_clean = mxx::all_of(done_clean, comm);
@@ -1023,12 +1021,13 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 		BL_BENCH_START(work);
 		std::string chain_biedge_filename(out_prefix);
-		chain_biedge_filename.append(".debug.chain.nodes.");
+		chain_biedge_filename.append(".debug.chainmap.termini.");
 		chain_biedge_filename.append(std::to_string(iteration));
 		print_chain_biedges(chain_biedge_filename, new_chains, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge", new_chains.local_size(), comm);
 	}
-	{
+#endif
+if (!benchmark)	{
 		// =============================================================
 		// generate chain_summaries
 		BL_BENCH_START(work);
@@ -1042,7 +1041,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		print_chain_summaries(chain_summary_filename, summaries, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
 	}
-#endif
 
 			BL_BENCH_START(work);
 			chainmap.merge(new_chains);
@@ -1084,12 +1082,13 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 		BL_BENCH_START(work);
 		std::string chain_biedge_filename(out_prefix);
-		chain_biedge_filename.append(".debug.chain.nodes.finalized.");
+		chain_biedge_filename.append(".debug.chainmap.finalized.");
 		chain_biedge_filename.append(std::to_string(iteration));
 		print_chain_biedges(chain_biedge_filename, chainmap, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge", chainmap.local_size(), comm);
 	}
-	{
+#endif
+	if (!benchmark) {
 		// =============================================================
 		// generate chain_summaries
 		BL_BENCH_START(work);
@@ -1103,7 +1102,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		print_chain_summaries(chain_summary_filename, summaries, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
 	}
-#endif
 
 			old_chains.clear();
 			new_chains.make_terminal_chain_graph(old_chains);  // exclude isolated also.
@@ -1120,7 +1118,8 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		print_chain_biedges(chain_biedge_filename, old_chains, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge", old_chains.local_size(), comm);
 	}
-	{
+#endif
+	if (!benchmark) {
 
 				BL_BENCH_START(work);
 				auto summaries = old_chains.to_summarized_chains();
@@ -1133,7 +1132,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 				print_chain_summaries(chain_summary_filename, summaries, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
 			}
-#endif
 
 
 			//---------- detect deadends and bubbles again.
@@ -1147,8 +1145,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			BL_BENCH_COLLECTIVE_END(work, "find_bubbles", bubbles.size(), comm);
 
 
-#ifndef NDEBUG  
-			{
+			if (!benchmark) {
 				BL_BENCH_START(work);
 				std::string chain_deadend_filename(out_prefix);
 				chain_deadend_filename.append(".chain.summary.deadend.");
@@ -1163,7 +1160,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 				print_chain_summaries(chain_bubble_filename, bubbles, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_bubbles", bubbles.size(), comm);
 			}
-#endif
 
 			done_clean = (deadends.size() == 0) && (bubbles.size() == 0);
 			done_clean = mxx::all_of(done_clean, comm);
@@ -1204,8 +1200,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		BL_BENCH_COLLECTIVE_END(work, "find_bubbles", bubbles.size(), comm);
 
 
-#ifndef NDEBUG  
-		{
+if (!benchmark)		{
 			BL_BENCH_START(work);
 			std::string chain_deadend_filename(out_prefix);
 			chain_deadend_filename.append(".chain.summary.deadend.");
@@ -1220,7 +1215,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			print_chain_summaries(chain_bubble_filename, bubbles, comm);
 			BL_BENCH_COLLECTIVE_END(work, "print_bubbles", bubbles.size(), comm);
 		}
-#endif
 
 		bool done_clean = (deadends.size() == 0) && (bubbles.size() == 0);
 		done_clean = mxx::all_of(done_clean, comm);
@@ -1381,12 +1375,13 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 		BL_BENCH_START(work);
 		std::string chain_biedge_filename(out_prefix);
-		chain_biedge_filename.append("debug.chain.nodes.finalized.");
+		chain_biedge_filename.append(".debug.chainmap.finalized.");
 		chain_biedge_filename.append(std::to_string(iteration));
 		print_chain_biedges(chain_biedge_filename, chainmap, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge", chainmap.local_size(), comm);
 	}
-	{
+#endif
+	if (!benchmark) {
 		// =============================================================
 		// generate chain_summaries
 		BL_BENCH_START(work);
@@ -1400,7 +1395,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		print_chain_summaries(chain_summary_filename, summaries, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
 	}
-#endif
 
 			BL_BENCH_START(work);
 			new_chains.clear();
@@ -1410,8 +1404,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			// generate chain_summaries
 
 
-#ifndef NDEBUG  
-			{
+		if (!benchmark)	{
 				BL_BENCH_START(work);
 				auto summaries = new_chains.to_summarized_chains();
 				BL_BENCH_COLLECTIVE_END(work, "chain_summaries", summaries.size(), comm);
@@ -1423,7 +1416,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 				print_chain_summaries(chain_summary_filename, summaries, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
 			}
-#endif
 
 			//---------- detect deadends and bubbles again.
 			BL_BENCH_START(work);
@@ -1436,8 +1428,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			BL_BENCH_COLLECTIVE_END(work, "find_bubbles", bubbles.size(), comm);
 
 
-#ifndef NDEBUG  
-			{
+			if (!benchmark) {
 				BL_BENCH_START(work);
 				std::string chain_deadend_filename(out_prefix);
 				chain_deadend_filename.append(".chain.summary.deadend.");
@@ -1452,7 +1443,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 				print_chain_summaries(chain_bubble_filename, bubbles, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_bubbles", bubbles.size(), comm);
 			}
-#endif
 
 			done_clean = (deadends.size() == 0) && (bubbles.size() == 0);
 			done_clean = mxx::all_of(done_clean, comm);

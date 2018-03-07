@@ -24,8 +24,8 @@ do
 # run the experiments.
 for exp in "_freq_clean" "_freq_clean_recompact" "_freq_minimizer" "_freq" "" "_incr" 
 do
-	echo "mpirun -hostfile=$PBS_NODEFILE -np $p ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -C -T -L ${t} -O ${OUTDIR}/a4_k31${exp}_chr14_L${t}.p${p} $DATA 2>&1 | tee ${OUTDIR}/a4_k31${exp}_chr14_L${t}.p${p}.log"
-	mpirun_rsh -hostfile=$PBS_NODEFILE -np $p ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -C -T -L ${t} -O ${OUTDIR}/a4_k31${exp}_chr14_L${t}.p${p} $DATA 2>&1 | tee ${OUTDIR}/a4_k31${exp}_chr14_L${t}.p${p}.log
+	echo "mpirun -hostfile=$PBS_NODEFILE -np $p ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -C -T -L ${t} -O ${OUTDIR}/a4_k31${exp}_chr14_L${t}.p${p} $DATA > ${OUTDIR}/a4_k31${exp}_chr14_L${t}.p${p}.log 2>&1"
+	mpirun_rsh -hostfile=$PBS_NODEFILE -np $p ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -C -T -L ${t} -O ${OUTDIR}/a4_k31${exp}_chr14_L${t}.p${p} $DATA > ${OUTDIR}/a4_k31${exp}_chr14_L${t}.p${p}.log 2>&1
 done
 
 # compare to base case
