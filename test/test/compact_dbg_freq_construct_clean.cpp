@@ -1149,14 +1149,14 @@ if (!benchmark)	{
 				BL_BENCH_START(work);
 				std::string chain_deadend_filename(out_prefix);
 				chain_deadend_filename.append(".chain.summary.deadend.");
-				chain_deadend_filename.append(std::to_string(0));
+				chain_deadend_filename.append(std::to_string(iteration));
 				print_chain_summaries(chain_deadend_filename, deadends, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_deadend", deadends.size(), comm);
 
 				BL_BENCH_START(work);
 				std::string chain_bubble_filename(out_prefix);
 				chain_bubble_filename.append(".chain.summary.bubble.");
-				chain_bubble_filename.append(std::to_string(0));
+				chain_bubble_filename.append(std::to_string(iteration));
 				print_chain_summaries(chain_bubble_filename, bubbles, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_bubbles", bubbles.size(), comm);
 			}
@@ -1432,14 +1432,14 @@ if (!benchmark)		{
 				BL_BENCH_START(work);
 				std::string chain_deadend_filename(out_prefix);
 				chain_deadend_filename.append(".chain.summary.deadend.");
-				chain_deadend_filename.append(std::to_string(0));
+				chain_deadend_filename.append(std::to_string(iteration));
 				print_chain_summaries(chain_deadend_filename, deadends, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_deadend", deadends.size(), comm);
 
 				BL_BENCH_START(work);
 				std::string chain_bubble_filename(out_prefix);
 				chain_bubble_filename.append(".chain.summary.bubble.");
-				chain_bubble_filename.append(std::to_string(0));
+				chain_bubble_filename.append(std::to_string(iteration));
 				print_chain_summaries(chain_bubble_filename, bubbles, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_bubbles", bubbles.size(), comm);
 			}
