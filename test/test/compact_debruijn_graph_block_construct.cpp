@@ -887,11 +887,11 @@ int main(int argc, char** argv) {
 		idx.get_map().reserve(0);
 	}
 
-	if (!benchmark) {
+#ifndef NDEBUG
 		BL_BENCH_START(app);
 		print_chain_biedges(chain_biedge_filename2, chainmap, comm);
 		BL_BENCH_COLLECTIVE_END(app, "print_chain_biedge_uncomp", chainmap.local_size(), comm);
-	}
+#endif
 
 	// ===== parallel list ranking for chain compaction
 	BL_BENCH_START(app);
@@ -933,10 +933,11 @@ int main(int argc, char** argv) {
 
 
 	if (!benchmark) {
+#ifndef NDEBUG
 		BL_BENCH_START(app);
 		print_chain_biedges(chain_biedge_filename, chainmap, comm);
 		BL_BENCH_COLLECTIVE_END(app, "print_chain_biedge", chainmap.local_size(), comm);
-
+#endif
 		// =========== remove cycles and isolated
 		BL_BENCH_START(app);
 		auto cycle_kmers = chainmap.get_cycle_node_kmers();

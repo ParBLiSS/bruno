@@ -710,31 +710,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 
 
-	// == print ===  prepare for printing compacted chain and frequencies
-	{
-		// prepare
-		BL_BENCH_START(work);
-		ListRankedChainNodeVecType compacted_chain = chainmap.to_ranked_chain_nodes();
-		BL_BENCH_COLLECTIVE_END(work, "compacted_chain", compacted_chain.size(), comm);
-
-
-		// now print chain string - order is destroyed via psort.
-		BL_BENCH_START(work);
-		std::string compacted_chain_str_filename(out_prefix);
-		compacted_chain_str_filename.append("_chain.fasta");
-		print_chain_string(compacted_chain_str_filename, compacted_chain, comm);
-		BL_BENCH_COLLECTIVE_END(work, "chain_str", compacted_chain.size(), comm);
-
-#ifndef NDEBUG  
-// compressed chain
-		BL_BENCH_START(work);
-		std::string compressed_chain_filename(out_prefix);
-		compressed_chain_filename.append("_compressed_chain.debug");
-		print_chain_nodes(compacted_chain_kmers_filename, compacted_chain, comm);
-		BL_BENCH_COLLECTIVE_END(work, "chain_node", compacted_chain.size(), comm);
-#endif
-	}
-
 
 
 	if (!benchmark) {
@@ -786,7 +761,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			BL_BENCH_START(work);
 			// compressed chain
 			std::string compressed_chain_filename(out_prefix);
-			compressed_chain_filename.append("_compressed_chain.cleaned.debug");
+			compressed_chain_filename.append("_compressed_chain.debug");
 			size_t out_size = print_compressed_chains(compressed_chain_filename, compressed_chain, comm);
 			BL_BENCH_COLLECTIVE_END(work, "chain_str", out_size, comm);
 		}
@@ -809,7 +784,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		// now print chain string - order is destroyed via psort.
 		BL_BENCH_START(work);
 		std::string compacted_chain_str_filename2(out_prefix);
-		compacted_chain_str_filename2.append("_chain.cleaned.fasta");
+		compacted_chain_str_filename2.append("_chain.fasta");
 		print_chain_string(compacted_chain_str_filename2, compacted_chain, comm);
 		BL_BENCH_COLLECTIVE_END(work, "chain_str", compacted_chain.size(), comm);
 
@@ -817,7 +792,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 #ifndef NDEBUG
 		BL_BENCH_START(work);
 		std::string compacted_chain_kmers_filename2(out_prefix);
-		compacted_chain_kmers_filename2.append("_chain.clean.components");
+		compacted_chain_kmers_filename2.append("_chain.components");
 		print_chain_nodes(compacted_chain_kmers_filename2, compacted_chain, comm);
 		BL_BENCH_COLLECTIVE_END(work, "chain_node", compacted_chain.size(), comm);
 #endif
@@ -854,10 +829,11 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		// 		BL_BENCH_COLLECTIVE_END(work, "terminal_edge_freq", idx2.local_size(), comm);
 		// } // ensure delete kmers.
 
-
+#ifndef NDEBUG
 		BL_BENCH_START(work);
 		print_chain_frequencies(compacted_chain_ends_filename, chain_rep, idx, freq_map, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_freq", chain_rep.size(), comm);
+#endif
 	}
 
 

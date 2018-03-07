@@ -436,87 +436,87 @@ size_t build_index_thresholded_incremental(::std::vector<::bliss::io::file_data>
 #endif
 
 
-void do_benchmark(::std::vector<::bliss::io::file_data> const & file_data, std::string const & out_prefix,
-	bool thresholding, bool benchmark, bool LRoptimized, bool compress, bool mpiio, 
-	std::vector<size_t> const & threshes, 
-	 mxx::comm const & comm) {
-	// filename for compacted chain strings
-	// string starts with smaller end.  (first K and rev_comp of last K compared)
-	// this is a dump of the collected compacted chains.
-	std::string compacted_chain_str_filename(out_prefix);
-	compacted_chain_str_filename.append("_chain.fasta");
+// void do_benchmark(::std::vector<::bliss::io::file_data> const & file_data, std::string const & out_prefix,
+// 	bool thresholding, bool benchmark, bool LRoptimized, bool compress, bool mpiio, 
+// 	std::vector<size_t> const & threshes, 
+// 	 mxx::comm const & comm) {
+// 	// filename for compacted chain strings
+// 	// string starts with smaller end.  (first K and rev_comp of last K compared)
+// 	// this is a dump of the collected compacted chains.
+// 	std::string compacted_chain_str_filename(out_prefix);
+// 	compacted_chain_str_filename.append("_chain.fasta");
 
-	BL_BENCH_INIT(benchmark);
+// 	BL_BENCH_INIT(benchmark);
 
-	BL_BENCH_START(benchmark);
-	ChainGraphType chainmap(comm);
-	DBGType idx(comm);
+// 	BL_BENCH_START(benchmark);
+// 	ChainGraphType chainmap(comm);
+// 	DBGType idx(comm);
 
-	// =================  make compacted simple DBG, so that we can get chain and branch kmers.
-	{
-		// first read the input
+// 	// =================  make compacted simple DBG, so that we can get chain and branch kmers.
+// 	{
+// 		// first read the input
 
-#if defined(MIN_MEM)
-		if (thresholding) {
-			std::string k2mer_filename(out_prefix);
-			k2mer_filename.append("_k2mers.debug");
+// #if defined(MIN_MEM)
+// 		if (thresholding) {
+// 			std::string k2mer_filename(out_prefix);
+// 			k2mer_filename.append(".debug.k2mers");
 
-			build_index_thresholded_incremental(file_data, idx, threshes, comm, k2mer_filename);
-		} else {
-			build_index_incremental(file_data, idx, comm);
-		}
-#else
-		if (thresholding) {
-			std::string k2mer_filename(out_prefix);
-			k2mer_filename.append("_k2mers.debug");
+// 			build_index_thresholded_incremental(file_data, idx, threshes, comm, k2mer_filename);
+// 		} else {
+// 			build_index_incremental(file_data, idx, comm);
+// 		}
+// #else
+// 		if (thresholding) {
+// 			std::string k2mer_filename(out_prefix);
+// 			k2mer_filename.append(".debug.k2mers");
 
-			build_index_thresholded(file_data, idx, threshes, comm, k2mer_filename);
-		} else {
-			build_index(file_data, idx, comm);
-		}
-#endif
-		BL_BENCH_COLLECTIVE_END(benchmark, "construct", idx.local_size(), comm);
+// 			build_index_thresholded(file_data, idx, threshes, comm, k2mer_filename);
+// 		} else {
+// 			build_index(file_data, idx, comm);
+// 		}
+// #endif
+// 		BL_BENCH_COLLECTIVE_END(benchmark, "construct", idx.local_size(), comm);
 
-		// TODO: filter out, or do something, about "N".  May have to add back support for ASCII edge encoding so that we can use DNA5 alphabet
-		//   this is done via read filtering/splitting.
+// 		// TODO: filter out, or do something, about "N".  May have to add back support for ASCII edge encoding so that we can use DNA5 alphabet
+// 		//   this is done via read filtering/splitting.
 
-		// ==== make chain map
-		BL_BENCH_START(benchmark);
-		chainmap.extract_chains(idx);
-		//make_chain_map(idx, chainmap, comm);
-		BL_BENCH_COLLECTIVE_END(benchmark, "chainmap", chainmap.local_size(), comm);
-		// == DONE == make chain map
-	} // enforce delete idx.
-
-
-	// ===== parallel list ranking for chain compaction
-	BL_BENCH_START(benchmark);
-	size_t iterations = 0;
-	if (LRoptimized)
-		iterations = chainmap.list_rank_min_update();
-	else
-		iterations = chainmap.list_rank();
-	//auto cycle_node_kmers = list_rank(chainmap, comm);
-	BL_BENCH_COLLECTIVE_END(benchmark, "list_rank", iterations, comm);
-	// == DONE == parallel list ranking for chain compaction
-
-	{
-
-	// now print chain string - order is destroyed via psort.
-		// prepare
-		BL_BENCH_START(benchmark);
-		ListRankedChainNodeVecType compacted_chain = chainmap.to_ranked_chain_nodes();
-		BL_BENCH_COLLECTIVE_END(benchmark, "compact_chain", compacted_chain.size(), comm);
-
-		BL_BENCH_START(benchmark);
-		print_chain_string(compacted_chain_str_filename, compacted_chain, comm);
-		BL_BENCH_COLLECTIVE_END(benchmark, "chain_str", compacted_chain.size(), comm);
-	}
+// 		// ==== make chain map
+// 		BL_BENCH_START(benchmark);
+// 		chainmap.extract_chains(idx);
+// 		//make_chain_map(idx, chainmap, comm);
+// 		BL_BENCH_COLLECTIVE_END(benchmark, "chainmap", chainmap.local_size(), comm);
+// 		// == DONE == make chain map
+// 	} // enforce delete idx.
 
 
-	BL_BENCH_REPORT_MPI_NAMED(benchmark, "benchmark", comm);
+// 	// ===== parallel list ranking for chain compaction
+// 	BL_BENCH_START(benchmark);
+// 	size_t iterations = 0;
+// 	if (LRoptimized)
+// 		iterations = chainmap.list_rank_min_update();
+// 	else
+// 		iterations = chainmap.list_rank();
+// 	//auto cycle_node_kmers = list_rank(chainmap, comm);
+// 	BL_BENCH_COLLECTIVE_END(benchmark, "list_rank", iterations, comm);
+// 	// == DONE == parallel list ranking for chain compaction
 
-}
+// 	{
+
+// 	// now print chain string - order is destroyed via psort.
+// 		// prepare
+// 		BL_BENCH_START(benchmark);
+// 		ListRankedChainNodeVecType compacted_chain = chainmap.to_ranked_chain_nodes();
+// 		BL_BENCH_COLLECTIVE_END(benchmark, "compact_chain", compacted_chain.size(), comm);
+
+// 		BL_BENCH_START(benchmark);
+// 		print_chain_string(compacted_chain_str_filename, compacted_chain, comm);
+// 		BL_BENCH_COLLECTIVE_END(benchmark, "chain_str", compacted_chain.size(), comm);
+// 	}
+
+
+// 	BL_BENCH_REPORT_MPI_NAMED(benchmark, "benchmark", comm);
+
+// }
 
 // spurious link is a chain node, with kmer frequency = left + right edges (result of deadends.)
 // if overlap is 1 kmer, then above holds.  if overlap is 2 kmers or more, than we should see
@@ -578,7 +578,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	// string starts with smaller end.  (first K and rev_comp of last K compared)
 	// this is a dump of the collected compacted chains.
 	std::string compacted_chain_str_filename(out_prefix);
-	compacted_chain_str_filename.append("_chain.fasta");
+	compacted_chain_str_filename.append(".chain.fasta");
 
 
 	// filename for compacted chain interior kmers.  in format <K, Chain Id, pos, +/->
@@ -589,8 +589,8 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	//   so chain id is the k-mer at 5' end.  however, since all k-mer indexing are done canonically,
 	//   canonical k-mer is +.  so for a non-canonical chain id, the terminal K is at - strand.
 	//   all other k-mers on this chain have strand value relative to canonical of chain id.
-	std::string compacted_chain_kmers_filename(out_prefix);
-	compacted_chain_kmers_filename.append("_chain.components");
+	// std::string compacted_chain_kmers_filename(out_prefix);
+	// compacted_chain_kmers_filename.append(".chain.components");
 
 	// filename for compacted chain end points, in format : < K_l, K_r, chain_id, f_l_A, f_l_C, f_l_G, f_l_T, f_r_A, f_r_C, f_r_G, f_r_T, f >
 	// K_l is canonical.  as such, we need chain_id to link back to component k-mers and the compated strings.
@@ -598,8 +598,8 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	// K_l and K_r are on same strand.
 	// f is frequency - minimum or average of all intervening nodes?  - a reduction similar to the one used to construct the compacted chain string is needed.
 	// f_l_X and f_r_X are in and out edges of K_l and K_r, respectively.
-	std::string compacted_chain_ends_filename(out_prefix);
-	compacted_chain_ends_filename.append("_chain.edges");
+	// std::string compacted_chain_ends_filename(out_prefix);
+	// compacted_chain_ends_filename.append(".chain.clean.edges");
 
 	// filename for junctions in format <K, f_l_A, f_l_C, f_l_G, f_l_T, f_r_A, f_r_C, f_r_G, f_r_T, f>
 	// K is canonical.
@@ -621,7 +621,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 #if defined(MIN_MEM)
 	if (thresholding) {
 		std::string k2mer_filename(out_prefix);
-		k2mer_filename.append("_k2mers.debug");
+		k2mer_filename.append(".debug.k2mers");
 
 		build_index_thresholded_incremental(file_data, idx, threshes, comm, k2mer_filename);
 	} else {
@@ -630,7 +630,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 #else
 	if (thresholding) {
 		std::string k2mer_filename(out_prefix);
-		k2mer_filename.append("_k2mers.debug");
+		k2mer_filename.append(".debug.k2mers");
 
 		build_index_thresholded(file_data, idx, threshes, comm, k2mer_filename);
 	} else {
@@ -655,7 +655,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	{
 	BL_BENCH_START(work);
 		std::string graph_filename(out_prefix);
-		graph_filename.append("_graph.all.nodes");
+		graph_filename.append(".graph.all");
 	print_graph_edge_frequencies(graph_filename, idx, comm);
 	BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
 	}
@@ -663,16 +663,17 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
   // == PRINT == prep branch for printing - here ONLY BECAUSE WE ARE DISCARDING IDX AFTER MAKING CHAINMAPS
 	{
-	BL_BENCH_START(work);
-		std::string branch_filename(out_prefix);
-		branch_filename.append("_branch.edges");
-	print_branch_edge_frequencies(branch_filename, idx, comm);
-	BL_BENCH_COLLECTIVE_END(work, "print branch edges", idx.local_size(), comm);
-
+	if (!benchmark) {
+		BL_BENCH_START(work);
+			std::string branch_filename(out_prefix);
+			branch_filename.append(".branch.edges");
+		print_branch_edge_frequencies(branch_filename, idx, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print branch edges", idx.local_size(), comm);
+	}
 
 	BL_BENCH_START(work);
 		std::string branch_fasta_filename(out_prefix);
-		branch_fasta_filename.append("_branch.fasta");
+		branch_fasta_filename.append(".branch.fasta");
 	print_branch_fasta(branch_fasta_filename, idx, comm);
 	BL_BENCH_COLLECTIVE_END(work, "print branch fasta", idx.local_size(), comm);
 	}
@@ -705,13 +706,13 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 // 		idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
 // 		BL_BENCH_COLLECTIVE_END(work, "erase_spurious", idx.local_size(), comm);
 
+// #ifndef NDEBUG
 // 		BL_BENCH_START(work);
 // 		std::string graph_filename(out_prefix);
-// 		graph_filename.append("_graph.no_spurious.nodes");
+// 		graph_filename.append(".graph.no_spurious.nodes");
 // 		print_graph_edge_frequencies(graph_filename, idx, comm);
 // 		BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
 		
-// #ifndef NDEBUG
 // 		BL_BENCH_START(work);
 // 		if (comm.rank() == 0) printf("rank 0 checking spurious links removed index\n");
 // 		print_edge_histogram(idx, comm);
@@ -733,7 +734,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 {
 	BL_BENCH_START(work);
 	std::string chain_biedge_filename2(out_prefix);
-	chain_biedge_filename2.append("_chainmap_uncomp.debug");
+	chain_biedge_filename2.append(".debug.chainmap_uncomp");
 	print_chain_biedges(chain_biedge_filename2, chainmap, comm);
 	BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge_uncomp", chainmap.local_size(), comm);
 }
@@ -759,7 +760,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 		BL_BENCH_START(work);
 		std::string chain_biedge_filename(out_prefix);
-		chain_biedge_filename.append("_chain.nodes.debug");
+		chain_biedge_filename.append(".debug.chainmap");
 		print_chain_biedges(chain_biedge_filename, chainmap, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge", chainmap.local_size(), comm);
 	}
@@ -772,7 +773,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 		BL_BENCH_START(work);
 		std::string chain_summary_filename(out_prefix);
-		chain_summary_filename.append("_chains.summary");
+		chain_summary_filename.append(".chain.summary");
 		print_chain_summaries(chain_summary_filename, summaries, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
 	}
@@ -789,7 +790,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 #ifndef NDEBUG  
 		BL_BENCH_START(work);
 		std::string graph_filename(out_prefix);
-		graph_filename.append("_graph.no_cycle.nodes");
+		graph_filename.append(".graph.no_cycle");
 		print_graph_edge_frequencies(graph_filename, idx, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
 
@@ -815,18 +816,20 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		// now print chain string - order is destroyed via psort.
 		BL_BENCH_START(work);
 		std::string compacted_chain_str_filename(out_prefix);
-		compacted_chain_str_filename.append("_chain.fasta");
+		compacted_chain_str_filename.append(".chain.fasta");
 		print_chain_string(compacted_chain_str_filename, compacted_chain, comm);
 		BL_BENCH_COLLECTIVE_END(work, "chain_str", compacted_chain.size(), comm);
 
-#ifndef NDEBUG  
+	// chain nodes
+	if (!benchmark) {
 // compressed chain
 		BL_BENCH_START(work);
-		std::string compressed_chain_filename(out_prefix);
-		compressed_chain_filename.append("_compressed_chain.debug");
+		std::string compacted_chain_kmers_filename(out_prefix);
+		compacted_chain_kmers_filename.append(".chain.components");
 		print_chain_nodes(compacted_chain_kmers_filename, compacted_chain, comm);
 		BL_BENCH_COLLECTIVE_END(work, "chain_node", compacted_chain.size(), comm);
-#endif
+		}
+
 	}
 
 
@@ -858,14 +861,14 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		{
 			BL_BENCH_START(work);
 			std::string chain_deadend_filename(out_prefix);
-			chain_deadend_filename.append("_deadend.summary");
+			chain_deadend_filename.append(".chain.summary.deadend.");
 			chain_deadend_filename.append(std::to_string(0));
 			print_chain_summaries(chain_deadend_filename, deadends, comm);
 			BL_BENCH_COLLECTIVE_END(work, "print_deadend", deadends.size(), comm);
 
 			BL_BENCH_START(work);
 			std::string chain_bubble_filename(out_prefix);
-			chain_bubble_filename.append("_bubble.summary.");
+			chain_bubble_filename.append(".chain.summary.bubble.");
 			chain_bubble_filename.append(std::to_string(0));
 			print_chain_summaries(chain_bubble_filename, bubbles, comm);
 			BL_BENCH_COLLECTIVE_END(work, "print_bubbles", bubbles.size(), comm);
@@ -919,7 +922,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 				BL_BENCH_START(work);
 				std::string edge_filter_filename(out_prefix);
-				edge_filter_filename.append("_deadend.branches.summary.");
+				edge_filter_filename.append(".branch.summary.deadend.");
 				edge_filter_filename.append(std::to_string(iteration));
 				print_graph_edges(edge_filter_filename, branch_n, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_deadend_branches", branch_n.size(), comm);
@@ -932,16 +935,16 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			//idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());  don't erase isolated yet.
 			BL_BENCH_COLLECTIVE_END(work, "find_deadend_branches", branch_nodes.size(), comm);
 
+#ifndef NDEBUG
 			BL_BENCH_START(work);
 			{
 				std::string graph_filename(out_prefix);
-				graph_filename.append("_graph.no_deadend.nodes.");
+				graph_filename.append(".graph.no_deadend.");
 				graph_filename.append(std::to_string(iteration));
 				print_graph_edge_frequencies(graph_filename, idx, comm);
 			}
 			BL_BENCH_COLLECTIVE_END(work, "print_graph", idx.local_size(), comm);
 
-#ifndef NDEBUG
 			BL_BENCH_START(work);
 			if (comm.rank() == 0) printf("rank 0 checking deadend-removed index\n");
 			print_edge_histogram(idx, comm);
@@ -981,7 +984,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 				BL_BENCH_START(work);
 				std::string edge_filter_filename(out_prefix);
-				edge_filter_filename.append("_bubble.branches.summary.");
+				edge_filter_filename.append(".branch.summary.bubble.");
 				edge_filter_filename.append(std::to_string(iteration));
 				print_graph_edges(edge_filter_filename, branch_n, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_bubble_branches", branch_n.size(), comm);
@@ -993,16 +996,16 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			// idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());  don't erase isolated yet.
 			BL_BENCH_COLLECTIVE_END(work, "erase_bubbles", branch_nodes.size(), comm);
 
+#ifndef NDEBUG
 			BL_BENCH_START(work);
 			{
 				std::string graph_filename(out_prefix);
-				graph_filename.append("_graph.no_bubble.nodes.");
+				graph_filename.append(".graph.no_bubble.");
 				graph_filename.append(std::to_string(iteration));
 				print_graph_edge_frequencies(graph_filename, idx, comm);
 			}
 			BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
 
-#ifndef NDEBUG
 			BL_BENCH_START(work);
 			if (comm.rank() == 0) printf("rank 0 checking bubble removed index\n");
 			print_edge_histogram(idx, comm);
@@ -1014,10 +1017,93 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			BL_BENCH_START(work);
 			::bliss::debruijn::topology::recompact(idx, modified, old_chains, new_chains, comm);
 			BL_BENCH_COLLECTIVE_END(work, "merge_new_chains", new_chains.size(), comm);
-			
+
+#ifndef NDEBUG  
+	{
+
+		BL_BENCH_START(work);
+		std::string chain_biedge_filename(out_prefix);
+		chain_biedge_filename.append(".debug.chain.nodes.");
+		chain_biedge_filename.append(std::to_string(iteration));
+		print_chain_biedges(chain_biedge_filename, new_chains, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge", new_chains.local_size(), comm);
+	}
+	{
+		// =============================================================
+		// generate chain_summaries
+		BL_BENCH_START(work);
+		auto summaries = new_chains.to_summarized_chains();
+		BL_BENCH_COLLECTIVE_END(work, "chain_summaries", summaries.size(), comm);
+
+		BL_BENCH_START(work);
+		std::string chain_summary_filename(out_prefix);
+		chain_summary_filename.append(".chain.summary.");
+		chain_summary_filename.append(std::to_string(iteration));
+		print_chain_summaries(chain_summary_filename, summaries, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
+	}
+#endif
+
 			BL_BENCH_START(work);
 			chainmap.merge(new_chains);
+			BL_BENCH_COLLECTIVE_END(work, "merge_new_chains", chainmap.size(), comm);
+
+// #ifndef NDEBUG  
+// 	{
+
+// 		BL_BENCH_START(work);
+// 		std::string chain_biedge_filename(out_prefix);
+// 		chain_biedge_filename.append(".debug.chain.nodes.merged.");
+// 		chain_biedge_filename.append(std::to_string(iteration));
+// 		print_chain_biedges(chain_biedge_filename, chainmap, comm);
+// 		BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge", chainmap.local_size(), comm);
+// 	}
+// 	{
+// 		// =============================================================
+// 		// generate chain_summaries
+// 		BL_BENCH_START(work);
+// 		auto summaries = chainmap.to_summarized_chains();
+// 		BL_BENCH_COLLECTIVE_END(work, "chain_summaries", summaries.size(), comm);
+
+// 		BL_BENCH_START(work);
+// 		std::string chain_summary_filename(out_prefix);
+// 		chain_summary_filename.append(".chain.summary.merged.");
+// 		chain_summary_filename.append(std::to_string(iteration));
+// 		print_chain_summaries(chain_summary_filename, summaries, comm);
+// 		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
+// 	}
+// #endif
+
+
+			BL_BENCH_START(work);
 			::bliss::debruijn::topology::recompact_finalize(chainmap, comm);
+			BL_BENCH_COLLECTIVE_END(work, "recompact_finalize", chainmap.size(), comm);
+
+#ifndef NDEBUG  
+	{
+
+		BL_BENCH_START(work);
+		std::string chain_biedge_filename(out_prefix);
+		chain_biedge_filename.append(".debug.chain.nodes.finalized.");
+		chain_biedge_filename.append(std::to_string(iteration));
+		print_chain_biedges(chain_biedge_filename, chainmap, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge", chainmap.local_size(), comm);
+	}
+	{
+		// =============================================================
+		// generate chain_summaries
+		BL_BENCH_START(work);
+		auto summaries = chainmap.to_summarized_chains();
+		BL_BENCH_COLLECTIVE_END(work, "chain_summaries", summaries.size(), comm);
+
+		BL_BENCH_START(work);
+		std::string chain_summary_filename(out_prefix);
+		chain_summary_filename.append(".chain.summary.finalized.");
+		chain_summary_filename.append(std::to_string(iteration));
+		print_chain_summaries(chain_summary_filename, summaries, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
+	}
+#endif
 
 			old_chains.clear();
 			new_chains.make_terminal_chain_graph(old_chains);  // exclude isolated also.
@@ -1025,14 +1111,24 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			BL_BENCH_COLLECTIVE_END(work, "merge_new_chains", chainmap.size(), comm);
 
 #ifndef NDEBUG  
-			{
+	{
+
+		BL_BENCH_START(work);
+		std::string chain_biedge_filename(out_prefix);
+		chain_biedge_filename.append("debug.termini.nodes.");
+		chain_biedge_filename.append(std::to_string(iteration));
+		print_chain_biedges(chain_biedge_filename, old_chains, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge", old_chains.local_size(), comm);
+	}
+	{
+
 				BL_BENCH_START(work);
 				auto summaries = old_chains.to_summarized_chains();
 				BL_BENCH_COLLECTIVE_END(work, "chain_summaries", summaries.size(), comm);
 				
 				BL_BENCH_START(work);
 				std::string chain_summary_filename(out_prefix);
-				chain_summary_filename.append("_chain.summary.cleaned.");
+				chain_summary_filename.append(".chain.summary.clean.");
 				chain_summary_filename.append(std::to_string(iteration));
 				print_chain_summaries(chain_summary_filename, summaries, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
@@ -1055,14 +1151,14 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			{
 				BL_BENCH_START(work);
 				std::string chain_deadend_filename(out_prefix);
-				chain_deadend_filename.append("_deadend.summary.");
+				chain_deadend_filename.append(".chain.summary.deadend.");
 				chain_deadend_filename.append(std::to_string(0));
 				print_chain_summaries(chain_deadend_filename, deadends, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_deadend", deadends.size(), comm);
 
 				BL_BENCH_START(work);
 				std::string chain_bubble_filename(out_prefix);
-				chain_bubble_filename.append("_bubble.summary.");
+				chain_bubble_filename.append(".chain.summary.bubble.");
 				chain_bubble_filename.append(std::to_string(0));
 				print_chain_summaries(chain_bubble_filename, bubbles, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_bubbles", bubbles.size(), comm);
@@ -1112,14 +1208,14 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		{
 			BL_BENCH_START(work);
 			std::string chain_deadend_filename(out_prefix);
-			chain_deadend_filename.append("_deadend.summary.");
+			chain_deadend_filename.append(".chain.summary.deadend.");
 			chain_deadend_filename.append(std::to_string(0));
 			print_chain_summaries(chain_deadend_filename, deadends, comm);
 			BL_BENCH_COLLECTIVE_END(work, "print_deadend", deadends.size(), comm);
 
 			BL_BENCH_START(work);
 			std::string chain_bubble_filename(out_prefix);
-			chain_bubble_filename.append("_bubble.summary.");
+			chain_bubble_filename.append(".chain.summary.bubble.");
 			chain_bubble_filename.append(std::to_string(0));
 			print_chain_summaries(chain_bubble_filename, bubbles, comm);
 			BL_BENCH_COLLECTIVE_END(work, "print_bubbles", bubbles.size(), comm);
@@ -1166,7 +1262,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 				BL_BENCH_START(work);
 				std::string edge_filter_filename(out_prefix);
-				edge_filter_filename.append("_deadend.branches.summary.");
+				edge_filter_filename.append(".branch.summary.deadend.");
 				edge_filter_filename.append(std::to_string(iteration));
 				print_graph_edges(edge_filter_filename, branch_n, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_deadend_branches", branch_n.size(), comm);
@@ -1179,16 +1275,17 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
 			BL_BENCH_COLLECTIVE_END(work, "find_deadend_branches", branch_nodes.size(), comm);
 
+#ifndef NDEBUG
+
 			BL_BENCH_START(work);
 			{
 				std::string graph_filename(out_prefix);
-				graph_filename.append("_graph.no_deadend.nodes.");
+				graph_filename.append(".graph.no_deadend.");
 				graph_filename.append(std::to_string(iteration));
 				print_graph_edge_frequencies(graph_filename, idx, comm);
 			}
 			BL_BENCH_COLLECTIVE_END(work, "print_graph", idx.local_size(), comm);
 
-#ifndef NDEBUG
 			BL_BENCH_START(work);
 			if (comm.rank() == 0) printf("rank 0 checking deadend-removed index\n");
 			print_edge_histogram(idx, comm);
@@ -1224,7 +1321,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 				BL_BENCH_START(work);
 				std::string edge_filter_filename(out_prefix);
-				edge_filter_filename.append("_bubble.branches.summary.");
+				edge_filter_filename.append(".branch.summary.bubble.");
 				edge_filter_filename.append(std::to_string(iteration));
 				print_graph_edges(edge_filter_filename, branch_n, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_bubble_branches", branch_n.size(), comm);
@@ -1236,16 +1333,16 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
 			BL_BENCH_COLLECTIVE_END(work, "erase_bubbles", branch_nodes.size(), comm);
 
+#ifndef NDEBUG
 			BL_BENCH_START(work);
 			{
 				std::string graph_filename(out_prefix);
-				graph_filename.append("_graph.no_bubble.nodes.");
+				graph_filename.append(".graph.no_bubble.");
 				graph_filename.append(std::to_string(iteration));
 				print_graph_edge_frequencies(graph_filename, idx, comm);
 			}
 			BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
 
-#ifndef NDEBUG
 			BL_BENCH_START(work);
 			if (comm.rank() == 0) printf("rank 0 checking bubble removed index\n");
 			print_edge_histogram(idx, comm);
@@ -1277,12 +1374,42 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 				BL_BENCH_COLLECTIVE_END(work, "list_rank", iters, comm);
 			}// == DONE == parallel list ranking for chain compaction
 			
+
+
+#ifndef NDEBUG  
+	{
+
+		BL_BENCH_START(work);
+		std::string chain_biedge_filename(out_prefix);
+		chain_biedge_filename.append("debug.chain.nodes.finalized.");
+		chain_biedge_filename.append(std::to_string(iteration));
+		print_chain_biedges(chain_biedge_filename, chainmap, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge", chainmap.local_size(), comm);
+	}
+	{
+		// =============================================================
+		// generate chain_summaries
+		BL_BENCH_START(work);
+		auto summaries = chainmap.to_summarized_chains();
+		BL_BENCH_COLLECTIVE_END(work, "chain_summaries", summaries.size(), comm);
+
+		BL_BENCH_START(work);
+		std::string chain_summary_filename(out_prefix);
+		chain_summary_filename.append(".chain.summary.finalized.");
+		chain_summary_filename.append(std::to_string(iteration));
+		print_chain_summaries(chain_summary_filename, summaries, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
+	}
+#endif
+
 			BL_BENCH_START(work);
 			new_chains.clear();
 			chainmap.make_terminal_chain_graph(new_chains);
 			BL_BENCH_COLLECTIVE_END(work, "get_new_chains", new_chains.size(), comm);
 
 			// generate chain_summaries
+
+
 #ifndef NDEBUG  
 			{
 				BL_BENCH_START(work);
@@ -1291,7 +1418,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 				
 				BL_BENCH_START(work);
 				std::string chain_summary_filename(out_prefix);
-				chain_summary_filename.append("_chain.summary.cleaned.");
+				chain_summary_filename.append(".chain.summary.clean.");
 				chain_summary_filename.append(std::to_string(iteration));
 				print_chain_summaries(chain_summary_filename, summaries, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
@@ -1313,14 +1440,14 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			{
 				BL_BENCH_START(work);
 				std::string chain_deadend_filename(out_prefix);
-				chain_deadend_filename.append("_deadend.summary.");
+				chain_deadend_filename.append(".chain.summary.deadend.");
 				chain_deadend_filename.append(std::to_string(0));
 				print_chain_summaries(chain_deadend_filename, deadends, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_deadend", deadends.size(), comm);
 
 				BL_BENCH_START(work);
 				std::string chain_bubble_filename(out_prefix);
-				chain_bubble_filename.append("_bubble.summary.");
+				chain_bubble_filename.append(".chain.summary.bubble.");
 				chain_bubble_filename.append(std::to_string(0));
 				print_chain_summaries(chain_bubble_filename, bubbles, comm);
 				BL_BENCH_COLLECTIVE_END(work, "print_bubbles", bubbles.size(), comm);
@@ -1341,6 +1468,29 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 #endif
 	}
 #endif  // RECOMPACT def
+
+// reprint the chains and branches
+	{
+
+	if (!benchmark) {
+		BL_BENCH_START(work);
+		std::string branch_filename(out_prefix);
+		branch_filename.append(".branch.clean.edges");
+		print_branch_edge_frequencies(branch_filename, idx, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print branch edges", idx.local_size(), comm);
+	}
+
+		BL_BENCH_START(work);
+		std::string branch_fasta_filename(out_prefix);
+		branch_fasta_filename.append(".branch.clean.fasta");
+		print_branch_fasta(branch_fasta_filename, idx, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print branch fasta", idx.local_size(), comm);
+
+
+		// == print ===  prepare for printing compacted chain and frequencies
+	}
+
+
 
 
 
@@ -1375,7 +1525,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	BL_BENCH_COLLECTIVE_END(work, "chain rep", chain_rep.size(), comm);
 
 
-	FreqMapType freq_map(comm);
+	FreqMapType freq_map(comm);  // has freq summary for whole chain.
 	{
 		// prepare
 		BL_BENCH_START(work);
@@ -1393,7 +1543,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			BL_BENCH_START(work);
 			// compressed chain
 			std::string compressed_chain_filename(out_prefix);
-			compressed_chain_filename.append("_compressed_chain.cleaned.debug");
+			compressed_chain_filename.append(".debug.chain.compressed.clean");
 			size_t out_size = print_compressed_chains(compressed_chain_filename, compressed_chain, comm);
 			BL_BENCH_COLLECTIVE_END(work, "chain_str", out_size, comm);
 		}
@@ -1416,18 +1566,18 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		// now print chain string - order is destroyed via psort.
 		BL_BENCH_START(work);
 		std::string compacted_chain_str_filename2(out_prefix);
-		compacted_chain_str_filename2.append("_chain.cleaned.fasta");
+		compacted_chain_str_filename2.append(".chain.clean.fasta");
 		print_chain_string(compacted_chain_str_filename2, compacted_chain, comm);
 		BL_BENCH_COLLECTIVE_END(work, "chain_str", compacted_chain.size(), comm);
 
-	// compressed chain
-#ifndef NDEBUG
+	// chain nodes
+	if (!benchmark) {
 		BL_BENCH_START(work);
 		std::string compacted_chain_kmers_filename2(out_prefix);
-		compacted_chain_kmers_filename2.append("_chain.clean.components");
+		compacted_chain_kmers_filename2.append(".chain.clean.components");
 		print_chain_nodes(compacted_chain_kmers_filename2, compacted_chain, comm);
 		BL_BENCH_COLLECTIVE_END(work, "chain_node", compacted_chain.size(), comm);
-#endif
+	}
 
 	} // ensure release compacted chain
 
@@ -1463,6 +1613,8 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 
 		BL_BENCH_START(work);
+		std::string compacted_chain_ends_filename(out_prefix);
+		compacted_chain_ends_filename.append(".chain.clean.edges");
 		print_chain_frequencies(compacted_chain_ends_filename, chain_rep, idx, freq_map, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_freq", chain_rep.size(), comm);
 	}

@@ -6,17 +6,18 @@ for t in 4 3 2 1
 do
 
 # run the experiments.
-for exp in "_freq" "_freq_clean" "_freq_clean_recompact"
+for exp in "freq" "freq_clean" "freq_clean_recompact"
 do
-	mpirun -np ${1} bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -C -T -L ${t} -O a4_k31${exp}_chr14_bub2_L${t}.p${1} $DATA 2>&1 | tee a4_k31${exp}_chr14_bub2_L${t}.p${1}.log
+	echo "mpirun -np ${1} bin/compact_debruijn_graph_fastq_A4_K31_${exp} -R -C -T -L ${t} -O a4_k31_chr14_bub2_L${t}.p${1}.${exp} $DATA > a4_k31_chr14_bub2_L${t}.p${1}.${exp}.log 2>&1"
+	mpirun -np ${1} bin/compact_debruijn_graph_fastq_A4_K31_${exp} -R -C -T -L ${t} -O a4_k31_chr14_bub2_L${t}.p${1}.${exp} $DATA > a4_k31_chr14_bub2_L${t}.p${1}.${exp}.log 2>&1
 done
 
 # compare to base case
-for exp in "_freq_clean" "_freq_clean_recompact"
+for exp in "freq_clean" "freq_clean_recompact"
 do
-	for suf in ".0.valid" ".0.valid.debug" "_branch.fasta" "_branch.edges" "_chain.components" "_chain.fasta" "_chain.edges" "_compressed_chain.debug"
+	for suf in "0.valid" "branch.fasta" "branch.edges" "chain.components" "chain.fasta" "chain.edges" "debug_compressed_chain"
 	do
-		diff a4_k31_freq${exp}_chr14_bub2_L${t}.p${1}${suf} a4_k31_freq_chr14_bub2_L${t}.p${1}${suf} > a4_k31_freq${exp}_chr14_bub2_L${t}.p${1}${suf}.diff
+		diff a4_k31_chr14_bub2_L${t}.p${1}.${exp}.${suf} a4_k31_chr14_bub2_L${t}.p${1}.freq.${suf} > a4_k31_chr14_bub2_L${t}.p${1}.freq_vs_${exp}.${suf}.diff
 	done
 done
 
