@@ -505,12 +505,13 @@ namespace topology
 
 	}
 
-	// update the distances and chains. to their final values during the iteration.
+	/// update the distances and chains for all NON terminal nodes from prev iteration. to their final values during the iteration.
 	// have to call every iteration as terminal may become internal and therefore not updated in a later iteration
 	//  logarithmic, iterations.  however, at least it's not log squared....
 	// 
 	// during recompaction, the cycle nodes are not separated yet (in get_map), so that internal nodes of chains-turn-cycles can still be updated during finalize.
 	// Once the recompaction updates are complet, THEN remove the cycles and isolated.
+	// 
 	template <typename ChainGraph >
 	void recompact_finalize(ChainGraph & chains, ::mxx::comm const & comm) {
 		// TODO MAYBE: do left and right separately to limit memory usage.
@@ -522,11 +523,11 @@ namespace topology
 		auto end = chains.get_map().get_local_container().end();
 		for (auto it = chains.get_map().get_local_container().begin();
 				it != end; ++it) {
-			if (! bliss::debruijn::points_to_self(std::get<2>((*it).second))) {
+			if (! bliss::debruijn::is_chain_terminal(std::get<2>((*it).second))) {
 				// if not deadend
 				edge_kmers.emplace_back(std::get<0>((*it).second));
 			}
-			if (! bliss::debruijn::points_to_self(std::get<3>((*it).second))) {
+			if (! bliss::debruijn::is_chain_terminal(std::get<3>((*it).second))) {
 				// if not deadend
 				edge_kmers.emplace_back(std::get<1>((*it).second));
 			}
@@ -554,7 +555,7 @@ namespace topology
 		uint ldist = 0;
 		for (auto it = chains.get_map().get_local_container().begin();
 				it != end; ++it) {
-			if (! bliss::debruijn::points_to_self(std::get<2>((*it).second))) {  
+			if (! bliss::debruijn::is_chain_terminal(std::get<2>((*it).second))) {  
 				// if not deadend
 	//					if (comm.rank() == 0) std::cout << "L source " << (*it) << std::endl;
 				edge_kmer = std::get<0>((*it).second);
@@ -567,28 +568,34 @@ namespace topology
 					// matched.  // update left.
 					rdist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second));
 
-					std::get<0>((*it).second) = (rdist == 0) ? (*found).first : std::get<0>((*found).second);
-					if (ldist == 0) std::get<2>((*it).second) = std::get<2>((*found).second);
-					else std::get<2>((*it).second) = 
-						::bliss::debruijn::mark_as_point_to_terminal(rdist + ldist); 
+					if (rdist > 0) { 
+						std::get<0>((*it).second) = std::get<0>((*found).second);
+					}  // if rdist == 0, then we are already pointing to the terminal.
+
+					//if (ldist == 0) std::get<2>((*it).second) = std::get<2>((*found).second);  // should not reach here because checking if L terminal
+					//else 
+					std::get<2>((*it).second) = ::bliss::debruijn::mark_as_point_to_terminal(rdist + ldist);   // make sure that this is marked as pointing to terminal.
 				} else if (found2 != res_end) {
 
 	//						if (comm.rank() == 0) std::cout << "L dest2 " << (*found2) << std::endl;
 					// reverse complement matched.  search result is flipped.
 					rdist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found2).second));
 
-					std::get<0>((*it).second) = (rdist == 0) ? (*found2).first.reverse_complement() : 
-						std::get<1>((*found2).second).reverse_complement();
+					if (rdist > 0) {
+						std::get<0>((*it).second) = 
+							std::get<1>((*found2).second).reverse_complement();
+					} // if rdist == 0, then we are already pointing to the terminal.
 
-					if (ldist == 0) std::get<2>((*it).second) = std::get<3>((*found2).second);
-					else std::get<2>((*it).second) = 
+					// if (ldist == 0) std::get<2>((*it).second) = std::get<3>((*found2).second);   // should not reach here because checking if L terminal
+					// else 
+					std::get<2>((*it).second) = 
 						::bliss::debruijn::mark_as_point_to_terminal(rdist + ldist); 
 
 				} else {
-					if (comm.rank() == 0) std::cout << "WARNING: not matched.  cycle?  L: " << edge_kmer << " chain node " << (*it) << std::endl;
+					if (comm.rank() == 0) std::cout << "WARNING: not matched.  L: " << edge_kmer << " chain node " << (*it) << std::endl;
 				}
 			}
-			if (! bliss::debruijn::points_to_self(std::get<3>((*it).second))) {
+			if (! bliss::debruijn::is_chain_terminal(std::get<3>((*it).second))) {
 				// if not deadend
 				edge_kmer = std::get<1>((*it).second);
 				auto found = res.find(edge_kmer);
@@ -599,9 +606,12 @@ namespace topology
 					// matched.  // update left.
 					rdist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found).second));
 
-					std::get<1>((*it).second) = (rdist == 0) ? (*found).first : std::get<1>((*found).second);
-					if (ldist == 0) std::get<3>((*it).second) = std::get<3>((*found).second);
-					else std::get<3>((*it).second) = 
+					if (rdist > 0) {
+						std::get<1>((*it).second) = std::get<1>((*found).second);	
+					}// if rdist == 0, then we are already pointing to the terminal.
+					// if (ldist == 0) std::get<3>((*it).second) = std::get<3>((*found).second); // should not reach here because checking if R terminal
+					// else 
+					std::get<3>((*it).second) = 
 						::bliss::debruijn::mark_as_point_to_terminal(rdist + ldist); 
 
 				} else if (found2 != res_end) {
@@ -609,15 +619,18 @@ namespace topology
 					// reverse complement matched.  search result is flipped.
 					rdist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found2).second));
 
-					std::get<1>((*it).second) = (rdist == 0) ? (*found2).first.reverse_complement() : 
-						std::get<0>((*found2).second).reverse_complement();
+					if (rdist > 0) {
+						std::get<1>((*it).second) =
+							std::get<0>((*found2).second).reverse_complement();
+					}
 
-					if (ldist == 0) std::get<3>((*it).second) = std::get<2>((*found2).second);
-					else std::get<3>((*it).second) = 
+					// if (ldist == 0) std::get<3>((*it).second) = std::get<2>((*found2).second); // should not reach here because checking if R terminal
+					// else 
+					std::get<3>((*it).second) = 
 						::bliss::debruijn::mark_as_point_to_terminal(rdist + ldist); 
 
 				} else {
-					if (comm.rank() == 0) std::cout << "WARNING: not matched.  cycle? R: " << edge_kmer << " chain node " << (*it) << std::endl;
+					if (comm.rank() == 0) std::cout << "WARNING: not matched.  R: " << edge_kmer << " chain node " << (*it) << std::endl;
 				}
 			}
 		}
