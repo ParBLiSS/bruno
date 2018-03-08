@@ -856,9 +856,9 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	}
 
 
-		edge_freq_filter edge_freq_filt(3);
-		deadend_filter deadend_filt(2 * KmerType::size - 1, 3);
-		bubble_filter bubble_filt(3);
+		edge_freq_filter edge_freq_filt(threshes[2]+1);
+		deadend_filter deadend_filt(2 * KmerType::size - 1, threshes[2]+1);
+		bubble_filter bubble_filt(threshes[2]+1);
 
 #if defined(RECOMPACT)
 	{
