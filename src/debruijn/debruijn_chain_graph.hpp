@@ -1909,7 +1909,7 @@ namespace graph
 					// 3. canonicalization are identical, so we can directly query.
 					// 4. relies on freq of edge being recorded the same way on both kmers.
 				auto it = dbg.get_map().get_local_container().find(terminus.first);
-				assert(((*it).second.get_in_edge_count() < 2) && ((*it).second.get_out_edge_count() < 2));  // should be an edge
+				assert(((*it).second.get_in_edge_count() < 2) && ((*it).second.get_out_edge_count() < 2));  // should be an chain
 
 				// if this is an isolated or unit chain,
 				if (::bliss::debruijn::is_chain_terminal(std::get<2>(terminus.second)) && 

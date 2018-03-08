@@ -1143,7 +1143,10 @@ if (!benchmark)	{
 
 		// =========== remove cycles and isolated
 		BL_BENCH_START(work);
-		idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+		{
+			size_t cnt = idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+			printf("ERASE ISOLATED %lu after deadend, bubble, cycle iter %ld\n", cnt, iteration);
+		}
 		BL_BENCH_COLLECTIVE_END(work, "remove cycles/isolated/etc", idx.local_size(), comm);
 
 #ifndef NDEBUG  
@@ -1328,7 +1331,10 @@ if (!benchmark)		{
 			// remove the deadend edges with freq smaller than some threshold
 			BL_BENCH_START(work);
 			idx.get_map().erase_edges(branch_nodes, edge_freq_filt);   // also has to meet edge frequency requirements.
-			idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+			{
+				size_t cnt = idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+				printf("ERASE ISOLATED %lu after deadends iter %ld\n", cnt, iteration);
+			}
 			BL_BENCH_COLLECTIVE_END(work, "find_deadend_branches", branch_nodes.size(), comm);
 
 #ifndef NDEBUG
@@ -1386,7 +1392,10 @@ if (!benchmark)		{
 
 			BL_BENCH_START(work);
 			idx.get_map().erase_edges(branch_nodes, edge_freq_filt);
-			idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+			{
+				size_t cnt = idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+				printf("ERASE ISOLATED %lu after cycles iter %ld\n", cnt, iteration);
+			}
 			BL_BENCH_COLLECTIVE_END(work, "erase_bubbles", branch_nodes.size(), comm);
 
 #ifndef NDEBUG
@@ -1463,7 +1472,10 @@ if (!benchmark)		{
 		BL_BENCH_START(work);
 		auto cycle_kmers = chainmap.get_cycle_node_kmers();
 		idx.erase(cycle_kmers);
-		idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+			{
+				size_t cnt = idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+				printf("ERASE ISOLATED %lu after cycles iter %ld\n", cnt, iteration);
+			}		
 		BL_BENCH_COLLECTIVE_END(work, "remove cycles/isolated/etc", idx.local_size(), comm);
 
 #ifndef NDEBUG  
