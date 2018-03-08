@@ -296,7 +296,7 @@ namespace topology
 		using summarized_type = ::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type, typename DBG::count_type>;
 
 		std::vector<summarized_type > termini = find_normal_chains(graph, chains, pred);
-		printf("rank %d NORMAL_CHAINS=%lu\n", comm.rank(), termini.size() );
+		//printf("rank %d NORMAL_CHAINS=%lu\n", comm.rank(), termini.size() );
 
 		// now that deadends and isolated chains have been removed, now sort by in edge of chain rep, followed by out edge.
 		// evenly redistribute.
@@ -431,7 +431,7 @@ namespace topology
 						std::get<2>(terminus.second) = 1;
 					} else if (bliss::debruijn::points_to_terminal(dist)) {
 						std::get<2>(terminus.second) = bliss::debruijn::get_chain_dist(dist);
-					}  // else if pointing to compacted chain or self, leave as is.
+					}  // else if pointing to uncompacted chain or self, leave as is.
 					dist = std::get<3>(terminus.second);
 					if (bliss::debruijn::points_to_branch(dist)) {
 						std::get<3>(terminus.second) = 1;

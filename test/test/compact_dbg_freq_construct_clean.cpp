@@ -1135,7 +1135,7 @@ if (!benchmark)	{
 
 #ifndef NDEBUG  
 		BL_BENCH_START(work);
-		if (comm.rank() == 0) printf("rank 0 checking cycle removed index\n");
+		if (comm.rank() == 0) printf("rank 0 checking cycle removed index, removing %ld\n", cycle_kmers.size());
 		print_edge_histogram(idx, comm);
 		check_index(idx, comm);
 		BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
