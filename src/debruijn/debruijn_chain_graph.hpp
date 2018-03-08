@@ -150,6 +150,7 @@ namespace graph
 		// chain map - populated after calling listrank.
 		map_type map;
 		map_type cycle_nodes;  // for storing the cycle nodes.
+		map_type isolated;  // for storing the cycle nodes.
 
 		// communicator
 		mxx::comm comm;
@@ -159,7 +160,7 @@ namespace graph
 
 	public:
 		debruijn_chain_graph(mxx::comm const & _comm) :
-			map(_comm), cycle_nodes(_comm), comm(_comm.copy()), listranked(false), modified(false) {
+			map(_comm), cycle_nodes(_comm), isolated(_comm), comm(_comm.copy()), listranked(false), modified(false) {
 
 			map.clear();
 		}
@@ -183,6 +184,10 @@ namespace graph
 		/// get internal chain map
 		map_type & get_map() { return map; }
 		map_type const & get_map() const { return map; }
+		map_type & get_cycle_map() { return cycle_nodes; }
+		map_type const & get_cycle_map() const { return cycle_nodes; }
+		map_type & get_isolated_map() { return isolated; }
+		map_type const & get_isolated_map() const { return isolated; }
 
 		// INSERT OPERATIONS!
 		/// insert chain nodes.  version for chain map native edge type.
@@ -450,6 +455,29 @@ namespace graph
 		   return results;
 	   }
 
+	   std::vector<mutable_value_type> get_isolated() const {
+		   assert(this->listranked);
+
+		   std::vector<mutable_value_type> results;
+		   isolated.to_vector(results);
+		   return results;
+	   }
+	   std::vector<KmerType> get_isolated_kmers() const {
+		   assert(this->listranked);
+
+		   std::vector<KmerType> results;
+		   ::fsc::back_emplace_iterator<std::vector<KmerType> > emplacer(results);
+
+		   std::transform(isolated.get_local_container().cbegin(),
+				   isolated.get_local_container().cend(), emplacer,
+				   [](value_type const & x){
+			   return x.first;
+		   });
+		   return results;
+	   }
+
+
+
 		template <typename C>
 		void setup_chain_termini(::bliss::debruijn::graph::debruijn_graph<KmerType, C, DistHash> const & idx) {
 			// allocate input
@@ -667,8 +695,69 @@ namespace graph
 			return cycle_node_count;
 		}
 
-		size_t reseparate_cycles(size_t iterations) {
-			return 0;
+
+		size_t separate_cycles() {
+			::bliss::debruijn::filter::chain::IsInternal is_internal;
+
+			if (comm.rank() == 0) printf("REMOVE CYCLES\n");
+
+			BL_BENCH_INIT(cycle);
+
+			BL_BENCH_START(cycle);
+			auto res = map.find(is_internal);
+			BL_BENCH_COLLECTIVE_END(cycle, "find cycle nodes", res.size(), comm);
+
+			BL_BENCH_START(cycle);
+			cycle_nodes.insert(res);
+			BL_BENCH_COLLECTIVE_END(cycle, "copy to cycle nodes map", cycle_nodes.size(), comm);
+
+
+			// remove cycle nodes from map.
+			BL_BENCH_START(cycle);
+			size_t cycle_node_count = map.erase(is_internal);
+			assert(cycle_node_count == res.size());
+			BL_BENCH_COLLECTIVE_END(cycle, "erase cycle", cycle_node_count, comm);
+
+			//printf("REMOVED %ld cycle nodes\n", cycle_node_count);
+
+			cycle_node_count = mxx::allreduce(cycle_node_count, comm);
+			if (comm.rank() == 0) printf("REMOVED %ld cycle nodes\n", cycle_node_count);
+
+			BL_BENCH_REPORT_MPI_NAMED(cycle, "rem_cycle", comm);
+
+			return cycle_node_count;
+		}
+
+		size_t separate_isolated() {
+			::bliss::debruijn::filter::chain::IsIsolated is_isolated;
+
+			if (comm.rank() == 0) printf("REMOVE ISOLATED\n");
+
+			BL_BENCH_INIT(isolated);
+
+			BL_BENCH_START(isolated);
+			auto res = map.find(is_isolated);
+			BL_BENCH_COLLECTIVE_END(isolated, "find isolated nodes", res.size(), comm);
+
+			BL_BENCH_START(isolated);
+			isolated.insert(res);
+			BL_BENCH_COLLECTIVE_END(isolated, "copy to isolated nodes map", isolated.size(), comm);
+
+
+			// remove cycle nodes from map.
+			BL_BENCH_START(isolated);
+			size_t isolated_node_count = map.erase(is_isolated);
+			assert(isolated_node_count == res.size());
+			BL_BENCH_COLLECTIVE_END(isolated, "erase isolated", isolated_node_count, comm);
+
+			//printf("REMOVED %ld isolated nodes\n", isolated_node_count);
+
+			isolated_node_count = mxx::allreduce(isolated_node_count, comm);
+			if (comm.rank() == 0) printf("REMOVED %ld isolated nodes\n", isolated_node_count);
+
+			BL_BENCH_REPORT_MPI_NAMED(isolated, "rem_isolated", comm);
+
+			return isolated_node_count;
 		}
 
 
@@ -948,12 +1037,15 @@ namespace graph
 			}
 			{
 				// VERIFY ALL DONE.
-				auto unfinished = map.find(::bliss::debruijn::filter::chain::IsUncompactedNode(iterations));
+				auto unfinished = map.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
 				bool all_compacted = (unfinished.size() == 0);
 				all_compacted = ::mxx::all_of(all_compacted, comm);
 
 				assert(all_compacted);
 			}
+
+			// separate out the isolated.
+			separate_isolated();
 
 			listranked = true;
 			modified = false;
@@ -1104,7 +1196,7 @@ namespace graph
 //													-dist,     // if md.3 <= 0, then finished, so use negative dist.
 //												bliss::debruijn::operation::OUT));		// update target (md.0)'s out edge
 //								// update right.
-//								updates.emplace_back(std::get<1>(md),
+//								updates.emplace_back(std::get<1>(md),PointsToInternalNode
 //										update_md(std::get<0>(md),
 //													-dist,  // if md.3 <= 0, then finished, so use negative dist.
 //												bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
@@ -1228,12 +1320,16 @@ namespace graph
 			}
 			{
 				// VERIFY ALL DONE.
-				auto unfinished = map.find(::bliss::debruijn::filter::chain::IsUncompactedNode(iterations));
+				auto unfinished = map.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
 				bool all_compacted = (unfinished.size() == 0);
 				all_compacted = ::mxx::all_of(all_compacted, comm);
 
 				assert(all_compacted);
 			}
+
+			// separate out the isolated.
+			separate_isolated();
+
 
 			listranked = true;
 			modified = false;
@@ -1409,24 +1505,6 @@ namespace graph
 				BL_BENCH_REPORT_MPI_NAMED(p_rank, "list_rank", comm);
 			}
 
-			{
-
-				auto unfinished = map.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
-				bool all_compacted = (unfinished.size() == 0);
-				all_compacted = ::mxx::all_of(all_compacted, comm);
-
-				if (!all_compacted)
-					separate_cycles(iterations);
-
-			}
-			{
-				// VERIFY ALL DONE.
-				auto unfinished = map.find(::bliss::debruijn::filter::chain::IsUncompactedNode(iterations));
-				bool all_compacted = (unfinished.size() == 0);
-				all_compacted = ::mxx::all_of(all_compacted, comm);
-
-				assert(all_compacted);
-			}
 
 			listranked = true;
 			modified = false;
@@ -1434,7 +1512,35 @@ namespace graph
 			return iterations;
 		}
 
-		/// merge one chain into another.
+		void separate_isolated_and_cycles() {
+
+			// separate out the isolated.
+			separate_isolated();
+
+			{
+				auto unfinished = map.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
+				bool all_compacted = (unfinished.size() == 0);
+				all_compacted = ::mxx::all_of(all_compacted, comm);
+
+				if (!all_compacted)
+					separate_cycles();
+
+			}
+			{
+				// VERIFY ALL DONE.
+				auto unfinished = map.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
+				bool all_compacted = (unfinished.size() == 0);
+				all_compacted = ::mxx::all_of(all_compacted, comm);
+
+				assert(all_compacted);
+			}
+
+		}
+
+
+		/**
+		 *  merge one chain into another.
+		 */
 		void merge(debruijn_chain_graph const & other) {  // only local operations since dist hash is identical.
 			auto it = other.get_map().get_local_container().cbegin();
 			auto end = other.get_map().get_local_container().cend();
@@ -1455,11 +1561,21 @@ namespace graph
 				cycle_nodes.get_local_container().insert(*it);
 			}
 
+			// merge the isolated nodes
+			it = other.isolated.get_local_container().cbegin();
+			end = other.isolated.get_local_container().cend();
+			for (; it != end; ++it) {
+				isolated.get_local_container().insert(*it);
+			}
+			
 		}
 
 	   //====== OUTPUT....
 
 
+/**
+ * 	convert t oranked chain
+ */
 	   std::vector<::bliss::debruijn::chain::listranked_chain_node<KmerType> >
 	   to_ranked_chain_nodes() {
 
@@ -1475,7 +1591,9 @@ namespace graph
 			return compacted_chain;
 	   }
 
-
+/**
+ * 	compress chain
+ */
 	   std::vector<::std::string> to_compressed_chains() {
 	     // ========== construct new graph with compacted chains and junction nodes.
 	     BL_BENCH_INIT(compress_chain);
@@ -1500,7 +1618,7 @@ namespace graph
 			// distribute the data
 
 			std::vector<size_t> recv_counts;
-      std::vector<::bliss::debruijn::chain::listranked_chain_node<KmerType> > distributed_chains;
+     		 std::vector<::bliss::debruijn::chain::listranked_chain_node<KmerType> > distributed_chains;
 //					::dsc::assign_and_bucket(compacted_chains, mapper, this->comm.size());
 //			BL_BENCH_END(compress_chain, "assign and bucket", compacted_chains.size());
 //
@@ -1508,7 +1626,7 @@ namespace graph
 //			BL_BENCH_START(compress_chain);
 //			::dsc::distribute_bucketed(compacted_chains, recv_counts, this->comm).swap(compacted_chains);
 			::imxx::distribute(compacted_chains, mapper, recv_counts, distributed_chains, comm);
-      distributed_chains.swap(compacted_chains);
+      		distributed_chains.swap(compacted_chains);
 			BL_BENCH_COLLECTIVE_END(compress_chain, "distribute nodes", compacted_chains.size(), comm);  // this is for output ordering.
 	     }
 
@@ -1560,12 +1678,12 @@ namespace graph
 
 		// make a separate chain_graph that only has terminal chain nodes.  exclude completely isolated nodes, but leave in unit chain nodes.(chain length of 1.)
 	   void make_terminal_chain_graph(debruijn_chain_graph<KmerType, DistHash> & termini) {
-		   // assume cycles are excluded.
+		   // assume cycles and isolated are excluded.
 		   auto temp = this->get_terminal_nodes();
 			termini.get_map().get_local_container().insert(temp);  // local insert only.
 	   }
 		void make_representative_chain_graph(debruijn_chain_graph<KmerType, DistHash> & reps) {
-		   // assume cycles are excluded.
+		   // assume cycles and isolated are excluded.
 		   auto temp = this->get_chain_representatives();
 			reps.get_map().get_local_container().insert(temp); //, ::bliss::transform::identity<mutable_value_type>(), true);  // local insert only.
 	   }

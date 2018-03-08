@@ -1126,6 +1126,8 @@ if (!benchmark)	{
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
 	}
 
+
+
 			old_chains.clear();
 			new_chains.make_terminal_chain_graph(old_chains);  // exclude isolated also.
 			new_chains.clear();
@@ -1190,18 +1192,37 @@ if (!benchmark)	{
 			++iteration;
 		}
 
-		// don't erase the isolated - else the freq map computation would be incorrect.
+		// don't erase the isolated - else the freq map computation would be incorrect.  (fix?  now removing entries from chainmap too.)
 		// BL_BENCH_START(work);
 		// idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());  //now erase the isolated so we can check idx.
 		// BL_BENCH_COLLECTIVE_END(work, "finalize_idx", idx.local_size(), comm);
 
-	#ifndef NDEBUG
+
+	{
+		// =========== remove cycles and isolated
 		BL_BENCH_START(work);
-		if (comm.rank() == 0) printf("rank 0 checking deadend-removed index\n");
+		auto cycle_kmers = chainmap.get_cycle_node_kmers();
+		idx.erase(cycle_kmers);
+		idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+		BL_BENCH_COLLECTIVE_END(work, "remove cycles/isolated/etc", idx.local_size(), comm);
+
+#ifndef NDEBUG  
+		BL_BENCH_START(work);
+		std::string graph_filename(out_prefix);
+		graph_filename.append(".graph.no_cycle.");
+		graph_filename.append(std::to_string(iteration));
+		print_graph_edge_frequencies(graph_filename, idx, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
+
+
+		BL_BENCH_START(work);
+		if (comm.rank() == 0) printf("rank 0 checking cycle removed index\n");
 		print_edge_histogram(idx, comm);
 		check_index(idx, comm);
 		BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
-	#endif
+#endif
+	}
+
 
 	}
 #else
@@ -1417,6 +1438,31 @@ if (!benchmark)		{
 		chain_summary_filename.append(std::to_string(iteration));
 		print_chain_summaries(chain_summary_filename, summaries, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
+	}
+
+	{
+		// =========== remove cycles and isolated
+		BL_BENCH_START(work);
+		auto cycle_kmers = chainmap.get_cycle_node_kmers();
+		idx.erase(cycle_kmers);
+		idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+		BL_BENCH_COLLECTIVE_END(work, "remove cycles/isolated/etc", idx.local_size(), comm);
+
+#ifndef NDEBUG  
+		BL_BENCH_START(work);
+		std::string graph_filename(out_prefix);
+		graph_filename.append(".graph.no_cycle.");
+		graph_filename.append(std::to_string(iteration));
+		print_graph_edge_frequencies(graph_filename, idx, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
+
+
+		BL_BENCH_START(work);
+		if (comm.rank() == 0) printf("rank 0 checking cycle removed index\n");
+		print_edge_histogram(idx, comm);
+		check_index(idx, comm);
+		BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
+#endif
 	}
 
 			BL_BENCH_START(work);

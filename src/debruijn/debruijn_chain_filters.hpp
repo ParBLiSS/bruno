@@ -34,7 +34,7 @@ namespace bliss {
 
       namespace chain {
 
-        struct IsIsolated {
+        struct IsUnitLength {
             /// does not filter by group of results.
             template <typename Iter>
             inline bool operator()(Iter first, Iter last) const {  return true; }
@@ -42,6 +42,18 @@ namespace bliss {
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
               return ::bliss::debruijn::is_chain_terminal(std::get<2>(t.second)) && ::bliss::debruijn::is_chain_terminal(std::get<3>(t.second));
+            }
+        };
+
+
+        struct IsIsolated {
+            /// does not filter by group of results.
+            template <typename Iter>
+            inline bool operator()(Iter first, Iter last) const {  return true; }
+
+            template <typename Kmer, typename Edge>
+            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+              return ::bliss::debruijn::points_to_self(std::get<2>(t.second)) && ::bliss::debruijn::points_to_self(std::get<3>(t.second));
             }
         };
 
