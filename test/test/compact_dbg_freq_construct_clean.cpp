@@ -1126,12 +1126,39 @@ if (!benchmark)	{
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
 	}
 
+	{
+		// =========== remove cycles and isolated
+		BL_BENCH_START(work);
+		auto cycle_kmers = chainmap.get_cycle_node_kmers();
+		idx.erase(cycle_kmers);
+		idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+		BL_BENCH_COLLECTIVE_END(work, "remove cycles/isolated/etc", idx.local_size(), comm);
 
+#ifndef NDEBUG  
+		BL_BENCH_START(work);
+		std::string graph_filename(out_prefix);
+		graph_filename.append(".graph.no_cycle.");
+		graph_filename.append(std::to_string(iteration));
+		print_graph_edge_frequencies(graph_filename, idx, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
+
+
+		BL_BENCH_START(work);
+		if (comm.rank() == 0) printf("rank 0 checking cycle removed index\n");
+		print_edge_histogram(idx, comm);
+		check_index(idx, comm);
+		BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
+#endif
+	}
+
+			BL_BENCH_START(work);
+			// before making terminal_chain_graph, need to clean up new_chains of the cycles and isolated items.
+			new_chains.separate_isolated_and_cycles();
 
 			old_chains.clear();
 			new_chains.make_terminal_chain_graph(old_chains);  // exclude isolated also.
 			new_chains.clear();
-			BL_BENCH_COLLECTIVE_END(work, "merge_new_chains", chainmap.size(), comm);
+			BL_BENCH_COLLECTIVE_END(work, "setup_new_chains", old_chains.size(), comm);
 
 #ifndef NDEBUG  
 	{
@@ -1198,30 +1225,7 @@ if (!benchmark)	{
 		// BL_BENCH_COLLECTIVE_END(work, "finalize_idx", idx.local_size(), comm);
 
 
-	{
-		// =========== remove cycles and isolated
-		BL_BENCH_START(work);
-		auto cycle_kmers = chainmap.get_cycle_node_kmers();
-		idx.erase(cycle_kmers);
-		idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
-		BL_BENCH_COLLECTIVE_END(work, "remove cycles/isolated/etc", idx.local_size(), comm);
 
-#ifndef NDEBUG  
-		BL_BENCH_START(work);
-		std::string graph_filename(out_prefix);
-		graph_filename.append(".graph.no_cycle.");
-		graph_filename.append(std::to_string(iteration));
-		print_graph_edge_frequencies(graph_filename, idx, comm);
-		BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
-
-
-		BL_BENCH_START(work);
-		if (comm.rank() == 0) printf("rank 0 checking cycle removed index\n");
-		print_edge_histogram(idx, comm);
-		check_index(idx, comm);
-		BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
-#endif
-	}
 
 
 	}
