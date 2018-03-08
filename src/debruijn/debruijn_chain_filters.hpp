@@ -211,6 +211,32 @@ namespace bliss {
             	return operator()(*it);
             }
         };
+
+
+        struct IsRecompactedCycleNode {
+            
+            IsRecompactedCycleNode()  {
+				// commented out because it should be valid for list ranking to have an isolated node with distance of 1 to itself.   a
+            	// so preventing cycle check to run should be based on other criteria (i.e. no unfinished nodes).
+//            	assert(iter > 0);  // has to have at least 1 iteration.
+            };
+
+            /// does not filter by group of results.
+            template <typename Iter>
+            inline bool operator()(Iter first, Iter last) const {  return true; }
+
+            // if both one or both of the edge are not pointing to a terminus, then this is a node that's in progress.
+            template <typename Kmer, typename Edge>
+            inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
+              return ::bliss::debruijn::points_to_chain_node(std::get<2>(t.second)) &&
+                     ::bliss::debruijn::points_to_chain_node(std::get<3>(t.second));
+            }
+
+            template <typename Iter>
+                        inline bool operator()(Iter it) const {
+            	return operator()(*it);
+            }
+        };
 // not used.
 //        // points to internal node that are not cycles
 //        struct IsPalindrome {

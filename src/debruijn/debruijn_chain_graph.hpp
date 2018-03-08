@@ -702,7 +702,7 @@ namespace graph
 
 
 		size_t separate_cycles() {
-			::bliss::debruijn::filter::chain::IsInternal is_internal;
+			::bliss::debruijn::filter::chain::IsRecompactedCycleNode is_internal;
 
 			if (comm.rank() == 0) printf("REMOVE CYCLES\n");
 
