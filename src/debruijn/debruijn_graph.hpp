@@ -57,13 +57,17 @@ namespace graph
 				 ::bliss::debruijn::graph::compact_multi_biedge<typename KmerType::KmerAlphabet, FreqValueType>,
 				  map_params_template>;
 
-		using key_type =  typename map_type::key_type;
 		using kmer_type =  typename map_type::key_type;
 		using edge_type =  typename map_type::mapped_type;
+		using count_type = FreqValueType;
+
+		using key_type =  typename map_type::key_type;
+		using mapped_type =  typename map_type::mapped_type;
 		using value_type = typename map_type::value_type;
-		using mutable_value_type = ::std::pair<kmer_type, edge_type>;
+		using mutable_value_type = ::std::pair<key_type, mapped_type>;
 		using const_iterator = typename map_type::const_iterator;
 
+		
 	protected:
 		/// distributed map fo storage.
 		map_type map;

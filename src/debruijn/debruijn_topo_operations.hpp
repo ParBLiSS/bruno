@@ -143,9 +143,9 @@ namespace topology
 	 * @brief return a vector of chain terminals from deadends.  isolated chain nodes are ignored as they are NOT deadends.
 	 * 		
 	 */
-	template <typename ChainGraph, typename Predicate >
-	std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> >
-	find_deadends(ChainGraph const & chains, Predicate const & pred) {
+	template <typename DBG, typename ChainGraph, typename Predicate = ::bliss::filter::TruePredicate >
+	std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type, typename DBG::count_type> >
+	find_deadends(DBG const & graph, ChainGraph const & chains, Predicate const & pred = Predicate()) {
 		// Question: what is the "next" for a deadend terminal node?
 			// in chain graph, AAAAAA with dist 0.
 			// may be confused with true AAAAAA branch?  yes. (although in reality not too many of those)
@@ -162,14 +162,16 @@ namespace topology
 		// or search for all terminal then distributed sort by chain rep, then send one to prev, then scan to filter out non-deadends
 		//   O(2M/P) for getting termini, sort in O(2* (2M/P) log (2M/p) + distribute_cost), then scan O(2M/P).
 		// search all termini then sort is SIMPLER.
+		using summarized_type = ::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type, typename DBG::count_type>;
+		std::vector<summarized_type> termini = chains.to_summarized_chains(graph);
 
-		std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> > termini = chains.to_summarized_chains();
+		// then populate the counts.
 
 		// iterate over all termini to summarize deadend chains
-		// then scan to locate deadends.  we must have a start and an end.  compact in place.  isolated are ignored.
+		// then scan to locate deadends.  we must have a start and an end.  compact in place.  ISOLATED ARE IGNORED because deleting these in the graph does nothing..
 		auto end = std::partition(termini.begin(), termini.end(),
-			[&pred](::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> const & x){
-				return pred(x) && ((std::get<5>(x) > 0) ^ (std::get<6>(x) > 0));  // at least one edge pointing to self (5. 6).  length can be 1.
+			[&pred](summarized_type const & x){
+				return pred(x) && ((std::get<5>(x) == 0) ^ (std::get<6>(x) == 0));  // exactly one edge pointing to self (5. 6).  length can be 1.
 		});
 		termini.erase(end, termini.end());
 		
@@ -177,9 +179,9 @@ namespace topology
 	}
 	
 	// both edges are disconnected
-	template <typename ChainGraph >
-	std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> >
-	find_isolated_chains(ChainGraph const & chains) {
+	template <typename DBG, typename ChainGraph, typename Predicate = ::bliss::filter::TruePredicate >
+	std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type, typename DBG::count_type> >
+	find_isolated_chains(DBG const & graph, ChainGraph const & chains, Predicate const & pred = Predicate()) {
 		// Question: what is the "next" for a deadend terminal node?
 			// in chain graph, AAAAAA with dist 0.
 			// may be confused with true AAAAAA branch?  yes. (although in reality not too many of those)
@@ -196,14 +198,15 @@ namespace topology
 		// or search for all terminal then distributed sort by chain rep, then send one to prev, then scan to filter out non-deadends
 		//   O(2M/P) for getting termini, sort in O(2* (2M/P) log (2M/p) + distribute_cost), then scan O(2M/P).
 		// search all termini then sort is SIMPLER.
+		using summarized_type = ::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type, typename DBG::count_type>;
 
-		std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> > termini = chains.to_summarized_chains();
+		std::vector<summarized_type > termini = chains.to_summarized_chains(graph);
 
 		// iterate over all termini to summarize deadend chains
 		// then scan to locate deadends.  we must have a start and an end.  compact in place.  isolated are ignored.
 		auto end = std::partition(termini.begin(), termini.end(),
-			[](::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> const & x){
-				return (std::get<5>(x) > 0) && (std::get<6>(x) > 0);  // both edges are isolated.
+			[&pred](summarized_type const & x){
+				return pred(x) && (std::get<5>(x) == 0) && (std::get<6>(x) == 0);  // both edges are empty.
 		});
 		termini.erase(end, termini.end());
 		
@@ -212,9 +215,9 @@ namespace topology
 
 
 	 // chains that sit between 2 branch nodes.
-	template <typename ChainGraph >
-	std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> >
-	find_unit_chains(ChainGraph const & chains) {
+	template <typename DBG, typename ChainGraph, typename Predicate = ::bliss::filter::TruePredicate >
+	std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type, typename DBG::count_type> >
+	find_unit_chains(DBG const & graph, ChainGraph const & chains, Predicate const & pred = Predicate()) {
 		// Question: what is the "next" for a deadend terminal node?
 			// in chain graph, AAAAAA with dist 0.
 			// may be confused with true AAAAAA branch?  yes. (although in reality not too many of those)
@@ -231,66 +234,56 @@ namespace topology
 		// or search for all terminal then distributed sort by chain rep, then send one to prev, then scan to filter out non-deadends
 		//   O(2M/P) for getting termini, sort in O(2* (2M/P) log (2M/p) + distribute_cost), then scan O(2M/P).
 		// search all termini then sort is SIMPLER.
+		using summarized_type = ::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type, typename DBG::count_type>;
 
-		std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> > termini = chains.to_summarized_chains();
+		std::vector<summarized_type > termini = chains.to_summarized_chains(graph);
 
 		// iterate over all termini to summarize deadend chains
 		// then scan to locate deadends.  we must have a start and an end.  compact in place.  isolated are ignored.
 		auto end = std::partition(termini.begin(), termini.end(),
-			[](::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> const & x){
-				return (std::get<4>(x) == 0) && (std::get<5>(x) == 0) && (std::get<6>(x) == 0);  // chains that sit between 2 branch nodes.
+			[&pred](summarized_type const & x){
+				return pred(x) && (std::get<4>(x) == 0) && (std::get<5>(x) > 0) && (std::get<6>(x) > 0);  // chains that sit between 2 branch nodes.
 		});
 		termini.erase(end, termini.end());
 		
 		return termini;
 	}
 
+	template <typename DBG, typename ChainGraph, typename Predicate =::bliss::filter::TruePredicate  >
+	std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type, typename DBG::count_type> >
+	find_normal_chains(DBG const & graph, ChainGraph const & chains, Predicate const & pred = Predicate()) {
+			// need to bring termini of the same chain together first in order to get the branches.
+		// do this with sort by chain rep, then filter, then sort by the branches, and filter again.
 
-	// /**
-	//  * @brief 
-	//  */
-	// template <typename somedatatype, >
-	// somedatatype count_deadends(std::pair<dbg, chain_graph> const & x, predicate) {
-		
-	// }
-	// /**
-	//  * @brief 
-	//  */
-	// template <typename somedatatype, >
-	// somedatatype erase_deadends(std::pair<dbg, chain_graph> const & x, predicate) {
+		// don't believe that this can be done in 1 sort pass because left and right terminal each have incomplete info.
+		// TODO: one possible alternative is when compacting, send the terminal's neighbors so that every node knows the branch.
+		//   	this can't work, however, since the middle chain nodes would not have chain termini info for sorting/ordering later.
 
-	// }
+		// search for all terminal then distributed sort by chain rep, then send one to prev, then scan to filter out deadends and isolated.
+		//   O(2M/P) for getting termini, sort in O(2* (2M/P) log (2M/p) + distribute_cost), then scan O(2M/P).
+		using summarized_type = ::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type, typename DBG::count_type>;
 
-	// /**
-	//  * @brief 
-	//  */
-	// template <typename somedatatype, >
-	// somedatatype find_deadends(std::pair<dbg, chain_graph> const & x, predicate) {
+		std::vector<summarized_type > termini = chains.to_summarized_chains(graph);
 
-	// }
-	// /**
-	//  * @brief 
-	//  */
-	// template <typename somedatatype, >
-	// somedatatype count_deadends(std::pair<dbg, chain_graph> const & x, predicate) {
+		// iterate over all termini to summarize deadend chains
+		// then scan to locate non-deadends.
+		auto end = std::partition(termini.begin(), termini.end(),
+			[&pred](summarized_type const & x){
+				return pred(x) && (std::get<4>(x) > 0) && (std::get<5>(x) > 0) && (std::get<6>(x) > 0);  
+		});
+		termini.erase(end, termini.end());
 
-	// }
-	// /**
-	//  * @brief 
-	//  */
-	// template <typename somedatatype, >
-	// somedatatype erase_deadends(std::pair<dbg, chain_graph> const & x, predicate) {
-
-	// }
+		return termini;
+	}
 
 
 	/**
 	 * @brief return a vector of chain terminals from bubbles. 
 	 * 		note that bubble lengths will be at least k for alternate paths to form bubbles
 	 */
-	template <typename ChainGraph, typename Predicate >
-	std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> >
-	find_bubbles(ChainGraph const & chains, Predicate const & pred, ::mxx::comm const & comm) {
+	template <typename DBG, typename ChainGraph, typename Predicate =::bliss::filter::TruePredicate >
+	std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type, typename DBG::count_type> >
+	find_bubbles(DBG const & graph, ChainGraph const & chains, Predicate const & pred, ::mxx::comm const & comm) {
 		// need to bring termini of the same chain together first in order to get the branches.
 		// do this with sort by chain rep, then filter, then sort by the branches, and filter again.
 
@@ -300,16 +293,10 @@ namespace topology
 
 		// search for all terminal then distributed sort by chain rep, then send one to prev, then scan to filter out deadends and isolated.
 		//   O(2M/P) for getting termini, sort in O(2* (2M/P) log (2M/p) + distribute_cost), then scan O(2M/P).
+		using summarized_type = ::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type, typename DBG::count_type>;
 
-		std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> > termini = chains.to_summarized_chains();
-
-		// iterate over all termini to summarize deadend chains
-		// then scan to locate non-deadends.
-		auto end = std::partition(termini.begin(), termini.end(),
-			[](::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> const & x){
-				return (std::get<4>(x) > 0) && (std::get<5>(x) == 0) && (std::get<6>(x) == 0);  
-		});
-		termini.erase(end, termini.end());
+		std::vector<summarized_type > termini = find_normal_chains(graph, chains, pred);
+		printf("rank %d NORMAL_CHAINS=%lu\n", comm.rank(), termini.size() );
 
 		// now that deadends and isolated chains have been removed, now sort by in edge of chain rep, followed by out edge.
 		// evenly redistribute.
@@ -333,8 +320,8 @@ namespace topology
 
 			// now sort by 5' branch, then by 3' branch, and finally by length
 			mxx::sort(termini.begin(), termini.end(),
-				[](::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> const & lhs,
-					::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> const & rhs){
+				[](summarized_type const & lhs,
+					summarized_type const & rhs){
 					// get chain representatives, then compare.
 					return (std::get<0>(lhs) < std::get<0>(rhs)) || 
 							((std::get<0>(lhs) == std::get<0>(rhs)) && (std::get<3>(lhs) < std::get<3>(rhs))) ||
@@ -358,7 +345,7 @@ namespace topology
 			while (std::get<0>(termini[i]) == splitter.first) ++i;
 			send_counts[splitter.second] = i;  // all else is 0.	
 			// now move data using alltoallv
-			std::vector<::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> > extras = 
+			std::vector<summarized_type > extras = 
 				mxx::all2allv(termini.data(), send_counts, subcomm);
 			termini.insert(termini.end(), extras.begin(), extras.end());  // order should be maintained.
 
@@ -366,7 +353,7 @@ namespace topology
 			// start with i-th entry.
 			size_t insert_at = 0;
 			i = send_counts[splitter.second];  // these have been sent away.
-			::bliss::debruijn::chain::summarized_chain<typename ChainGraph::kmer_type> prev = termini[i];
+			summarized_type prev = termini[i];
 			size_t first_i = i;
 			++i;
 			for (; i < termini.size(); ++i) {
@@ -403,27 +390,6 @@ namespace topology
 
 		return termini;
 	}
-	// /**
-	//  * @brief return a vector of chain representatives, each a separate deadend.
-	//  */
-	// template <typename somedatatype, >
-	// somedatatype count_bubbles(std::pair<dbg, chain_graph> const & x, predicate) {
-
-	// }
-	// /**
-	//  * @brief return a vector of chain representatives, each a separate deadend.
-	//  */
-	// template <typename somedatatype, >
-	// somedatatype erase_bubbles(std::pair<dbg, chain_graph> const & x, predicate) {
-
-	// }
-	// /**
-	//  * @brief return a vector of chain representatives, each a separate deadend.
-	//  */
-	// template <typename somedatatype, >
-	// somedatatype recursively_erase_bubbles(std::pair<dbg, chain_graph> const & x, predicate) {
-
-	// }
 
 
 	/** recompact chain after dbg modification.   modified is distributed so need to be moved around.  list ranking is distributed. rest are local

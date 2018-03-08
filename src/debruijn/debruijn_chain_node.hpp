@@ -179,21 +179,72 @@ namespace bliss
        * @tparam uint8		3' self reference?  1 means pointing to self (same definition as the dists).
 	   * 
        */
-	  template <typename KMER>
-	  using summarized_chain = ::std::tuple<KMER, KMER, KMER, KMER, uint, uint8_t, uint8_t>;
+	  template <typename KMER, typename COUNT = uint8_t>
+	  using summarized_chain = ::std::tuple<KMER, KMER, KMER, KMER, uint, COUNT, COUNT>;
+
+		template <typename KMER, typename COUNT = uint8_t>
+		inline ::bliss::debruijn::chain::summarized_chain<KMER, COUNT> 
+		merge_summarized_chains(::bliss::debruijn::chain::summarized_chain<KMER, COUNT> const & x,
+			::bliss::debruijn::chain::summarized_chain<KMER, COUNT> const & y ) {
+			// middle parts have to be identical.
+			::bliss::debruijn::chain::summarized_chain<KMER, COUNT> out = x;
+
+				assert((std::get<1>(out) == std::get<1>(y)) && 
+						(std::get<2>(out) == std::get<2>(y)) && 
+					   (std::get<4>(out) == std::get<4>(y)) &&
+					   "the chain terminal kmer and distance do not match between the two halves.");
+				// max of in and out edge freq, and corresponding kmers.
+				if (std::get<5>(out) < std::get<5>(y)) {
+					std::get<0>(out) = std::get<0>(y);
+					std::get<5>(out) = std::get<5>(y);
+				}
+				if (std::get<6>(out) < std::get<6>(y)) {
+					std::get<3>(out) = std::get<3>(y);
+					std::get<6>(out) = std::get<6>(y);
+				}
+			return out;
+		}
 
 	  /// make a summarized chain.  assumes that the termini are at left of first and right of second, and first has kmer corresponding to chain representative
-	  template <typename KMER>
-	  inline ::bliss::debruijn::chain::summarized_chain<KMER> make_summarized_chain(KMER const & ff, simple_biedge<KMER> const & fs,
+	  template <typename KMER, typename COUNT = uint8_t>
+	  inline ::bliss::debruijn::chain::summarized_chain<KMER, COUNT> make_summarized_chain(KMER const & ff, simple_biedge<KMER> const & fs,
 	  	 KMER const & sf, simple_biedge<KMER> const & ss ) {
 			return std::make_tuple(
 			std::get<0>(fs),  // prev at 5'
 			ff,		// 5', also chain rep
 			sf,		// 3', all same strand as chain rep.
 			std::get<1>(ss),  // next at 3'
-			::bliss::debruijn::get_chain_dist(std::get<3>(fs)),	 // dist.
-			::bliss::debruijn::points_to_self(std::get<2>(fs)),  // 5' terminal
-			::bliss::debruijn::points_to_self(std::get<3>(ss))  // 3' terminal
+			::bliss::debruijn::get_chain_dist(std::get<3>(fs)),	 // DIST between the termini.
+			::bliss::debruijn::points_to_self(std::get<2>(fs)) ? static_cast<COUNT>(0) : static_cast<COUNT>(1),  // 5' terminal
+			::bliss::debruijn::points_to_self(std::get<3>(ss)) ? static_cast<COUNT>(0) : static_cast<COUNT>(1) // 3' terminal
+			);
+	  }
+
+	  template <typename KMER, typename COUNT = uint8_t>
+	  inline ::bliss::debruijn::chain::summarized_chain<KMER, COUNT> make_summarized_chain(KMER const & ff, simple_biedge<KMER> const & fs,
+	  	 int ) {
+			return std::make_tuple(
+			std::get<0>(fs),  // prev at 5'
+			ff,		// 5', also chain rep
+			std::get<1>(fs),		// 3', all same strand as chain rep.
+			KMER(),  // next at 3'
+			::bliss::debruijn::get_chain_dist(std::get<3>(fs)),	 // DIST between the termini.
+			::bliss::debruijn::points_to_self(std::get<2>(fs)) ? static_cast<COUNT>(0) : static_cast<COUNT>(1),  // 5' terminal
+			static_cast<COUNT>(0) // 3' terminal
+			);
+	  }
+
+  	  template <typename KMER, typename COUNT = uint8_t>
+	  inline ::bliss::debruijn::chain::summarized_chain<KMER, COUNT> make_summarized_chain(int,
+	  	 KMER const & sf, simple_biedge<KMER> const & ss  ) {
+			return std::make_tuple(
+			KMER(),  // prev at 5'
+			std::get<0>(ss),		// 5', also chain rep
+			sf,		// 3', all same strand as chain rep.
+			std::get<1>(ss),  // next at 3'
+			::bliss::debruijn::get_chain_dist(std::get<2>(ss)),	 // DIST between the termini.
+			static_cast<COUNT>(0),  // 5' terminal
+			::bliss::debruijn::points_to_self(std::get<3>(ss)) ? static_cast<COUNT>(0) : static_cast<COUNT>(1) // 3' terminal
 			);
 	  }
 
@@ -213,10 +264,10 @@ namespace bliss
 
 
       // reverse complement the chain summary.
-      template <typename KMER>
-      inline ::bliss::debruijn::chain::summarized_chain<KMER>
-      reverse_complement(::bliss::debruijn::chain::summarized_chain<KMER> const & x) {
-        return ::bliss::debruijn::chain::summarized_chain<KMER>(
+      template <typename KMER, typename COUNT=uint8_t>
+      inline ::bliss::debruijn::chain::summarized_chain<KMER, COUNT>
+      reverse_complement(::bliss::debruijn::chain::summarized_chain<KMER, COUNT> const & x) {
+        return ::bliss::debruijn::chain::summarized_chain<KMER, COUNT>(
 			std::get<3>(x).reverse_complement(),
             std::get<2>(x).reverse_complement(),
 			std::get<1>(x).reverse_complement(),

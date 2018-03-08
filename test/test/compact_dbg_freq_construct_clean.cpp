@@ -537,34 +537,57 @@ struct spurious_link_filter {
 
 // edge frequency filter is used to identify edges at some threshold.  place holder for relative frequency comparison
 struct edge_freq_filter {
+	uint min_freq; 
+	edge_freq_filter (uint minf = 1) : min_freq(minf) {}
+
 	template <typename count_type>
 	bool operator()(count_type const & x ) const {
-		return x < 3; 
+		return x < min_freq; 
 	}
 };
 
 // deadend filter applies to chain summaries to select ones that are shorter than some length, k
 struct deadend_filter {
 	uint max_len;
+	edge_freq_filter pred; 
 
-	deadend_filter(uint length = 1) : max_len(length) {}
+	deadend_filter(uint length = std::numeric_limits<uint>::max(), uint minf = 1) : max_len(length), pred(minf) {}
 
 	template <typename SUMMARY>
 	bool operator()(SUMMARY const & x) const {
-		return std::get<4>(x) < max_len;
+		return (std::get<4>(x) < max_len) && 
+			( pred(std::get<5>(x)) &&     // recall the length is already too small.
+				pred(std::get<6>(x))) ;
 	}
 };
 
 // bubble filter applies to chain summaries to select paths in bubble with similar lengths, at least k  (can't be smaller than k and still be a bubble)
 // assume sorting by length. for now, just say difference is less than or equal to 1.
 struct bubble_filter {
+	uint max_len;
+	edge_freq_filter pred; 
 
+	bubble_filter(uint minf = 1) : pred(minf)  {}
+
+	// binary operator to operate on 2 paths
 	template <typename SUMMARY>
 	bool operator()(SUMMARY const & lhs, SUMMARY const & rhs) const {	
 		uint l = std::get<4>(lhs);
 		uint r = std::get<4>(rhs);
 		//printf("bubble lengths l %u r %u\n", l, r );
-		return (std::max(l, r) - std::min(l, r)) <= 1;
+		return ((std::max(l, r) - std::min(l, r)) <= 1) && 
+				(pred(std::get<5>(lhs)) ||
+				pred(std::get<6>(lhs)) || 
+				pred(std::get<5>(rhs)) ||
+				pred(std::get<6>(rhs)));
+	}
+
+	// unary operator to operate on 1 path - probably not the best for bubbles, so make it return true always.
+	template <typename SUMMARY>
+	bool operator()(SUMMARY const & x) const {
+		return 	true;
+//				pred(std::get<5>(x)) ||
+//				pred(std::get<6>(x)) ;
 	}
 };
 
@@ -833,9 +856,9 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	}
 
 
-		edge_freq_filter edge_freq_filt;
-		deadend_filter deadend_filt(2 * KmerType::size - 1);
-		bubble_filter bubble_filt;
+		edge_freq_filter edge_freq_filt(3);
+		deadend_filter deadend_filt(2 * KmerType::size - 1, 3);
+		bubble_filter bubble_filt(3);
 
 #if defined(RECOMPACT)
 	{
@@ -848,12 +871,12 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		// =============================================================
 		// find deadends
 		BL_BENCH_START(work);
-		auto deadends = ::bliss::debruijn::topology::find_deadends(old_chains, deadend_filt);
+		auto deadends = ::bliss::debruijn::topology::find_deadends(idx, old_chains, deadend_filt);
 		BL_BENCH_COLLECTIVE_END(work, "find_deadends", deadends.size(), comm);
 
 		// find bubbles
 		BL_BENCH_START(work);
-		auto bubbles = ::bliss::debruijn::topology::find_bubbles(old_chains, bubble_filt, comm);
+		auto bubbles = ::bliss::debruijn::topology::find_bubbles(idx, old_chains, bubble_filt, comm);
 		BL_BENCH_COLLECTIVE_END(work, "find_bubbles", bubbles.size(), comm);
 
 
@@ -890,7 +913,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			// extract the edges as nodes.
 			branch_nodes.clear();
 			for (size_t i = 0; i < deadends.size(); ++i) {
-				if (::bliss::debruijn::points_to_branch(std::get<5>(deadends[i]))) {
+				if (std::get<5>(deadends[i]) > 0) { //frequency > 0 -> has edge to branch
 					r.setCharsAtPos(
 						::bliss::common::DNA16::FROM_ASCII[
 							KmerType::KmerAlphabet::TO_ASCII[std::get<1>(deadends[i]).getCharsAtPos(0, 1)]],
@@ -900,7 +923,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 					modified.emplace_back(std::get<0>(deadends[i]));
 					modified.emplace_back(std::get<1>(deadends[i]));
 				}
-				if (::bliss::debruijn::points_to_branch(std::get<6>(deadends[i]))) {
+				if (std::get<6>(deadends[i]) > 0) {  //frequency > 0 -> has edge to branch
 					l.setCharsAtPos(
 						::bliss::common::DNA16::FROM_ASCII[
 							KmerType::KmerAlphabet::TO_ASCII[std::get<2>(deadends[i]).getCharsAtPos(KmerType::size - 1, 1)]],
@@ -1136,12 +1159,12 @@ if (!benchmark)	{
 
 			//---------- detect deadends and bubbles again.
 			BL_BENCH_START(work);
-			deadends = ::bliss::debruijn::topology::find_deadends(old_chains, deadend_filt);
+			deadends = ::bliss::debruijn::topology::find_deadends(idx, old_chains, deadend_filt);
 			BL_BENCH_COLLECTIVE_END(work, "find_deadends", deadends.size(), comm);
 
 			// find bubbles
 			BL_BENCH_START(work);
-			bubbles = ::bliss::debruijn::topology::find_bubbles(old_chains, bubble_filt, comm);
+			bubbles = ::bliss::debruijn::topology::find_bubbles(idx, old_chains, bubble_filt, comm);
 			BL_BENCH_COLLECTIVE_END(work, "find_bubbles", bubbles.size(), comm);
 
 
@@ -1191,12 +1214,12 @@ if (!benchmark)	{
 		// =============================================================
 		// find deadends
 		BL_BENCH_START(work);
-		auto deadends = ::bliss::debruijn::topology::find_deadends(new_chains, deadend_filt);
+		auto deadends = ::bliss::debruijn::topology::find_deadends(idx, new_chains, deadend_filt);
 		BL_BENCH_COLLECTIVE_END(work, "find_deadends", deadends.size(), comm);
 
 		// find bubbles
 		BL_BENCH_START(work);
-		auto bubbles = ::bliss::debruijn::topology::find_bubbles(new_chains, bubble_filt, comm);
+		auto bubbles = ::bliss::debruijn::topology::find_bubbles(idx, new_chains, bubble_filt, comm);
 		BL_BENCH_COLLECTIVE_END(work, "find_bubbles", bubbles.size(), comm);
 
 
@@ -1230,7 +1253,7 @@ if (!benchmark)		{
 			// extract the edges as nodes.
 			branch_nodes.clear();
 			for (size_t i = 0; i < deadends.size(); ++i) {
-				if (::bliss::debruijn::points_to_branch(std::get<5>(deadends[i]))) {
+				if (std::get<5>(deadends[i]) > 0) {  // frequency > 0 -> has edge to branch
 					r.setCharsAtPos(
 						::bliss::common::DNA16::FROM_ASCII[
 							KmerType::KmerAlphabet::TO_ASCII[std::get<1>(deadends[i]).getCharsAtPos(0, 1)]],
@@ -1238,7 +1261,7 @@ if (!benchmark)		{
 					branch_nodes.emplace_back(std::get<0>(deadends[i]), r);
 
 				}
-				if (::bliss::debruijn::points_to_branch(std::get<6>(deadends[i]))) {
+				if (std::get<6>(deadends[i]) > 0) { // frequency > 0 -> has edge to branch
 					l.setCharsAtPos(
 						::bliss::common::DNA16::FROM_ASCII[
 							KmerType::KmerAlphabet::TO_ASCII[std::get<2>(deadends[i]).getCharsAtPos(KmerType::size - 1, 1)]],
@@ -1419,12 +1442,12 @@ if (!benchmark)		{
 
 			//---------- detect deadends and bubbles again.
 			BL_BENCH_START(work);
-			deadends = ::bliss::debruijn::topology::find_deadends(new_chains, deadend_filt);
+			deadends = ::bliss::debruijn::topology::find_deadends(idx, new_chains, deadend_filt);
 			BL_BENCH_COLLECTIVE_END(work, "find_deadends", deadends.size(), comm);
 
 			// find bubbles
 			BL_BENCH_START(work);
-			bubbles = ::bliss::debruijn::topology::find_bubbles(new_chains, bubble_filt, comm);
+			bubbles = ::bliss::debruijn::topology::find_bubbles(idx, new_chains, bubble_filt, comm);
 			BL_BENCH_COLLECTIVE_END(work, "find_bubbles", bubbles.size(), comm);
 
 

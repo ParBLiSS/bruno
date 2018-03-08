@@ -74,7 +74,8 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 	MPI_File fh;
 
 	bool has_data = len > 0;
-	mxx::comm subcomm = comm.split(has_data);
+	bool all_has_data = mxx::all_of(has_data, comm);
+	mxx::comm subcomm = all_has_data ? comm.copy() : comm.split(has_data);
 
 	if (has_data) {
 

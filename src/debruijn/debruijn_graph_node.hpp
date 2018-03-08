@@ -276,8 +276,6 @@ namespace bliss
             return counts[CHAR_TO_INDEX[idx] + maxEdgeCount];
           }
 
-
-
           inline COUNT get_self_frequency() const {
         	  return counts[2 * maxEdgeCount];
           }
@@ -298,6 +296,21 @@ namespace bliss
             return count;
           }
 
+          inline COUNT get_out_edge_total_frequency() const {
+            COUNT total = 0;
+            for (size_t i = 0; i < maxEdgeCount; ++i) {
+              total = sat_add(total, counts[i]);
+            }
+            return total;
+          }
+
+          inline COUNT get_in_edge_total_frequency() const {
+            COUNT total = 0;
+            for (size_t i = maxEdgeCount; i < 2 * maxEdgeCount; ++i) {
+              total = sat_add(total, counts[i]);
+            }
+            return total;
+          }
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
@@ -581,6 +594,22 @@ namespace bliss
             return count;
           }
 
+
+          inline COUNT get_out_edge_total_frequency() const {
+            COUNT total = 0;
+            for (size_t i = 0; i < maxEdgeCount; ++i) {
+              total = sat_add(total, counts[i]);
+            }
+            return total;
+          }
+
+          inline COUNT get_in_edge_total_frequency() const {
+            COUNT total = 0;
+            for (size_t i = maxEdgeCount; i < 2 * maxEdgeCount; ++i) {
+              total = sat_add(total, counts[i]);
+            }
+            return total;
+          }
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
@@ -870,6 +899,22 @@ namespace bliss
           }
 
 
+          inline COUNT get_out_edge_total_frequency() const {
+            COUNT total = 0;
+            for (size_t i = 0; i < maxEdgeCount; ++i) {
+              total = sat_add(total, counts[i]);
+            }
+            return total;
+          }
+
+          inline COUNT get_in_edge_total_frequency() const {
+            COUNT total = 0;
+            for (size_t i = maxEdgeCount; i < 2 * maxEdgeCount; ++i) {
+              total = sat_add(total, counts[i]);
+            }
+            return total;
+          }
+
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
           void get_out_neighbors(Kmer const & kmer, std::vector<std::pair<Kmer, CountType> > & neighbors) const {
@@ -1096,6 +1141,14 @@ namespace bliss
           }
           inline uint8_t get_in_edge_count() const {
             return pcnt(counts >> 4);
+          }
+
+          inline uint8_t get_out_edge_total_frequency() const {
+            return get_out_edge_count();
+          }
+
+          inline uint8_t get_in_edge_total_frequency() const {
+            return get_in_edge_count();
           }
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
@@ -1334,6 +1387,15 @@ namespace bliss
             return pcnt(counts[1]);
           }
 
+
+          inline uint8_t get_out_edge_total_frequency() const {
+            return get_out_edge_count();
+          }
+
+          inline uint8_t get_in_edge_total_frequency() const {
+            return get_in_edge_count();
+          }
+
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>
           void get_out_neighbors(Kmer const & kmer, std::vector<Kmer> & neighbors) const {
@@ -1545,6 +1607,14 @@ namespace bliss
             return pcnt(counts[1]);
           }
 
+
+          inline uint8_t get_out_edge_total_frequency() const {
+            return get_out_edge_count();
+          }
+
+          inline uint8_t get_in_edge_total_frequency() const {
+            return get_in_edge_count();
+          }
 
           // construct a new kmer from a known edge, if that edge's count is non-zero
           template <typename Kmer>

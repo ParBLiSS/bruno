@@ -1737,6 +1737,151 @@ namespace graph
 	}
 
 
+	/**
+	 * @brief return a vector of chain terminals from deadends.  isolated chain nodes are ignored as they are NOT deadends.
+	 * 		
+	 */
+	template <typename DBG>
+	std::vector<::bliss::debruijn::chain::summarized_chain<KmerType, typename DBG::count_type> > to_summarized_chains(DBG const & dbg) const {
+		// Question: what is the "next" for a deadend terminal node?
+			// in chain graph, AAAAAA with dist 0.
+			// may be confused with true AAAAAA branch?  yes. (although in reality not too many of those)
+			// to real branch:  <TAAAAA, <XXXXXX, AAAAAA, X, 0> >
+			// to deadend:  <YYYYYY, <XXXXXX, AAAAAA, X, 0> >
+			// and reverse comp becomes TTTTTT?
+			// 0 is indicating pointing to end, and deadend.
+			//  instead, dist should have type uint, with top bit indicating pointer to termini if dist is not 0, and pointing to self (no neighbor) if dist is 0.
+
+
+		// either search for terminal with no next, then search again for terminals with matching - 
+		//	this would require sorted structure, or hash table on a chainrep instead of node k-mer as key, for searching.
+	    //   O(2M/P) for deadends,
+		// or search for all terminal then distributed sort by chain rep, then send one to prev, then scan to filter out non-deadends
+		//   O(2M/P) for getting termini, sort in O(2* (2M/P) log (2M/p) + distribute_cost), then scan O(2M/P).
+		// search all termini then sort is SIMPLER.
+
+		// need edge frequency.  Instead of sorting termini then do pair conversion,
+		//   convert, sort, then merge.  both termini should share the same chain rep, so sort by chain rep.  mergeing should be a max operation on edge freq.
+
+
+
+		std::vector<::bliss::debruijn::chain::summarized_chain<KmerType, typename DBG::count_type> > results;
+
+		{
+			std::vector<mutable_value_type> termini = this->get_terminal_nodes();
+			// convert termini to summarized chain
+			::bliss::debruijn::chain::summarized_chain<KmerType, typename DBG::count_type> summary;
+			
+			for (mutable_value_type terminus : termini) {
+				// get the node from dbg.  note that the processing is simplified because 
+					// 1. we are targetting chains, so frequency extraction is easy.
+					// 2. the chain map key is distributed the same way as dbg's keys, so these operations are local
+					// 3. canonicalization are identical, so we can directly query.
+					// 4. relies on freq of edge being recorded the same way on both kmers.
+				auto it = dbg.get_map().get_local_container().find(terminus.first);
+				assert(((*it).second.get_in_edge_count() < 2) && ((*it).second.get_out_edge_count() < 2));  // should be an edge
+
+				// if this is an isolated or unit chain,
+				if (::bliss::debruijn::is_chain_terminal(std::get<2>(terminus.second)) && 
+					::bliss::debruijn::is_chain_terminal(std::get<3>(terminus.second)) ) {  // 5' terminus
+
+					summary = ::bliss::debruijn::chain::make_summarized_chain(
+							terminus.first, terminus.second, terminus.first, terminus.second);
+					// set the in-edge frequency.
+					std::get<5>(summary) = (*it).second.get_in_edge_total_frequency();  // looking for in edge freq, set as in freq.
+					std::get<6>(summary) = (*it).second.get_out_edge_total_frequency();  // looking for in edge freq, set as in freq.
+					results.emplace_back(summary);
+				} else if (::bliss::debruijn::is_chain_terminal(std::get<2>(terminus.second))) {  // 5' terminus
+					if (terminus.first < std::get<1>(terminus.second).reverse_complement() ) {   // 5' is chain rep
+						summary = ::bliss::debruijn::chain::make_summarized_chain(
+								terminus.first, terminus.second, static_cast<int>(0));
+						// set the in-edge frequency.
+						std::get<5>(summary) = (*it).second.get_in_edge_total_frequency();  // looking for in edge freq, set as in freq.
+						results.emplace_back(summary);
+					} else if (terminus.first > std::get<1>(terminus.second).reverse_complement() ) {  // rc(3') is chain rep
+						summary = ::bliss::debruijn::chain::make_summarized_chain(
+								static_cast<int>(0), terminus.first.reverse_complement(),
+								::bliss::debruijn::transform::reverse_complement(terminus.second));
+						std::get<6>(summary) = (*it).second.get_in_edge_total_frequency();  // looking for in edge freq, set as out frequency
+						results.emplace_back(summary);			
+					} else {  // 5' and rc(3') are the same.  this is a mobius strip?
+								//  note that 5' and 3' kmers are on same strand, and we do not allow palindromes as chains, so dist can't be 0.
+								// mobius strips in a chain here means there one of the node is also a branch.  not possible.
+						throw std::logic_error("ERROR: we may have a MOBIUS STRIP, or a palindrome");
+					}
+				} else if (::bliss::debruijn::is_chain_terminal(std::get<3>(terminus.second))) {  // 3' terminus
+					if (std::get<0>(terminus.second) < terminus.first.reverse_complement() ) {   // 5' is chain rep
+						summary = ::bliss::debruijn::chain::make_summarized_chain(
+								static_cast<int>(0), terminus.first, terminus.second);
+						std::get<6>(summary) = (*it).second.get_out_edge_total_frequency();  // looking for out edge freq, set as out frequency
+						results.emplace_back(summary);
+					} else if (std::get<0>(terminus.second) > terminus.first.reverse_complement() ) {  // rc(3') is chain rep
+						summary = ::bliss::debruijn::chain::make_summarized_chain(
+								terminus.first.reverse_complement(),
+								::bliss::debruijn::transform::reverse_complement(terminus.second),
+								static_cast<int>(0));
+						std::get<5>(summary) = (*it).second.get_out_edge_total_frequency();  // looking for out edge freq, set as in freq.
+						results.emplace_back(summary);
+					} else {  // 5' and rc(3') are the same.  this is a mobius strip?
+								//  note that 5' and 3' kmers are on same strand, and we do not allow palindromes as chains, so dist can't be 0.
+								// mobius strips in a chain here means there one of the node is also a branch.  not possible.
+						throw std::logic_error("ERROR: we may have a MOBIUS STRIP, or a palindrome");
+					}
+				} else {
+					throw std::logic_error("ERROR:  NOT A TERMINUS.");
+				}
+			}
+		}
+		// evenly redistribute.
+		mxx::distribute_inplace(results, comm);
+
+		// participate only if there is at least one entry.
+		bool has_data = (results.size() > 0);
+		bool all_has_data = ::mxx::all_of(has_data, comm);
+		mxx::comm subcomm = all_has_data ? comm.copy() : comm.split(has_data);
+
+		// distribute, sort by chain rep, and merge (max should do it provided that no edge is marked as 0.)
+		if (has_data) {
+			// now sort by chain representatives (position 1.)
+			mxx::sort(results.begin(), results.end(),
+				[](::bliss::debruijn::chain::summarized_chain<KmerType, typename DBG::count_type> const & lhs,
+				  ::bliss::debruijn::chain::summarized_chain<KmerType, typename DBG::count_type> const & rhs){
+					// compare position 1 kmer, which are chain reps.   then use position 3 kmer to further sort.
+					return (std::get<1>(lhs) < std::get<1>(rhs)) || 
+							((std::get<1>(lhs) == std::get<1>(rhs)) && (std::get<3>(lhs) < std::get<3>(rhs)));
+			}, subcomm);
+			
+			// termini comes in pairs, except for isolated kmers.  need to shift left to if split so we can merge.
+			::bliss::debruijn::chain::summarized_chain<KmerType, typename DBG::count_type> first = results.front();
+			::bliss::debruijn::chain::summarized_chain<KmerType, typename DBG::count_type> last = results.back();
+			first = mxx::left_shift(first, subcomm);
+			last = mxx::right_shift(last, subcomm);
+
+			// if the last in results is same as first in next proc, then remove it and process on the next proc
+			size_t max_pos = results.size();  // in here because we have at least 1.
+			if (std::get<1>(results.back()) == std::get<1>(first)) {
+				--max_pos;
+			}  
+			size_t insert_at = 0;
+			// now begin scanning through. and merge. elements could be single node, or paired.
+			// if the first in results is same as last in the prev proc, then merge with the first element and increment position.
+			for (size_t pos = 0; pos < max_pos; ++pos) {
+				// check to see if we have a unit or isolated chain node.
+				if (std::get<4>(results[pos]) == 0) {
+					results[insert_at] = results[pos];
+					++insert_at;
+				} else if (std::get<1>(results[pos]) == std::get<1>(last)) {
+					// two termini of the same chain, merge.
+					results[insert_at] = ::bliss::debruijn::chain::merge_summarized_chains(results[pos], last);
+					++insert_at;
+				}  // else not same and not unit /isolated, must be a new pair
+				last = results[pos];
+			}
+			results.erase(results.begin() + insert_at, results.end());
+
+		}
+		return results;
+	}
 
 	};
 
