@@ -249,9 +249,10 @@ parse_nodes(::bliss::io::file_data const & file_data,
 //#if (pPARSER == FASTQ)
 
 
+template <typename DBG>
 void print_branch_fasta(
     std::string const & filename,
-    CountDBGType const & idx2,
+    DBG const & idx2,
     mxx::comm const & comm) {
 
   if (comm.rank() == 0) printf("PRINT BRANCH KMERS\n");
@@ -259,7 +260,7 @@ void print_branch_fasta(
 
   // then find branches.
   BL_BENCH_START(branch_print);
-  std::vector<typename CountDBGType::mutable_value_type> branch_pts =
+  std::vector<typename DBG::mutable_value_type> branch_pts =
       idx2.find_if(::bliss::debruijn::filter::graph::IsBranchPoint());
   BL_BENCH_COLLECTIVE_END(branch_print, "get_branch_counts", branch_pts.size(), comm);
 
@@ -272,8 +273,8 @@ void print_branch_fasta(
     mxx::comm subcomm = (all_has_data == comm.size()) ? comm.copy() : comm.split(has_data);
     if (has_data == 1) {
       mxx::sort(branch_pts.begin(), branch_pts.end(),
-    		  [](typename CountDBGType::mutable_value_type const & x,
-          typename CountDBGType::mutable_value_type const & y){
+    		  [](typename DBG::mutable_value_type const & x,
+          typename DBG::mutable_value_type const & y){
         return x.first < y.first;
       }, subcomm);
     }
