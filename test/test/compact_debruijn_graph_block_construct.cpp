@@ -868,11 +868,11 @@ int main(int argc, char** argv) {
 			BL_BENCH_START(app);
 			print_branch_edge_frequencies(branch_filename, idx2, comm);
 			BL_BENCH_COLLECTIVE_END(app, "print branch", idx2.local_size(), comm);
-
-			BL_BENCH_START(app);
-			print_branch_fasta(branch_fasta_filename, idx2, comm);
-			BL_BENCH_COLLECTIVE_END(app, "print branch fasta", idx2.local_size(), comm);
-		}  // enforce delete idx2.
+		}
+		BL_BENCH_START(app);
+		print_branch_fasta(branch_fasta_filename, idx, comm);
+		BL_BENCH_COLLECTIVE_END(app, "print branch fasta", idx.local_size(), comm);
+		  // enforce delete idx2.
 
 		// ==== make chain map
 		BL_BENCH_START(app);

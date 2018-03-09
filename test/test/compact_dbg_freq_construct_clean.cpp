@@ -833,7 +833,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		// prepare
 		BL_BENCH_START(work);
 		ListRankedChainNodeVecType compacted_chain = chainmap.to_ranked_chain_nodes();
-		BL_BENCH_COLLECTIVE_END(work, "compacted_chain", compacted_chain.size(), comm);
+		BL_BENCH_COLLECTIVE_END(work, "compact_chain", compacted_chain.size(), comm);
 
 
 		// now print chain string - order is destroyed via psort.
@@ -862,6 +862,9 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 #if defined(RECOMPACT)
 	{
+
+//TODO: continue to verify that recompact is correct.
+
 
 		ChainGraphType old_chains(comm);
 		ChainGraphType new_chains(comm);
@@ -899,6 +902,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		bool done_clean = (deadends.size() == 0) && (bubbles.size() == 0);
 		done_clean = mxx::all_of(done_clean, comm);
 
+
 		size_t iteration = 0;
 		std::vector<std::pair<KmerType, ::bliss::debruijn::biedge::compact_simple_biedge> > branch_nodes;
 		::bliss::debruijn::biedge::compact_simple_biedge r, l;
@@ -909,6 +913,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 			modified.clear();
 
+			BL_BENCH_START(work);
 			//---------- remove deadends.
 			// extract the edges as nodes.
 			branch_nodes.clear();
@@ -934,6 +939,8 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 					modified.emplace_back(std::get<3>(deadends[i]));
 				}
 			}
+			BL_BENCH_COLLECTIVE_END(work, "make_deadend_list", branch_nodes.size(), comm);
+
 
 #ifndef NDEBUG
 			{
@@ -954,7 +961,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			BL_BENCH_START(work);
 			idx.get_map().erase_edges(branch_nodes, edge_freq_filt);   // also has to meet edge frequency requirements.
 			//idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());  don't erase isolated yet.
-			BL_BENCH_COLLECTIVE_END(work, "find_deadend_branches", branch_nodes.size(), comm);
+			BL_BENCH_COLLECTIVE_END(work, "severe_deadends", branch_nodes.size(), comm);
 
 #ifndef NDEBUG
 			BL_BENCH_START(work);
@@ -977,6 +984,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			// remove bubbles
 
 			// extract the edges as nodes.
+			BL_BENCH_START(work);
 			branch_nodes.clear();
 			for (size_t i = 0; i < bubbles.size(); ++i) {
 				r.setCharsAtPos(
@@ -996,6 +1004,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 				modified.emplace_back(std::get<3>(bubbles[i]));
 
 			}
+			BL_BENCH_COLLECTIVE_END(work, "make_bubble_list", branch_nodes.size(), comm);
 
 #ifndef NDEBUG  
 			{
@@ -1015,7 +1024,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			BL_BENCH_START(work);
 			idx.get_map().erase_edges(branch_nodes, edge_freq_filt);
 			// idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());  don't erase isolated yet.
-			BL_BENCH_COLLECTIVE_END(work, "erase_bubbles", branch_nodes.size(), comm);
+			BL_BENCH_COLLECTIVE_END(work, "severe_bubbles", branch_nodes.size(), comm);
 
 #ifndef NDEBUG
 			BL_BENCH_START(work);
@@ -1037,7 +1046,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 			//---------- recompact
 			BL_BENCH_START(work);
 			::bliss::debruijn::topology::recompact(idx, modified, old_chains, new_chains, comm);
-			BL_BENCH_COLLECTIVE_END(work, "merge_new_chains", new_chains.size(), comm);
+			BL_BENCH_COLLECTIVE_END(work, "recompact", new_chains.size(), comm);
 
 #ifndef NDEBUG  
 	{
@@ -1127,19 +1136,18 @@ if (!benchmark)	{
 	}
 
 	{
+#ifndef NDEBUG  
 		// =========== remove cycles and isolated
 		BL_BENCH_START(work);
 		auto cycle_kmers = chainmap.get_cycle_node_kmers();
 		idx.get_map().erase_nodes(cycle_kmers);
-		BL_BENCH_COLLECTIVE_END(work, "remove cycles/isolated/etc", idx.local_size(), comm);
+		BL_BENCH_COLLECTIVE_END(work, "remove cycles", idx.local_size(), comm);
 
-#ifndef NDEBUG  
 		BL_BENCH_START(work);
 		if (comm.rank() == 0) printf("rank 0 checking cycle removed index, removing %ld\n", cycle_kmers.size());
 		print_edge_histogram(idx, comm);
 		check_index(idx, comm);
 		BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
-#endif
 
 		// =========== remove cycles and isolated
 		BL_BENCH_START(work);
@@ -1148,14 +1156,26 @@ if (!benchmark)	{
 			idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
 			printf("rank %d ERASE ISOLATED %lu after cycle 1 iter %ld\n", comm.rank(), idx.local_size() - before, iteration);
 		}
-		BL_BENCH_COLLECTIVE_END(work, "remove cycles/isolated/etc", idx.local_size(), comm);
+		BL_BENCH_COLLECTIVE_END(work, "remove isolated", idx.local_size(), comm);
 
-#ifndef NDEBUG  
 		BL_BENCH_START(work);
 		if (comm.rank() == 0) printf("rank 0 checking isolated removed index\n");
 		print_edge_histogram(idx, comm);
 		check_index(idx, comm);
 		BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
+#else
+		// =========== remove cycles and isolated
+		BL_BENCH_START(work);
+		auto cycle_kmers = chainmap.get_cycle_node_kmers();
+		idx.get_map().erase_nodes(cycle_kmers);
+
+		{
+			size_t before = idx.local_size();
+			idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
+			printf("rank %d ERASE ISOLATED %lu after cycle 1 iter %ld\n", comm.rank(), idx.local_size() - before, iteration);
+		}
+		BL_BENCH_COLLECTIVE_END(work, "remove cycles/isolated/etc", idx.local_size(), comm);
+
 #endif
 
 #ifndef NDEBUG  
@@ -1292,6 +1312,7 @@ if (!benchmark)		{
 		while (!done_clean) {
 			if (comm.rank()  == 0) printf("cleaning iteration %lu\n", iteration);
 
+			BL_BENCH_START(work);
 			//---------- remove deadends.
 			// extract the edges as nodes.
 			branch_nodes.clear();
@@ -1313,6 +1334,7 @@ if (!benchmark)		{
 
 				}
 			}
+			BL_BENCH_COLLECTIVE_END(work, "make_deadend_list", branch_nodes.size(), comm);
 
 #ifndef NDEBUG
 			{
@@ -1337,7 +1359,7 @@ if (!benchmark)		{
 				idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
 				printf("rank %d ERASE ISOLATED %lu after deadends iter %ld\n", comm.rank(), idx.local_size() - before, iteration);
 			}
-			BL_BENCH_COLLECTIVE_END(work, "find_deadend_branches", branch_nodes.size(), comm);
+			BL_BENCH_COLLECTIVE_END(work, "severe_deadends", branch_nodes.size(), comm);
 
 #ifndef NDEBUG
 
@@ -1361,6 +1383,7 @@ if (!benchmark)		{
 			// remove bubbles
 
 			// extract the edges as nodes.
+			BL_BENCH_START(work);
 			branch_nodes.clear();
 			for (size_t i = 0; i < bubbles.size(); ++i) {
 				r.setCharsAtPos(
@@ -1376,6 +1399,7 @@ if (!benchmark)		{
 				branch_nodes.emplace_back(std::get<3>(bubbles[i]), l);
 
 			}
+			BL_BENCH_COLLECTIVE_END(work, "make_bubble_list", branch_nodes.size(), comm);
 
 #ifndef NDEBUG  
 			{
@@ -1399,7 +1423,7 @@ if (!benchmark)		{
 				idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
 				printf("rank %d ERASE ISOLATED %lu after bubble iter %ld\n", comm.rank(), idx.local_size() - before, iteration);
 			}
-			BL_BENCH_COLLECTIVE_END(work, "erase_bubbles", branch_nodes.size(), comm);
+			BL_BENCH_COLLECTIVE_END(work, "severe_bubbles", branch_nodes.size(), comm);
 
 #ifndef NDEBUG
 			BL_BENCH_START(work);
@@ -1612,10 +1636,6 @@ if (!benchmark)		{
 
 	// == print ===  prepare for printing compacted chain and frequencies
 
-	// search in chainmap to find canonical termini.
-	BL_BENCH_START(work);
-	ChainVecType chain_rep = chainmap.find_if(::bliss::debruijn::filter::chain::IsCanonicalTerminusOrIsolated());
-	BL_BENCH_COLLECTIVE_END(work, "chain rep", chain_rep.size(), comm);
 
 
 	FreqMapType freq_map(comm);  // has freq summary for whole chain.
@@ -1623,7 +1643,7 @@ if (!benchmark)		{
 		// prepare
 		BL_BENCH_START(work);
 		ListRankedChainNodeVecType compacted_chain = chainmap.to_ranked_chain_nodes();
-		BL_BENCH_COLLECTIVE_END(work, "compacted_chain", compacted_chain.size(), comm);
+		BL_BENCH_COLLECTIVE_END(work, "compact_chain", compacted_chain.size(), comm);
 
 #ifndef NDEBUG
 		if (compress) {
@@ -1676,6 +1696,12 @@ if (!benchmark)		{
 
 
 	if (!benchmark) {
+		// search in chainmap to find canonical termini.
+		BL_BENCH_START(work);
+		ChainVecType chain_rep = chainmap.find_if(::bliss::debruijn::filter::chain::IsCanonicalTerminusOrIsolated());
+		BL_BENCH_COLLECTIVE_END(work, "chain rep", chain_rep.size(), comm);
+
+
 		// get terminal k-mers and frequency
 		// erase everything except for terminal kmers.
 		BL_BENCH_START(work);
@@ -1714,10 +1740,11 @@ if (!benchmark)		{
 
 
 	// release chainmap
+	if (!benchmark) {
 	BL_BENCH_START(work);
 	chainmap.clear();
 	BL_BENCH_COLLECTIVE_END(work, "chainmap_reset", chainmap.local_size(), comm);
-
+	}
 	BL_BENCH_REPORT_MPI_NAMED(work, "work", comm);
 
 }

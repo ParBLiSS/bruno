@@ -611,19 +611,19 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 #endif
 
   // == PRINT == prep branch for printing - here ONLY BECAUSE WE ARE DISCARDING IDX AFTER MAKING CHAINMAPS
+	if (!benchmark) {
+		BL_BENCH_START(work);
+			std::string branch_filename(out_prefix);
+			branch_filename.append("_branch.edges");
+		print_branch_edge_frequencies(branch_filename, idx, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print branch edges", idx.local_size(), comm);
+	}
 	{
-	BL_BENCH_START(work);
-		std::string branch_filename(out_prefix);
-		branch_filename.append("_branch.edges");
-	print_branch_edge_frequencies(branch_filename, idx, comm);
-	BL_BENCH_COLLECTIVE_END(work, "print branch edges", idx.local_size(), comm);
-
-
-	BL_BENCH_START(work);
-		std::string branch_fasta_filename(out_prefix);
-		branch_fasta_filename.append("_branch.fasta");
-	print_branch_fasta(branch_fasta_filename, idx, comm);
-	BL_BENCH_COLLECTIVE_END(work, "print branch fasta", idx.local_size(), comm);
+		BL_BENCH_START(work);
+			std::string branch_fasta_filename(out_prefix);
+			branch_fasta_filename.append("_branch.fasta");
+		print_branch_fasta(branch_fasta_filename, idx, comm);
+		BL_BENCH_COLLECTIVE_END(work, "print branch fasta", idx.local_size(), comm);
 	}
 
 
@@ -737,10 +737,6 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 	// == print ===  prepare for printing compacted chain and frequencies
 
-	// search in chainmap to find canonical termini.
-	BL_BENCH_START(work);
-	ChainVecType chain_rep = chainmap.find_if(::bliss::debruijn::filter::chain::IsCanonicalTerminusOrIsolated());
-	BL_BENCH_COLLECTIVE_END(work, "chain rep", chain_rep.size(), comm);
 
 
 	FreqMapType freq_map(comm);
@@ -748,7 +744,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		// prepare
 		BL_BENCH_START(work);
 		ListRankedChainNodeVecType compacted_chain = chainmap.to_ranked_chain_nodes();
-		BL_BENCH_COLLECTIVE_END(work, "compacted_chain", compacted_chain.size(), comm);
+		BL_BENCH_COLLECTIVE_END(work, "compact_chain", compacted_chain.size(), comm);
 
 #ifndef NDEBUG
 		if (compress) {
@@ -801,6 +797,12 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 
 
 	if (!benchmark) {
+		// search in chainmap to find canonical termini.
+		BL_BENCH_START(work);
+		ChainVecType chain_rep = chainmap.find_if(::bliss::debruijn::filter::chain::IsCanonicalTerminusOrIsolated());
+		BL_BENCH_COLLECTIVE_END(work, "chain rep", chain_rep.size(), comm);
+
+
 		// get terminal k-mers and frequency
 		// erase everything except for terminal kmers.
 		BL_BENCH_START(work);
@@ -837,11 +839,12 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 	}
 
 
+	if (!benchmark) {
 	// release chainmap
 	BL_BENCH_START(work);
 	chainmap.clear();
 	BL_BENCH_COLLECTIVE_END(work, "chainmap_reset", chainmap.local_size(), comm);
-
+	}
 	BL_BENCH_REPORT_MPI_NAMED(work, "work", comm);
 
 }
