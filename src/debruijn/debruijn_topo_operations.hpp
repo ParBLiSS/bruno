@@ -524,11 +524,11 @@ namespace topology
 		for (auto it = chains.get_map().get_local_container().begin();
 				it != end; ++it) {
 			if (! bliss::debruijn::is_chain_terminal(std::get<2>((*it).second))) {
-				// if not deadend
+				// if not terminal
 				edge_kmers.emplace_back(std::get<0>((*it).second));
 			}
 			if (! bliss::debruijn::is_chain_terminal(std::get<3>((*it).second))) {
-				// if not deadend
+				// if not terminal
 				edge_kmers.emplace_back(std::get<1>((*it).second));
 			}
 		}
@@ -556,7 +556,7 @@ namespace topology
 		for (auto it = chains.get_map().get_local_container().begin();
 				it != end; ++it) {
 			if (! bliss::debruijn::is_chain_terminal(std::get<2>((*it).second))) {  
-				// if not deadend
+				// if not chain terminal
 	//					if (comm.rank() == 0) std::cout << "L source " << (*it) << std::endl;
 				edge_kmer = std::get<0>((*it).second);
 				auto found = res.find(edge_kmer);

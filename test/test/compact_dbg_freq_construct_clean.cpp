@@ -806,7 +806,7 @@ void do_work(::std::vector<::bliss::io::file_data> const & file_data, std::strin
 		// =========== remove cycles and isolated
 		BL_BENCH_START(work);
 		auto cycle_kmers = chainmap.get_cycle_node_kmers();
-		idx.erase(cycle_kmers);
+		idx.erase_nodes(cycle_kmers);
 		idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
 		BL_BENCH_COLLECTIVE_END(work, "remove cycles/isolated/etc", idx.local_size(), comm);
 
@@ -1130,7 +1130,7 @@ if (!benchmark)	{
 		// =========== remove cycles and isolated
 		BL_BENCH_START(work);
 		auto cycle_kmers = chainmap.get_cycle_node_kmers();
-		idx.erase(cycle_kmers);
+		idx.erase_nodes(cycle_kmers);
 		BL_BENCH_COLLECTIVE_END(work, "remove cycles/isolated/etc", idx.local_size(), comm);
 
 #ifndef NDEBUG  
@@ -1474,7 +1474,7 @@ if (!benchmark)		{
 		// =========== remove cycles and isolated
 		BL_BENCH_START(work);
 		auto cycle_kmers = chainmap.get_cycle_node_kmers();
-		idx.erase(cycle_kmers);
+		idx.erase_nodes(cycle_kmers);
 			{
 				size_t before = idx.local_size();
 				idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
