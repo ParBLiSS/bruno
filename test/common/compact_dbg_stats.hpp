@@ -76,9 +76,9 @@ void check_index(Index const & idx, mxx::comm const & comm) {
 #ifndef NDEBUG
 	  printf(" total query = %lu, unique query = %lu, unique absent = %lu\n", query.size(), counts.size(), std::distance(counts.begin(), absent_end));
 
-	  for (size_t i = 0; i < (std::min(static_cast<size_t>(std::distance(counts.begin(), absent_end)), 10UL)); ++i) {
-		  std::cout << "absent k-mer " << ::bliss::utils::KmerUtils::toASCIIString(counts[i].first) << std::endl;
-	  }
+//	  for (size_t i = 0; i < (std::min(static_cast<size_t>(std::distance(counts.begin(), absent_end)), 10UL)); ++i) {
+//		  std::cout << "absent k-mer " << ::bliss::utils::KmerUtils::toASCIIString(counts[i].first) << std::endl;
+//	  }
 	  assert( std::distance(counts.begin(), absent_end) == 0);
 #else
 	BLISS_UNUSED(absent_end);
