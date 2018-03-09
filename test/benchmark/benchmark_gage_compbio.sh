@@ -96,9 +96,11 @@ do
 for exp in "_freq_clean_recompact" "_freq_clean" "_freq_minimizer" "" #"_freq"
 do
 	
-	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1"
-	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1" > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log
-	mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA >> ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1
+	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1"
+	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1" > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log
+	mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA >> ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1
+	
+	rm ${OUTDIR}/${it}/*
 done
 
 done
@@ -128,9 +130,12 @@ do
 for exp in "_freq_clean_recompact" "_freq_clean" "_freq_minimizer" "" #"_freq"
 do
 		
-	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1"
-	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1" > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log
-	mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA >> ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1
+	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1"
+	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1" > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log
+	mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA >> ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1
+	
+	rm ${OUTDIR}/${it}/*
+	
 done
 
 done

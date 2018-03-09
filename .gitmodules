@@ -12,4 +12,4 @@
 	url = https://github.com/amadvance/tommyds.git
 [submodule "ext/kmerind"]
 	path = ext/kmerind
-	url = https://github.com/ParBLiSS/kmerind.git
+	url = ssh://git@github.com/ParBLiSS/kmerind.git

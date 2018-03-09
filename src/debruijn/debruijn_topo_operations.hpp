@@ -337,12 +337,13 @@ namespace topology
 				return (x.first == y.first) ? ((x.second > y.second) ? x : y) : 
 					((x.first > y.first) ? x : y);  // if kmer same, return smaller comm rank.  else, return larger kmer.
 			}, subcomm);
-			splitter.second = subcomm.size() - splitter.second;  // convert back to rank
+			splitter.second = (subcomm.rank() == 0) ? 0 : (subcomm.size() - splitter.second);  // convert back to rank
 			// now set up alltoallv
 			std::vector<size_t> send_counts(subcomm.size(), 0);
 			// calculate the number to send.
 			size_t i = 0;
 			while (std::get<0>(termini[i]) == splitter.first) ++i;
+			
 			send_counts[splitter.second] = i;  // all else is 0.	
 			// now move data using alltoallv
 			std::vector<summarized_type > extras = 
@@ -463,7 +464,6 @@ namespace topology
 			::bliss::debruijn::filter::graph::IsChainNode is_chain;
 			::bliss::debruijn::to_simple_biedge<typename ChainGraph::kmer_type> to_biedge;
 			// auto not_found = dbg.get_map().get_local_container().cend();
-			auto c_not_found = new_chains.get_map().get_local_container().end();
 			for (auto kmer : local_modified) {
 				// kmer is canonicalized in the same way as new_chain and dbg.
 				auto it = dbg.get_map().get_local_container().find(kmer);
@@ -476,7 +476,7 @@ namespace topology
 				// 7. insert new chain nodes into, and update existing node if new deadend in, new ChainGraph
 				auto biedge = to_biedge(*it);
 				auto cit = new_chains.get_map().get_local_container().find(biedge.first);
-				if (cit == c_not_found) {  // does not exist. so add.
+				if (cit == new_chains.get_map().get_local_container().end()) {  // does not exist. so add.
 					new_chains.get_map().get_local_container().insert(biedge);
 				} else {  // exists, so recheck to see if edge to branch has been deleted.
 					if (bliss::debruijn::points_to_self(std::get<2>(biedge.second))) {  // if new edge points to self, then update
