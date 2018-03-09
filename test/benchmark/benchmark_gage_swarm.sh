@@ -8,7 +8,7 @@ module load gcc/4.9.4
 module load hwloc
 module load mvapich2/2.3b
 
-DATAROOT=/nv/hswarm1/tpan7/data/data/gage
+DATAROOT=/nv/hswarm1/tpan7/scratch/bruno/data/gage
 #DATA=/project/tpan7/data/human/gage_chr14/gage_human_chr14_frag_1.fastq
 BINDIR=/nv/hswarm1/tpan7/data/build/bruno
 OUTROOT=/nv/hswarm1/tpan7/scratch/bruno/gage
