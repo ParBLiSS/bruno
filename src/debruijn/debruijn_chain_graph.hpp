@@ -1556,10 +1556,9 @@ namespace graph
 		void merge(debruijn_chain_graph const & other) {  // only local operations since dist hash is identical.
 			auto it = other.get_map().get_local_container().cbegin();
 			auto end = other.get_map().get_local_container().cend();
-			auto lend = map.get_local_container().end();
 			for (; it != end; ++it) {
 				auto found = map.get_local_container().find((*it).first);
-				if (found != lend) {  // if existing, replace value
+				if (found != map.get_local_container().end()) {  // if existing, replace value
 					(*found).second = (*it).second;
 				} else {  // insert if previous not there.
 					map.get_local_container().insert((*it));
