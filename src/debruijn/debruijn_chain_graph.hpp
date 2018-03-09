@@ -672,7 +672,7 @@ namespace graph
 
 			BL_BENCH_START(cycle);
 			auto res = map.find(is_cycle);
-			for (size_t i = 0; i < (std::min(res.size(), 10)); ++i) {
+			for (size_t i = 0; i < (std::min(res.size(), 10UL)); ++i) {
 				std::cout << "rank " << comm.rank() << " cycle: " << res[i] << std::endl;
 			}
 
@@ -710,7 +710,7 @@ namespace graph
 
 			BL_BENCH_START(cycle);
 			auto res = map.find(is_internal);
-			for (size_t i = 0; i < (std::min(res.size(), 10)); ++i) {
+			for (size_t i = 0; i < (std::min(res.size(), 10UL)); ++i) {
 				std::cout << "rank " << comm.rank() << " cycle: " << res[i] << std::endl;
 			}
 
@@ -746,7 +746,7 @@ namespace graph
 
 			BL_BENCH_START(isolated);
 			auto res = map.find(is_isolated);
-			for (size_t i = 0; i < (std::min(res.size(), 10)); ++i) {
+			for (size_t i = 0; i < (std::min(res.size(), 10UL)); ++i) {
 				std::cout << "rank " << comm.rank() << " isolated: " << res[i] << std::endl;
 			}
 			BL_BENCH_COLLECTIVE_END(isolated, "find isolated nodes", res.size(), comm);
