@@ -1028,9 +1028,9 @@ namespace bliss
           }}; // all unknowns are thrown away.
 
           /// array of flags.  bit set to 1 if edge exists.  order from low to high bit:  Out A C G T; In A C G T. DNA 16 encoding.
+        public:
           uint8_t counts;
 
-        public:
           using EdgeEncoding = bliss::common::DNA;
           using Alphabet = EdgeEncoding;
           using CountType = bool;
@@ -1248,11 +1248,11 @@ namespace bliss
           }};
 
 
+        public:
           /// array of flags.  bit set to 1 if edge exists.  order from low to high bit:  Out A C G T; In A C G T. DNA 16 encoding.
           ::std::array<uint8_t, 2> counts;
 
 
-        public:
           using EdgeEncoding = ::bliss::common::DNA6;
           using Alphabet = EdgeEncoding;
           using CountType = bool;
@@ -1468,10 +1468,10 @@ namespace bliss
                    15     // 1111 N
           }};
 
+        public:
           /// array of flags.  bit set to 1 if edge exists.  order from low to high bit:  Out A C G T; In A C G T. DNA 16 encoding.
           ::std::array<uint16_t, 2> counts;
 
-        public:
           using EdgeEncoding = ::bliss::common::DNA16;
           using Alphabet = EdgeEncoding;
           using CountType = bool;
@@ -1663,11 +1663,11 @@ namespace bliss
 
 namespace mxx {
 
-template<typename A, typename T>
-  struct datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<A, T> > :
-  public datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T>::counts) > {
+template<typename A, typename T, typename DUMMY>
+  struct datatype_builder<::bliss::debruijn::graph::compact_multi_biedge<A, T, DUMMY> > :
+  public datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T, DUMMY>::counts) > {
 
-    typedef datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T>::counts) > baseType;
+    typedef datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T, DUMMY>::counts) > baseType;
 
     static MPI_Datatype get_type(){
       return baseType::get_type();
@@ -1679,11 +1679,11 @@ template<typename A, typename T>
   };
 
 
-template<typename A, typename T>
-  struct datatype_builder<const ::bliss::debruijn::graph::compact_multi_biedge<A, T> > :
-  public datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T>::counts) > {
+template<typename A, typename T, typename DUMMY>
+  struct datatype_builder<const ::bliss::debruijn::graph::compact_multi_biedge<A, T, DUMMY> > :
+  public datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T, DUMMY>::counts) > {
 
-    typedef datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T>::counts) > baseType;
+    typedef datatype_builder<decltype(::bliss::debruijn::graph::compact_multi_biedge<A, T, DUMMY>::counts) > baseType;
 
     static MPI_Datatype get_type(){
       return baseType::get_type();
