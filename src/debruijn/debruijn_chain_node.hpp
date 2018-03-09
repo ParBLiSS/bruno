@@ -242,7 +242,7 @@ namespace bliss
 			std::get<0>(ss),		// 5', also chain rep
 			sf,		// 3', all same strand as chain rep.
 			std::get<1>(ss),  // next at 3'
-			::bliss::debruijn::get_chain_dist(std::get<2>(ss)) + ::bliss::debruijn::get_chain_dist(std::get<3>(fs)),	 // DIST between the termini.
+			::bliss::debruijn::get_chain_dist(std::get<2>(ss)) + ::bliss::debruijn::get_chain_dist(std::get<3>(ss)),	 // DIST between the termini.
 			static_cast<COUNT>(0),  // 5' terminal
 			::bliss::debruijn::points_to_self(std::get<3>(ss)) ? static_cast<COUNT>(0) : static_cast<COUNT>(1) // 3' terminal
 			);

@@ -822,7 +822,8 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 			}
 
 			// erase the reverse edges.
-			this->erase_simple_biedges(this->get_remote_edges(q));  // distributed
+			auto res= this->get_remote_edges(q);
+			this->erase_simple_biedges(res);  // distributed
 		}
 		
 	public:
@@ -830,14 +831,16 @@ public ::dsc::densehash_map<Kmer, Edge, MapParams,
 
 		/// unconditional erase.  no predicate.  NOTE THAT DEST NODE's FREQUENCY IS NOT MAINTAINED.
 		void erase_nodes(std::vector<key_type> &query) {
-			this->erase_nodes_and_edges(this->find(query));    // distributed
+			auto res = this->find(query);	
+			this->erase_nodes_and_edges(res);    // distributed
 		}
 
 		/// conditional erase. predicate is UNARY and operates on the nodes, including all edges of the nodes.
 		/// use for deleting specified nodes that also is low frequency, for example.
 		template <typename Predicate>
 		void erase_nodes(std::vector<key_type> &query, Predicate const &pred) {
-			this->erase_nodes_and_edges(this->find(query, false, pred));  // distributed
+			auto res = this->find(query, false, pred);
+			this->erase_nodes_and_edges(res);  // distributed
 		}
 
 		/// predicate is UNARY evaluates for the entire node.  all edges of the nodes are erased.
