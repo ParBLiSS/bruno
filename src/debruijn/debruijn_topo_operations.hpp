@@ -421,11 +421,11 @@ namespace topology
 			// 3. insert all termini locally (because kmer already partitioned, and same hash function).
 			// LOCAL
 			{
-				auto termini = chains.get_terminal_nodes();
+				auto termini = chains.get_terminal_nodes();  // includes isolated and unit length
 				uint dist;
 				for (auto terminus : termini) {
 					if (::bliss::debruijn::points_to_self(std::get<2>(terminus.second)) &&
-					::bliss::debruijn::points_to_self(std::get<3>(terminus.second)) ) continue;  // skip isolated.
+						::bliss::debruijn::points_to_self(std::get<3>(terminus.second)) ) continue;  // skip isolated.
 
 					dist = std::get<2>(terminus.second);
 					if (bliss::debruijn::points_to_branch(dist)) {
@@ -438,7 +438,7 @@ namespace topology
 						std::get<3>(terminus.second) = 1;
 					} else if (bliss::debruijn::points_to_terminal(dist)) {
 						std::get<3>(terminus.second) = bliss::debruijn::get_chain_dist(dist);
-					}  // else if pointing to compacted chain or self, leave as is.
+					}  // else if pointing to uncompacted chain or self, leave as is.
 					new_chains.get_map().get_local_container().insert(terminus);
 				}
 			}		
@@ -461,7 +461,7 @@ namespace topology
 			//		branch->chain/deadend involves inserting new chain nodes.
 			//      branch->branch can be filtered out.
 			// LOCAL OP, assuming chainmap and graph have the same DISTHASH
-			::bliss::debruijn::filter::graph::IsChainNode is_chain;
+			::bliss::debruijn::filter::graph::IsChainNode is_chain;   // includes isolated and unit length
 			::bliss::debruijn::to_simple_biedge<typename ChainGraph::kmer_type> to_biedge;
 			// auto not_found = dbg.get_map().get_local_container().cend();
 			for (auto kmer : local_modified) {
@@ -482,11 +482,15 @@ namespace topology
 					if (bliss::debruijn::points_to_self(std::get<2>(biedge.second))) {  // if new edge points to self, then update
 						std::get<0>((*cit).second) = std::get<0>(biedge.second);
 						std::get<2>((*cit).second) = std::get<2>(biedge.second);
-					}  // else leave the distance as is.
+					} // else leave the distance as is.  biedge has dist 1 here  (can't be 0 and pointing to branch - no knowledge)
+						// (*cit) has to have at least 1.  (no add edge 0->1 transition) so no change in dist.
+						// if (*cit) has greater than 1, then the L kmers are not going to match either.
 					if (bliss::debruijn::points_to_self(std::get<3>(biedge.second))) {  // if new edge points to self, then update
 						std::get<1>((*cit).second) = std::get<1>(biedge.second);
 						std::get<3>((*cit).second) = std::get<3>(biedge.second);
-					}  // else leave the distance as is.
+					} // else leave the distance as is.  biedge has dist 1 here  (can't be 0 and pointing to branch - no knowledge)
+						// (*cit) has to have at least 1.  (no add edge 0->1 transition) so no change in dist.
+						// if (*cit) has greater than 1, then the L kmers are not going to match either.
 				}
 			}
 
@@ -599,11 +603,18 @@ namespace topology
 			}
 		}
 
-		// now that the internal nodes have been updated
-		chains.merge(new_chains);
+		// now that the internal nodes have been updated, merge
+		chains.merge(new_chains);   // note: newly isolated, and newly discovered cycles, will be updated from new-chain
 
-		// finally, move the isolated and cycles out of the way.
+		// finally, move the isolated and cycles out of the way in the old chains.
+		// note that new_chains are regenerated from chains.
 		chains.separate_isolated_and_cycles();
+
+		// NOTE, this is fine if ALL nodes in chains are updated, which is the case since new_chains has same nodes
+		//  as termini in chains, and they are all targets of internal nodes
+		//  during each iteration.
+		//  however, the separate_isolated_and_cycles function is applied to chains, which is merged to the original chainmap,
+		//    thus some termini (ones that become isolated or cycles and excluded in chains) will NOT be updated.  resulting in extra nodes
 	}
 	
 

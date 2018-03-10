@@ -163,6 +163,8 @@ namespace graph
 			map(_comm), cycle_nodes(_comm), isolated(_comm), comm(_comm.copy()), listranked(false), modified(false) {
 
 			map.clear();
+			cycle_nodes.clear();
+			isolated.clear();
 		}
 
 		/// can only construct from debruijn graph
@@ -383,6 +385,8 @@ namespace graph
 
 	   void clear() {
 		   map.clear();
+		   cycle_nodes.clear();
+		   isolated.clear();
 		   listranked = false;
 		   modified = false;
 	   }
@@ -1549,6 +1553,31 @@ namespace graph
 
 		}
 
+		/// merge the isolated and cycle nodes back onto the internal map.
+		//  this is for final chainmap update, where we need to have all chainmap termini match to something in the new_chain.
+		void unseparate_isolated_and_cycles() {
+			// merge the cycle nodes
+			auto it = cycle_nodes.get_local_container().cbegin();
+			auto end = cycle_nodes.get_local_container().cend();
+			for (; it != end; ++it) {
+				auto found = map.get_local_container().find((*it).first);
+				assert((found == map.get_local_container().end()) && "ERR: cycle nodes should not be in map");
+				map.get_local_container().insert((*it));
+			}
+			cycle_nodes.clear();
+
+			// merge the isolated nodes
+			it = isolated.get_local_container().cbegin();
+			end = isolated.get_local_container().cend();
+			for (; it != end; ++it) {
+				auto found = map.get_local_container().find((*it).first);
+				assert((found == map.get_local_container().end()) && "ERR: cycle nodes should not be in map");
+				map.get_local_container().insert((*it));
+			}
+			isolated.clear();
+
+		}
+
 
 		/**
 		 *  merge one chain into another.
@@ -1569,14 +1598,24 @@ namespace graph
 			it = other.cycle_nodes.get_local_container().cbegin();
 			end = other.cycle_nodes.get_local_container().cend();
 			for (; it != end; ++it) {
-				cycle_nodes.get_local_container().insert(*it);
+				auto found = cycle_nodes.get_local_container().find((*it).first);
+				if (found != cycle_nodes.get_local_container().end()) {  // if existing, replace value
+					(*found).second = (*it).second;
+				} else {  // insert if previous not there.
+					cycle_nodes.get_local_container().insert((*it));
+				}
 			}
 
 			// merge the isolated nodes
 			it = other.isolated.get_local_container().cbegin();
 			end = other.isolated.get_local_container().cend();
 			for (; it != end; ++it) {
-				isolated.get_local_container().insert(*it);
+				auto found = isolated.get_local_container().find((*it).first);
+				if (found != isolated.get_local_container().end()) {  // if existing, replace value
+					(*found).second = (*it).second;
+				} else {  // insert if previous not there.
+					isolated.get_local_container().insert((*it));
+				}
 			}
 			
 		}

@@ -1256,6 +1256,7 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 		// BL_BENCH_COLLECTIVE_END(work, "merge_chains", chainmap.size(), comm);
 		// and recompact
 		BL_BENCH_START(work);
+		old_chains.unseparate_isolated_and_cycles();
 		::bliss::debruijn::topology::recompact_finalize(chainmap, old_chains, comm);
 		BL_BENCH_COLLECTIVE_END(work, "recompact_finalize", chainmap.size(), comm);
 
