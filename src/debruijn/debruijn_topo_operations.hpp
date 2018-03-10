@@ -415,7 +415,7 @@ namespace topology
 		ChainGraph & new_chains,
 		::mxx::comm const & comm) {
 
-			// 1. create new instance of ChainGraph
+			// 1. create new instance of ChainGraph  - passed in.
 
 			// 2. get the termini, reset the distance to not mark as pointing to terminal
 			// 3. insert all termini locally (because kmer already partitioned, and same hash function).
@@ -493,8 +493,8 @@ namespace topology
 			// 6. do terminal update in ChainGraph using branch vertices from graph.
 			new_chains.setup_chain_termini(dbg);   // distributed (query may be faster than scan inside this function.)
 
-			// 7. call recompact on new ChainGraph
-			new_chains.list_rank2();    // distributed
+			// 7. call recompact on new ChainGraph.
+			new_chains.list_rank2();    // distributed   does not move the isolated and cycles
 
 			// 8. return new compacted chain graph.
 
@@ -513,30 +513,32 @@ namespace topology
 	// Once the recompaction updates are complet, THEN remove the cycles and isolated.
 	// 
 	template <typename ChainGraph >
-	void recompact_finalize(ChainGraph & chains, ::mxx::comm const & comm) {
+	void recompact_finalize(ChainGraph & chains, ChainGraph & new_chains, ::mxx::comm const & comm) {
 		// TODO MAYBE: do left and right separately to limit memory usage.
 
-		// setup query for all left kmers
+		// setup query for all kmers
 		std::vector<typename ChainGraph::kmer_type> edge_kmers;
-		edge_kmers.reserve((chains.local_size() + chains.get_cycle_map().local_size()) * 2);
+		edge_kmers.reserve(chains.local_size() * 2);
+
+		// the left terminal in chains, pointed to by an internal node, has infor for both the left and right termini in the new chain.
+		// unless the curr node in chain is a left terminal then try to use the right terminal
+		// but if both right and left terminal, then do nothing.
+
+		// WE ONLY NEED TO UPDATE THE INTERNAL NODES.  WE MERGE OTHERS IN ANYWAYS.
 
 		auto end = chains.get_map().get_local_container().end();
-		for (auto it = chains.get_map().get_local_container().begin();
-				it != end; ++it) {
-			if (! bliss::debruijn::is_chain_terminal(std::get<2>((*it).second))) {
+		for (auto it = chains.get_map().get_local_container().begin(); it != end; ++it) {
+			if ((! bliss::debruijn::is_chain_terminal(std::get<2>((*it).second))) &&
+				(! bliss::debruijn::is_chain_terminal(std::get<3>((*it).second)))) {
 				// if not terminal
 				edge_kmers.emplace_back(std::get<0>((*it).second));
-			}
-			if (! bliss::debruijn::is_chain_terminal(std::get<3>((*it).second))) {
-				// if not terminal
-				edge_kmers.emplace_back(std::get<1>((*it).second));
 			}
 		}
 		
 		// query and insert results into a local hash table.  - results should be canonical...
 		typename ChainGraph::map_type::local_container_type res;
 		{
-			auto results = chains.find(edge_kmers);  // distributed.
+			auto results = new_chains.find(edge_kmers);  // distributed.
 
 			// insert results into a local hash table
 			res.insert(results);
@@ -551,93 +553,57 @@ namespace topology
 		//          internal->terminal - not possible.
 		//			internal->deadend - not possible unless spurious links.
 		//			internal->internal - add dist should be fine.
-		uint rdist = 0;
+		uint rrdist = 0, rldist = 0;
 		uint ldist = 0;
-		for (auto it = chains.get_map().get_local_container().begin();
-				it != end; ++it) {
-			if (! bliss::debruijn::is_chain_terminal(std::get<2>((*it).second))) {  
+		for (auto it = chains.get_map().get_local_container().begin(); it != end; ++it) {
+			if ((! bliss::debruijn::is_chain_terminal(std::get<2>((*it).second))) &&
+				(! bliss::debruijn::is_chain_terminal(std::get<3>((*it).second)))) {
 				// if not chain terminal
-	//					if (comm.rank() == 0) std::cout << "L source " << (*it) << std::endl;
+//					if (comm.rank() == 0) std::cout << "L source " << (*it) << std::endl;
 				edge_kmer = std::get<0>((*it).second);
 				auto found = res.find(edge_kmer);
 				auto found2 = res.find(edge_kmer.reverse_complement());
 				ldist = ::bliss::debruijn::get_chain_dist(std::get<2>((*it).second));
 				if (found != res_end) {
-	//						if (comm.rank() == 0) std::cout << "L dest " << (*found) << std::endl;
+//						if (comm.rank() == 0) std::cout << "L dest " << (*found) << std::endl;
 
 					// matched.  // update left.
-					rdist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second));
+					rldist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second));
+					if (rldist > 0) std::get<0>((*it).second) = std::get<0>((*found).second);
+					// if rdist == 0, then we are already pointing to the terminal.
+					std::get<2>((*it).second) = ::bliss::debruijn::mark_as_point_to_terminal(rldist + ldist);   // make sure that this is marked as pointing to terminal.
 
-					if (rdist > 0) { 
-						std::get<0>((*it).second) = std::get<0>((*found).second);
-					}  // if rdist == 0, then we are already pointing to the terminal.
+					// update right
+					rrdist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found).second));
+					if (rrdist > 0) std::get<1>((*it).second) = std::get<1>((*found).second);
+					// if rdist == 0, then we are already pointing to the terminal.
+					std::get<3>((*it).second) = ::bliss::debruijn::mark_as_point_to_terminal(rrdist - ldist);   // make sure that this is marked as pointing to terminal.
 
-					//if (ldist == 0) std::get<2>((*it).second) = std::get<2>((*found).second);  // should not reach here because checking if L terminal
-					//else 
-					std::get<2>((*it).second) = ::bliss::debruijn::mark_as_point_to_terminal(rdist + ldist);   // make sure that this is marked as pointing to terminal.
 				} else if (found2 != res_end) {
+//						if (comm.rank() == 0) std::cout << "L dest2 " << (*found2) << std::endl;
 
-	//						if (comm.rank() == 0) std::cout << "L dest2 " << (*found2) << std::endl;
 					// reverse complement matched.  search result is flipped.
-					rdist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found2).second));
+					rldist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found2).second));
+					if (rldist > 0) std::get<0>((*it).second) = std::get<1>((*found2).second).reverse_complement();
+					 // if rdist == 0, then we are already pointing to the terminal.
+					std::get<2>((*it).second) = ::bliss::debruijn::mark_as_point_to_terminal(rldist + ldist); 
 
-					if (rdist > 0) {
-						std::get<0>((*it).second) = 
-							std::get<1>((*found2).second).reverse_complement();
-					} // if rdist == 0, then we are already pointing to the terminal.
-
-					// if (ldist == 0) std::get<2>((*it).second) = std::get<3>((*found2).second);   // should not reach here because checking if L terminal
-					// else 
-					std::get<2>((*it).second) = 
-						::bliss::debruijn::mark_as_point_to_terminal(rdist + ldist); 
+					rrdist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found2).second));
+					if (rrdist > 0) std::get<1>((*it).second) = std::get<0>((*found2).second).reverse_complement();
+					 // if rdist == 0, then we are already pointing to the terminal.
+					std::get<3>((*it).second) = ::bliss::debruijn::mark_as_point_to_terminal(rrdist - ldist); // should not be zero.
 
 				} else {
 					if (comm.rank() == 0) std::cout << "WARNING: not matched.  L: " << edge_kmer << " chain node " << (*it) << std::endl;
 				}
 			}
-			if (! bliss::debruijn::is_chain_terminal(std::get<3>((*it).second))) {
-				// if not deadend
-				edge_kmer = std::get<1>((*it).second);
-				auto found = res.find(edge_kmer);
-				auto found2 = res.find(edge_kmer.reverse_complement());
-				ldist = ::bliss::debruijn::get_chain_dist(std::get<3>((*it).second));
-				if (found != res_end) {
-	//						if (comm.rank() == 0) std::cout << "R dest " << (*found) << std::endl;
-					// matched.  // update left.
-					rdist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found).second));
-
-					if (rdist > 0) {
-						std::get<1>((*it).second) = std::get<1>((*found).second);	
-					}// if rdist == 0, then we are already pointing to the terminal.
-					// if (ldist == 0) std::get<3>((*it).second) = std::get<3>((*found).second); // should not reach here because checking if R terminal
-					// else 
-					std::get<3>((*it).second) = 
-						::bliss::debruijn::mark_as_point_to_terminal(rdist + ldist); 
-
-				} else if (found2 != res_end) {
-	//						if (comm.rank() == 0) std::cout << "R dest2 " << (*found2) << std::endl;
-					// reverse complement matched.  search result is flipped.
-					rdist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found2).second));
-
-					if (rdist > 0) {
-						std::get<1>((*it).second) =
-							std::get<0>((*found2).second).reverse_complement();
-					}
-
-					// if (ldist == 0) std::get<3>((*it).second) = std::get<2>((*found2).second); // should not reach here because checking if R terminal
-					// else 
-					std::get<3>((*it).second) = 
-						::bliss::debruijn::mark_as_point_to_terminal(rdist + ldist); 
-
-				} else {
-					if (comm.rank() == 0) std::cout << "WARNING: not matched.  R: " << edge_kmer << " chain node " << (*it) << std::endl;
-				}
-			}
 		}
+
+		// now that the internal nodes have been updated
+		chains.merge(new_chains);
 
 		// finally, move the isolated and cycles out of the way.
 		chains.separate_isolated_and_cycles();
-
 	}
 	
 
