@@ -23,58 +23,23 @@ DATAROOT=/project/tpan7/data/gage
 BINDIR=/nethome/tpan7/build/bruno
 OUTROOT=/scratch/tpan7/bruno/gage
 
-############### quality - all datasets, 64 cores, 1 iteration, all threshold values, freq_clean or freq_clean_recompact only.
-for DATASET in "S_aureus" "R_sphaeroides" "H_sapiens_chr14"
-do
 
-# clear the file cache first
-drop_caches
-
-
-DATA=${DATAROOT}/${DATASET}/Data/original/all.fastq
-OUTDIR=${OUTROOT}/${DATASET}
-
-for p in 64
-do
-
-ppn=16
-
-for it in "quality" 
-do
-
-mkdir -p ${OUTDIR}/${it}
-cd ${OUTDIR}/${it}
-
-
-for t in 8 4 3 2 1
-do
-
-# run the experiments.
-for exp in "_freq_clean_recompact" "_freq_clean" 
-do
-
-	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1"
-	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1" > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log
-	mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA >> ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1
-done
-
-done
-
-done 
-
-done
-
-done
 
 ############### scaling - chr14 1 to 64 cores, 3 iterations, all threshold values, freq_clean_recompact, freq_clean, freq_minimizer, and baseline.
 for DATASET in "H_sapiens_chr14"
 do
 
-# data should already be in file cache from prev iterations
-
-
 DATA=${DATAROOT}/${DATASET}/Data/original/all.fastq
 OUTDIR=${OUTROOT}/${DATASET}
+
+
+# data should already be in file cache from prev iterations
+drop_caches
+
+# warm up
+mpirun -np 64 --map-by ppr:16:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31_freq -R -B -T -L 4 -O ${OUTDIR}/${DATASET}_A4_K31_L4_P64_freq $DATA > ${OUTDIR}/warmup${DATASET}_A4_K31_L4_P64_freq.dummy 2>&1
+rm ${OUTDIR}/{DATASET}_A4_K31_L4_P64_freq*
+
 
 for p in 64 32 16 8 4
 do
@@ -89,18 +54,27 @@ mkdir -p ${OUTDIR}/${it}
 cd ${OUTDIR}/${it}
 
 
-for t in 8 4 3 2 1
+# affects the number of elements and therefore cleaning and compaction. not construction.
+for t in 4 2 1
 do
 
-# run the experiments.
+# scaling of construct, compact, clean, clean_recompact
+# run the experiments.  freq vs orig.  freq (first part of freq_clean) vs freq_minimizer, clean vs clean_recompact
 for exp in "_freq_clean_recompact" "_freq_clean" "_freq_minimizer" "" #"_freq"
 do
-	
+  if [ ! -f ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log ] 
+  then
+    
 	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1"
 	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1" > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log
 	mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA >> ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1
 	
 	rm ${OUTDIR}/${it}/*
+  else
+   
+    echo "${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log exists.  skipping."
+  fi
+
 done
 
 done
@@ -123,18 +97,28 @@ mkdir -p ${OUTDIR}/${it}
 cd ${OUTDIR}/${it}
 
 
-for t in 8 4 3 2 1
+for t in 4 2 1
 do
 
 # run the experiments.
 for exp in "_freq_clean_recompact" "_freq_clean" "_freq_minimizer" "" #"_freq"
 do
 		
+  if [ ! -f ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log ] 
+  then
+    
 	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1"
 	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1" > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log
 	mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA >> ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1
 	
 	rm ${OUTDIR}/${it}/*
+      
+  else
+   
+    echo "${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log exists.  skipping."
+  fi
+
+
 	
 done
 
@@ -148,48 +132,6 @@ done
 done
 
 
-############### quality - all datasets, 64 cores, 1 iteration, all threshold values, freq_clean or freq_clean_recompact only.
-for DATASET in "B_impatiens"
-do
-
-# clear the file cache first
-drop_caches
-
-
-DATA=${DATAROOT}/${DATASET}/Data/original/all.fastq
-OUTDIR=${OUTROOT}/${DATASET}
-
-for p in 64
-do
-
-ppn=16
-
-for it in "quality" 
-do
-
-mkdir -p ${OUTDIR}/${it}
-cd ${OUTDIR}/${it}
-
-
-for t in 8 4 3 2 1
-do
-
-# run the experiments.
-for exp in "_freq_clean_recompact" "_freq_clean" 
-do
-	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1"
-	echo "mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1" > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log
-	mpirun -np ${p} --map-by ppr:${ppn}:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA >> ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1
-
-done
-
-done
-
-done 
-
-done
-
-done
 
 
 

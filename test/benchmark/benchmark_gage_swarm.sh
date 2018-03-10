@@ -27,8 +27,8 @@ DATA=${DATAROOT}/${DATASET}/all.fastq
 OUTDIR=${OUTROOT}/${DATASET}
 
 # warm up.
-	mpirun_rsh -hostfile=$PBS_NODEFILE -np $p ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31_freq -R -B -T -L 4 -O ${OUTDIR}/${DATASET}_A4_K31_L4_P${p}_freq $DATA > ${OUTDIR}/${DATASET}_A4_K31_L4_P${p}_freq.log 2>&1
-
+mpirun_rsh -hostfile=$PBS_NODEFILE -np $p ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31_freq -R -B -T -L 4 -O ${OUTDIR}/${DATASET}_A4_K31_L4_P${p}_freq $DATA > ${OUTDIR}/warmup${DATASET}_A4_K31_L4_P${p}_freq.dummy 2>&1
+rm ${OUTDIR}/${DATASET}_A4_K31_L4_P${p}_freq*
 
 for it in 1 2 3 
 do
@@ -37,16 +37,25 @@ mkdir -p ${OUTDIR}/${it}
 cd ${OUTDIR}/${it}
 
 
-for t in 8 4 3 2 1
+for t in 4 2 1
 do
 
 # run the experiments.
 for exp in "_freq_clean_recompact" "_freq_clean" "_freq_minimizer" "" #"_freq"
 do
+  if [ ! -f ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log ] 
+  then
 
-	echo "mpirun_rsh -hostfile=$PBS_NODEFILE -np $p ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1"
-	echo "mpirun_rsh -hostfile=$PBS_NODEFILE -np $p ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1" > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log
-	mpirun_rsh -hostfile=$PBS_NODEFILE -np $p ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA >> ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log 2>&1
+	echo "mpirun_rsh -hostfile=$PBS_NODEFILE -np $p ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1"
+	echo "mpirun_rsh -hostfile=$PBS_NODEFILE -np $p ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA > ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1" > ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp}.log
+	mpirun_rsh -hostfile=$PBS_NODEFILE -np $p ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31${exp} -R -B -T -L ${t} -O ${OUTDIR}/${it}/${DATASET}_A4_K31_L${t}_P${p}${exp} $DATA >> ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log 2>&1
+
+	rm ${OUTDIR}/${it}/*
+  else
+   
+    echo "${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log exists.  skipping."
+  fi
+
 done
 
 done
