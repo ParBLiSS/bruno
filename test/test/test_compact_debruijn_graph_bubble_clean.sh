@@ -8,8 +8,8 @@ do
 # run the experiments.
 for exp in "freq" "freq_clean" "freq_clean_recompact"
 do
-	echo "mpirun -np ${1} bin/compact_debruijn_graph_fastq_A4_K31_${exp} -R -C -T -L ${t} -O a4_k31_chr14_bub2_L${t}.p${1}.${exp} $DATA > a4_k31_chr14_bub2_L${t}.p${1}.${exp}.log 2>&1"
-	mpirun -np ${1} bin/compact_debruijn_graph_fastq_A4_K31_${exp} -R -C -T -L ${t} -O a4_k31_chr14_bub2_L${t}.p${1}.${exp} $DATA > a4_k31_chr14_bub2_L${t}.p${1}.${exp}.log 2>&1
+	echo "mpirun -np ${1} bin/compact_debruijn_graph_fastq_A4_K31_${exp} -R -B -C -T -L ${t} -O a4_k31_chr14_bub2_L${t}.p${1}.${exp} $DATA > a4_k31_chr14_bub2_L${t}.p${1}.${exp}.log 2>&1"
+	mpirun -np ${1} bin/compact_debruijn_graph_fastq_A4_K31_${exp} -R -B -C -T -L ${t} -O a4_k31_chr14_bub2_L${t}.p${1}.${exp} $DATA > a4_k31_chr14_bub2_L${t}.p${1}.${exp}.log 2>&1
 done
 
 # compare to base case

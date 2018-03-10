@@ -968,9 +968,9 @@ void print_chain_frequencies(std::string const & filename,
 		// next print the left and right edges.
 		cL = canonical(L);
 		compact_edgeL = idx2.get_map().get_local_container().find(cL);
-		// if (compact_edgeL == idx2.get_map().get_local_container().end()) {
-		// 	std::cout << " ERR: did not find L frequency : " << cL << std::endl;
-		// }
+		if (compact_edgeL == idx2.get_map().get_local_container().end()) {
+			std::cout << " ERR: did not find L frequency : " << cL << std::endl;
+		}
 		assert(compact_edgeL != idx2.get_map().get_local_container().end());
 		if (cL == L) {  // already canonical.  can use in edge directly.
 			// get in edges of L
@@ -988,9 +988,9 @@ void print_chain_frequencies(std::string const & filename,
 
 		cR = canonical(R);
 		compact_edgeR = R_freq_map.find(cR);  // previously retrieved from remote.
-		// if (compact_edgeR == R_freq_map.end()) {
-		// 	std::cout << " ERR: did not find R frequency : " << cR << std::endl;
-		// }
+		if (compact_edgeR == R_freq_map.end()) {
+			std::cout << " ERR: did not find R frequency : " << cR << std::endl;
+		}
 		assert(compact_edgeR != R_freq_map.end());
 		// we now assume R is on same strand as L
 		if (cR == R) {  // already canonical
