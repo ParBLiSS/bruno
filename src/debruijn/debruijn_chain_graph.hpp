@@ -1560,8 +1560,7 @@ namespace graph
 			auto it = cycle_nodes.get_local_container().cbegin();
 			auto end = cycle_nodes.get_local_container().cend();
 			for (; it != end; ++it) {
-				auto found = map.get_local_container().find((*it).first);
-				assert((found == map.get_local_container().end()) && "ERR: cycle nodes should not be in map");
+				assert((map.get_local_container().find((*it).first) == map.get_local_container().end()) && "ERR: cycle nodes should not be in map");
 				map.get_local_container().insert((*it));
 			}
 			cycle_nodes.clear();
@@ -1570,8 +1569,7 @@ namespace graph
 			it = isolated.get_local_container().cbegin();
 			end = isolated.get_local_container().cend();
 			for (; it != end; ++it) {
-				auto found = map.get_local_container().find((*it).first);
-				assert((found == map.get_local_container().end()) && "ERR: cycle nodes should not be in map");
+				assert((map.get_local_container().find((*it).first) == map.get_local_container().end()) && "ERR: cycle nodes should not be in map");
 				map.get_local_container().insert((*it));
 			}
 			isolated.clear();
