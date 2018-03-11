@@ -38,7 +38,7 @@ drop_caches
 
 # warm up
 mpirun -np 64 --map-by ppr:16:socket --rank-by core --bind-to core ${BINDIR}/bin/compact_debruijn_graph_fastq_A4_K31_freq -R -B -T -L 4 -O ${OUTDIR}/${DATASET}_A4_K31_L4_P64_freq $DATA > ${OUTDIR}/warmup${DATASET}_A4_K31_L4_P64_freq.dummy 2>&1
-rm ${OUTDIR}/{DATASET}_A4_K31_L4_P64_freq*
+rm ${OUTDIR}/{DATASET}_A4_K31_L4_P64_freq*.fasta
 
 
 for p in 64 32 16 8 4
