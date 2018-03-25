@@ -101,7 +101,7 @@ for t in 4 2 1
 do
 
 # run the experiments.
-for exp in "_freq_clean_recompact" "_freq_clean" "_freq_minimizer" "" #"_freq"
+for exp in "_freq_clean_recompact_incr" "_freq_clean_incr" "_freq_minimizer_incr" "" #"_freq"
 do
 		
   if [ ! -f ${OUTDIR}/${DATASET}_A4_K31_L${t}_P${p}${exp}.${it}.log ] 
