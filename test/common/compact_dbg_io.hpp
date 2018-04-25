@@ -97,7 +97,7 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 
 
 	int step = (0x1 << 30);
-	int iterations = (len + step - 1) / step;
+	int iterations = (len + static_cast<size_t>(step - 1)) / static_cast<size_t>(step);
 
 	//std::cout << "rank " << comm.rank() << " mpiio write offset is " << global_offset << " len " << len << " iterations " << iterations << ::std::endl;
 
@@ -110,19 +110,20 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
 	printf("rank %d subcomm rank %d write mpiio. len %ld offset %lld step %d iterations %d\n", comm.rank(), subcomm.rank(), len, global_offset, step, iterations);
 #endif
 
-	int remainder = len;
+	size_t remainder = len;
 	int curr_step = step;
 	MPI_Status stat;
 	int count = 0;
 	bool success = true;
 	for (int i = 0; i < iterations; ++i) {
-		curr_step = std::min(remainder, step);
+		curr_step = static_cast<int>(std::min(remainder, static_cast<size_t>(step)));
 
 		res = MPI_File_write_at_all( fh, global_offset, const_cast<char*>(data), curr_step, MPI_BYTE, &stat);  /// use bytes, no endian issues.
 
 		success = ::mxx::all_of(res == MPI_SUCCESS, subcomm);
 		if (!success) {
 		  MPI_File_close(&fh);
+	printf("failed write: rank %d subcomm rank %d write mpiio. len %ld offset %lld step %d iteration %d of %d\n", comm.rank(), subcomm.rank(), len, global_offset, step, i, iterations);
 
 		  if (res != MPI_SUCCESS)
 		    throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "write", res, stat, subcomm));
@@ -132,6 +133,7 @@ void write_mpiio(std::string const & filename, const char* data, size_t len, mxx
     success = ::mxx::all_of(res == MPI_SUCCESS, subcomm);
 		if (!success) {
       MPI_File_close(&fh);
+	printf("failed write_count: rank %d subcomm rank %d write mpiio. len %ld offset %lld step %d iteration %d of %d\n", comm.rank(), subcomm.rank(), len, global_offset, step, i, iterations);
 
       if (res != MPI_SUCCESS)
         throw ::bliss::utils::make_exception<::bliss::io::IOException>(get_error_string(filename, "write count", res, stat, subcomm));
