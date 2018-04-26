@@ -1098,6 +1098,17 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 			// 		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
 			// 	}
 			// #endif
+#ifndef NDEBUG
+                        {
+
+                                BL_BENCH_START(work);
+                                std::string chain_biedge_filename2(out_prefix);
+                                chain_biedge_filename2.append(".debug.chainmap.unfinalized.");
+                                chain_biedge_filename2.append(std::to_string(iteration));
+                                print_chain_biedges(chain_biedge_filename2, old_chains, comm);
+                                BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge_old", old_chains.local_size(), comm);
+                        }
+#endif
 
 			BL_BENCH_START(work);
 			::bliss::debruijn::topology::recompact_finalize(old_chains, new_chains, comm);
