@@ -250,7 +250,7 @@ namespace graph
 			if (all_local) {
 				for (auto t : nodes) {
 					if (is_chain(t)) {
-						map.get_local_container.insert(to_biedge(t));
+						map.get_local_container().insert(to_biedge(t));
 						++count;
 					}
 				}
@@ -684,8 +684,8 @@ namespace graph
 			BL_BENCH_COLLECTIVE_END(cycle, "find cycle nodes", res.size(), comm);
 
 			BL_BENCH_START(cycle);
-			cycle_nodes.insert(res);
-			BL_BENCH_COLLECTIVE_END(cycle, "copy to cycle nodes map", cycle_nodes.size(), comm);
+			cycle_nodes.get_local_container().insert(res);
+			BL_BENCH_COLLECTIVE_END(cycle, "copy to cycle nodes map", cycle_nodes.local_size(), comm);
 
 
 			// remove cycle nodes from map.
@@ -721,8 +721,8 @@ namespace graph
 			BL_BENCH_COLLECTIVE_END(cycle, "find cycle nodes", res.size(), comm);
 
 			BL_BENCH_START(cycle);
-			cycle_nodes.insert(res);
-			BL_BENCH_COLLECTIVE_END(cycle, "copy to cycle nodes map", cycle_nodes.size(), comm);
+			cycle_nodes.get_local_container().insert(res);
+			BL_BENCH_COLLECTIVE_END(cycle, "copy to cycle nodes map", cycle_nodes.local_size(), comm);
 
 
 			// remove cycle nodes from map.
@@ -756,8 +756,8 @@ namespace graph
 			BL_BENCH_COLLECTIVE_END(isolated, "find isolated nodes", res.size(), comm);
 
 			BL_BENCH_START(isolated);
-			isolated.insert(res);
-			BL_BENCH_COLLECTIVE_END(isolated, "copy to isolated nodes map", isolated.size(), comm);
+			isolated.get_local_container().insert(res);
+			BL_BENCH_COLLECTIVE_END(isolated, "copy to isolated nodes map", isolated.local_size(), comm);
 
 
 			// remove cycle nodes from map.
@@ -1534,7 +1534,7 @@ namespace graph
 			separate_isolated();
 
 			{
-				auto unfinished = map.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
+				auto unfinished = map.find(::bliss::debruijn::filter::chain::IsRecompactedCycleNode());
 				bool all_compacted = (unfinished.size() == 0);
 				all_compacted = ::mxx::all_of(all_compacted, comm);
 
@@ -1544,7 +1544,7 @@ namespace graph
 			}
 			{
 				// VERIFY ALL DONE.
-				auto unfinished = map.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
+				auto unfinished = map.find(::bliss::debruijn::filter::chain::IsRecompactedCycleNode());
 				bool all_compacted = (unfinished.size() == 0);
 				all_compacted = ::mxx::all_of(all_compacted, comm);
 
@@ -2048,6 +2048,105 @@ namespace graph
 		}
 		return results;
 	}
+
+
+	void print_stats(std::string const & name) const {
+		size_t should_be_isolated = 0;
+		size_t isolated = this->isolated.get_local_container().size();
+		size_t left_deadend_singleton = 0;
+		size_t right_deadend_singleton = 0;
+		size_t left_deadend_to_internal = 0;
+		size_t right_deadend_to_internal = 0;
+		size_t left_deadend = 0;
+		size_t right_deadend = 0;
+		size_t singleton = 0;
+		size_t left_terminal = 0;
+		size_t right_terminal = 0;
+		size_t left_terminal_to_internal = 0;
+		size_t right_terminal_to_internal = 0;
+		size_t internal = 0;
+		size_t finished_internal = 0;
+		size_t left_semifinished_to_internal = 0;
+		size_t right_semifinished_to_internal = 0;
+		size_t cycles_nodes = this->cycle_nodes.get_local_container().size();
+		size_t unknown = 0;
+
+		// do some accounting
+		auto it = this->get_map().get_local_container().cbegin();
+		auto end = this->get_map().get_local_container().cend();
+		for (; it != end; ++it) {
+			// get distances
+			auto L = std::get<2>(it->second);
+			auto R = std::get<3>(it->second);
+
+			if (::bliss::debruijn::points_to_self(L) && ::bliss::debruijn::points_to_self(R)) {
+				++should_be_isolated;
+			} else if (::bliss::debruijn::points_to_self(L) && ::bliss::debruijn::points_to_branch(R)) {
+				++left_deadend_singleton;
+			} else if (::bliss::debruijn::points_to_branch(L) && ::bliss::debruijn::points_to_self(R)) {
+				++right_deadend_singleton;
+			} else if (::bliss::debruijn::points_to_self(L) && ::bliss::debruijn::points_to_terminal(R)) {
+				++left_deadend;
+			} else if (::bliss::debruijn::points_to_terminal(L) && ::bliss::debruijn::points_to_self(R)) {
+				++right_deadend;
+			} else if (::bliss::debruijn::points_to_branch(L) && ::bliss::debruijn::points_to_branch(R)) {
+				++singleton;
+			} else if (::bliss::debruijn::points_to_branch(L) && ::bliss::debruijn::points_to_terminal(R)) {
+				++left_terminal;
+			} else if (::bliss::debruijn::points_to_terminal(L) && ::bliss::debruijn::points_to_branch(R)) {
+				++right_terminal;
+			} else if (::bliss::debruijn::points_to_terminal(L) && ::bliss::debruijn::points_to_terminal(R)) {
+				++finished_internal;
+			} else if (::bliss::debruijn::points_to_self(L) && ::bliss::debruijn::points_to_chain_node(R)) {
+				++left_deadend_to_internal;
+			} else if (::bliss::debruijn::points_to_chain_node(L) && ::bliss::debruijn::points_to_self(R)) {
+				++right_deadend_to_internal;
+			} else if (::bliss::debruijn::points_to_branch(L) && ::bliss::debruijn::points_to_chain_node(R)) {
+				++left_terminal_to_internal;
+			} else if (::bliss::debruijn::points_to_chain_node(L) && ::bliss::debruijn::points_to_branch(R)) {
+				++right_terminal_to_internal;
+			} else if (::bliss::debruijn::points_to_terminal(L) && ::bliss::debruijn::points_to_chain_node(R)) {
+				++left_semifinished_to_internal;
+			} else if (::bliss::debruijn::points_to_chain_node(L) && ::bliss::debruijn::points_to_terminal(R)) {
+				++right_semifinished_to_internal;
+			} else if (::bliss::debruijn::points_to_chain_node(L) && ::bliss::debruijn::points_to_chain_node(R)) {
+				++internal;
+			} else {
+				++unknown;
+			}
+		}
+
+		// reporting:
+		if (comm.rank() == 0) {
+			printf("CHAIN STATS: name, rank, should_isolate, isolated, L_dead_single, R_dead_single, L_dead_internal, R_dead_internal, L_dead, R_dead, single, L_term, R_term, L_term_internal, R_term_internal, internal, fin_internal, L_fin_internal, R_fin_internal, cycles, unknown\n");
+		
+		printf("CHAIN STATS: %s, %d, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld, %ld\n",
+			name.c_str(),
+			comm.rank(),		
+			should_be_isolated,
+			isolated,
+			left_deadend_singleton,
+			right_deadend_singleton,
+			left_deadend_to_internal,
+			right_deadend_to_internal,
+			left_deadend,
+			right_deadend,
+			singleton,
+			left_terminal,
+			right_terminal,
+			left_terminal_to_internal,
+			right_terminal_to_internal,
+			internal,
+			finished_internal,
+			left_semifinished_to_internal,
+			right_semifinished_to_internal,
+			cycles_nodes,
+			unknown,
+			this->get_map().get_local_container().size() + this->cycle_nodes.get_local_container().size() + this->isolated.get_local_container().size()
+		);
+		}
+	}
+
 
 	};
 
