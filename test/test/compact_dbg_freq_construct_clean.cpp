@@ -762,7 +762,9 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 		print_chain_biedges(chain_biedge_filename2, chainmap, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge_uncomp", chainmap.local_size(), comm);
 	}
+	chainmap.print_stats("chainmap_first");
 #endif
+
 
 	// ===== parallel list ranking for chain compaction
 	BL_BENCH_START(work);
@@ -779,6 +781,7 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 	// below is for printing.
 
 #ifndef NDEBUG
+	chainmap.print_stats("chainmap_first_compact");
 	{
 
 		BL_BENCH_START(work);
@@ -958,7 +961,6 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 			// remove the deadend edges with freq smaller than some threshold
 			BL_BENCH_START(work);
 			idx.get_map().erase_edges(branch_nodes, edge_freq_filt); // also has to meet edge frequency requirements.
-			//idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());  don't erase isolated yet.
 			BL_BENCH_COLLECTIVE_END(work, "severe_deadends", branch_nodes.size(), comm);
 
 #ifndef NDEBUG
@@ -1020,7 +1022,6 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 
 			BL_BENCH_START(work);
 			idx.get_map().erase_edges(branch_nodes, edge_freq_filt);
-			// idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());  don't erase isolated yet.
 			BL_BENCH_COLLECTIVE_END(work, "severe_bubbles", branch_nodes.size(), comm);
 
 #ifndef NDEBUG
@@ -1039,6 +1040,8 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 			print_edge_histogram(idx, comm);
 			// check_index(idx, comm);
 			BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
+
+			old_chains.print_stats("old");
 #endif
 
 			//---------- recompact
@@ -1047,6 +1050,7 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 			BL_BENCH_COLLECTIVE_END(work, "recompact", new_chains.size(), comm);
 
 #ifndef NDEBUG
+			new_chains.print_stats("new_compact");
 			{
 
 				BL_BENCH_START(work);
@@ -1073,48 +1077,12 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 				BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
 			}
 
-			// #ifndef NDEBUG
-			// 	{
-
-			// 		BL_BENCH_START(work);
-			// 		std::string chain_biedge_filename(out_prefix);
-			// 		chain_biedge_filename.append(".debug.chain.nodes.merged.");
-			// 		chain_biedge_filename.append(std::to_string(iteration));
-			// 		print_chain_biedges(chain_biedge_filename, old_chains, comm);
-			// 		BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge", old_chains.local_size(), comm);
-			// 	}
-			// 	{
-			// 		// =============================================================
-			// 		// generate chain_summaries
-			// 		BL_BENCH_START(work);
-			// 		auto summaries = old_chains.to_summarized_chains();
-			// 		BL_BENCH_COLLECTIVE_END(work, "chain_summaries", summaries.size(), comm);
-
-			// 		BL_BENCH_START(work);
-			// 		std::string chain_summary_filename(out_prefix);
-			// 		chain_summary_filename.append(".chain.summary.merged.");
-			// 		chain_summary_filename.append(std::to_string(iteration));
-			// 		print_chain_summaries(chain_summary_filename, summaries, comm);
-			// 		BL_BENCH_COLLECTIVE_END(work, "print_chain_summaries", summaries.size(), comm);
-			// 	}
-			// #endif
-#ifndef NDEBUG
-                        {
-
-                                BL_BENCH_START(work);
-                                std::string chain_biedge_filename2(out_prefix);
-                                chain_biedge_filename2.append(".debug.chainmap.unfinalized.");
-                                chain_biedge_filename2.append(std::to_string(iteration));
-                                print_chain_biedges(chain_biedge_filename2, old_chains, comm);
-                                BL_BENCH_COLLECTIVE_END(work, "print_chain_biedge_old", old_chains.local_size(), comm);
-                        }
-#endif
-
 			BL_BENCH_START(work);
 			::bliss::debruijn::topology::recompact_finalize(old_chains, new_chains, comm);
 			BL_BENCH_COLLECTIVE_END(work, "recompact_finalize", old_chains.size(), comm);
 
 #ifndef NDEBUG
+			old_chains.print_stats("old_merged");
 			{
 
 				BL_BENCH_START(work);
@@ -1142,28 +1110,7 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 			}
 
 			{
-#ifndef NDEBUG
-
-				// // =========== remove cycles and isolated
-				// BL_BENCH_START(work);
-				// auto cycle_kmers = chainmap.get_cycle_node_kmers();
-				// idx.get_map().erase_nodes(cycle_kmers);
-				// BL_BENCH_COLLECTIVE_END(work, "remove cycles", idx.local_size(), comm);
-
-				// BL_BENCH_START(work);
-				// if (comm.rank() == 0) printf("rank 0 checking cycle removed index, removing %ld\n", cycle_kmers.size());
-				// print_edge_histogram(idx, comm);
-				// check_index(idx, comm);
-				// BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
-
-				// BL_BENCH_START(work);
-				// std::string graph_filename(out_prefix);
-				// graph_filename.append(".graph.no_cycle.");
-				// graph_filename.append(std::to_string(iteration));
-				// print_graph_edge_frequencies(graph_filename, idx, comm);
-				// BL_BENCH_COLLECTIVE_END(work, "print graph", idx.local_size(), comm);
-
-				// =========== remove cycles and isolated
+				// =========== remove isolated - don't remove cycles because we need to use the info to update chains.
 				BL_BENCH_START(work);
 				{
 					size_t before = idx.local_size();
@@ -1172,22 +1119,14 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 				}
 				BL_BENCH_COLLECTIVE_END(work, "remove isolated", idx.local_size(), comm);
 
+#ifndef NDEBUG
+
 				BL_BENCH_START(work);
 				if (comm.rank() == 0)
 					printf("rank 0 checking isolated removed index\n");
 				print_edge_histogram(idx, comm);
 				check_index(idx, comm);
 				BL_BENCH_COLLECTIVE_END(work, "histo", idx.local_size(), comm);
-#else
-				// =========== remove cycles and isolated
-				BL_BENCH_START(work);
-				{
-					size_t before = idx.local_size();
-					idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());
-					printf("rank %d ERASE ISOLATED %lu after cycle 1 iter %ld\n", comm.rank(), idx.local_size() - before, iteration);
-				}
-				BL_BENCH_COLLECTIVE_END(work, "remove cycles/isolated/etc", idx.local_size(), comm);
-
 #endif
 			}
 
@@ -1257,27 +1196,21 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 		}
 
 		// don't erase the isolated - else the freq map computation would be incorrect.  (fix?  now removing entries from chainmap too.)
-		// BL_BENCH_START(work);
-		// idx.erase_if(::bliss::debruijn::filter::graph::IsIsolated());  //now erase the isolated so we can check idx.
-		// BL_BENCH_COLLECTIVE_END(work, "finalize_idx", idx.local_size(), comm);
 
-		// do the final merge.
-		// BL_BENCH_START(work);
-		// chainmap.merge(old_chains);
-		// BL_BENCH_COLLECTIVE_END(work, "merge_chains", chainmap.size(), comm);
-		// and recompact
 		BL_BENCH_START(work);
 		old_chains.unseparate_isolated_and_cycles();
 		::bliss::debruijn::topology::recompact_finalize(chainmap, old_chains, comm);
 		BL_BENCH_COLLECTIVE_END(work, "recompact_finalize", chainmap.size(), comm);
 
-		// BL_BENCH_START(work);
-		// // before making terminal_chain_graph, need to clean up new_chains of the cycles and isolated items.
-		// // else incorrect chains could be introduced.
-		// chainmap.separate_isolated_and_cycles();
-		// BL_BENCH_COLLECTIVE_END(work, "setup_new_chains", chainmap.size(), comm);
+#ifndef NDEBUG
+		chainmap.print_stats("final_merge");
+#endif
 
-		// remove the cycles.
+		// before making terminal_chain_graph, need to clean up new_chains of the cycles and isolated items.
+		// else incorrect chains could be introduced.
+		// done in recompact_finalize
+
+		// remove the cycles and isolated.
 		BL_BENCH_START(work);
 		auto cycle_kmers = chainmap.get_cycle_node_kmers();
 		idx.get_map().erase_nodes(cycle_kmers);
@@ -1288,7 +1221,8 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 		}
 		BL_BENCH_COLLECTIVE_END(work, "remove cycles/isolated/etc", idx.local_size(), comm);
 	}
-#else
+#else 
+	// NAIVE VERSION
 	{
 
 		ChainGraphType new_chains(comm);
@@ -1473,7 +1407,9 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 			//make_chain_map(idx, chainmap, comm);
 			BL_BENCH_COLLECTIVE_END(work, "chainmap", chainmap.local_size(), comm);
 			// == DONE == make chain map
-
+#ifndef NDEBUG
+			chainmap.print_stats("chainmap_reset");
+#endif
 			// ===== parallel list ranking for chain compaction
 			{
 				BL_BENCH_START(work);
@@ -1487,6 +1423,7 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 			} // == DONE == parallel list ranking for chain compaction
 
 #ifndef NDEBUG
+			chainmap.print_stats("chainmap_compact");
 			{
 
 				BL_BENCH_START(work);
