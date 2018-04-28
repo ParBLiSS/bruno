@@ -417,7 +417,7 @@ namespace topology
 
 
 		// DEBUG
-		typename ChainGraph::kmer_type testKmer(std::string("AAAAAAAAAAAAAAAAAAAAAAAAAACCGAC"));
+	//	typename ChainGraph::kmer_type testKmer(std::string("AAAAAAAAAAAAAAAAAAAAAAAAAACCGAC"));
 
 			// 1. create new instance of ChainGraph  - passed in.
 
@@ -429,7 +429,6 @@ namespace topology
 				uint dist;
 				for (auto terminus : termini) {
 
-					if (terminus.first == testKmer) std::cout << "BEFORE RECOMPACT " << terminus << std::endl;
 
 					if (::bliss::debruijn::points_to_self(std::get<2>(terminus.second)) &&
 						::bliss::debruijn::points_to_self(std::get<3>(terminus.second)) ) continue;  // skip isolated.
@@ -440,9 +439,7 @@ namespace topology
 					dist = std::get<3>(terminus.second);
 						std::get<3>(terminus.second) = bliss::debruijn::get_chain_dist(dist);
 					new_chains.get_map().get_local_container().insert(terminus);
-
 					
-					if (terminus.first == testKmer) std::cout << " chains modified " << terminus << std::endl;
 				}
 			}		
 			
@@ -476,13 +473,8 @@ namespace topology
 				// 	 continue;
 				// } 
 				if (! is_chain(*it)) {
-
-					if (it->first == testKmer) std::cout << " LOCALLY MODIFIED - NOT chain." << *it << std::endl;	
 					continue;
 				}
-
-				if (it->first == testKmer) std::cout << " LOCALLY MODIFIED - chain." << *it << std::endl;	
-
 
 				// modified is chain (branch is not relevant here.)
 				// either existing, or new.  if new, then insert modified
@@ -495,7 +487,6 @@ namespace topology
 				auto cit = new_chains.get_map().get_local_container().find(biedge.first);
 				if (cit == new_chains.get_map().get_local_container().end()) {  // does not exist. so add.
 					new_chains.get_map().get_local_container().insert(biedge);
-					if (biedge.first == testKmer) std::cout << " NEW chain." << *it << std::endl;	
 				} else {  // exists, so recheck to see if edge to branch has been deleted.
 					// old in edge has dist 0.  could be neighbor of branch or deadend.  update to the modified vertex's in edge.
 					if (bliss::debruijn::get_chain_dist(std::get<2>((*cit).second)) == 0)  {  // if new edge points to self, then update
@@ -512,25 +503,14 @@ namespace topology
 					} // else leave the distance as is.  biedge has dist 1 here  (can't be 0 and pointing to branch - no knowledge)
 						// (*cit) has to have at least 1.  (no add edge 0->1 transition) so no change in dist.
 						// if (*cit) has greater than 1, then the L kmers are not going to match either.
-						//
-					if (biedge.first == testKmer) std::cout << " ORIG chain." << *it << std::endl;
 				}
 			}
 
 			// 6. do terminal update in ChainGraph using branch vertices from graph.
 			new_chains.setup_chain_termini(dbg);   // distributed (query may be faster than scan inside this function.)
-			auto nit = new_chains.get_map().get_local_container().find(testKmer);
-			if (nit != new_chains.get_map().get_local_container().end()) {
-				std::cout << "termini updated." << *nit << std::endl;
-			}
 
 			// 7. call recompact on new ChainGraph.
 			new_chains.list_rank2();    // distributed   does not move the isolated and cycles
-			nit = new_chains.get_map().get_local_container().find(testKmer);
-			if (nit != new_chains.get_map().get_local_container().end()) {
-				std::cout << "termini compacted." << *nit << std::endl;
-			}
-
 
 			// 8. return new compacted chain graph.
 
@@ -548,10 +528,11 @@ namespace topology
 		ChainGraph & new_chains,
 		::mxx::comm const & comm) {
 
-
+		
 		// DEBUG
-		typename ChainGraph::kmer_type testKmer(std::string("AAAAAAAAAAAAAAAAAAAAAAAAAACCGAC"));
-
+		
+//		typename ChainGraph::kmer_type testKmer(std::string("AAAAAAAAAAAAAAAAAAAAAAAAAACCGAC"));
+//		typename ChainGraph::kmer_type testKmer(std::string("ATATATATTCCTATATATATATTCCTATATA"));
 			// 1. create new instance of ChainGraph  - passed in.
 
 			// 2. get the termini, reset the distance to not mark as pointing to terminal
@@ -561,8 +542,6 @@ namespace topology
 				auto termini = chains.get_terminal_nodes();  // includes isolated and unit length
 				uint dist;
 				for (auto terminus : termini) {
-
-					if (terminus.first == testKmer) std::cout << "BEFORE RECOMPACT " << terminus << std::endl;
 
 					if (::bliss::debruijn::points_to_self(std::get<2>(terminus.second)) &&
 						::bliss::debruijn::points_to_self(std::get<3>(terminus.second)) ) continue;  // skip isolated.
@@ -581,11 +560,9 @@ namespace topology
 					}  // else if pointing to uncompacted chain or self, leave as is.
 					new_chains.get_map().get_local_container().insert(terminus);
 
-					
-					if (terminus.first == testKmer) std::cout << " chains modified " << terminus << std::endl;
 				}
 			}		
-			
+
 			// move ids of modified nodes.
 			std::vector<typename ChainGraph::kmer_type> local_modified;
 			{
@@ -616,20 +593,14 @@ namespace topology
 				// 	 continue;
 				// } 
 				if (! is_chain(*it)) {
-
-					if (it->first == testKmer) std::cout << " LOCALLY MODIFIED - NOT chain." << *it << std::endl;	
 					continue;
 				}
-
-				if (it->first == testKmer) std::cout << " LOCALLY MODIFIED - chain." << *it << std::endl;	
-
 
 				// 7. insert new chain nodes into, and update existing node if new deadend in, new ChainGraph
 				auto biedge = to_biedge(*it);
 				auto cit = new_chains.get_map().get_local_container().find(biedge.first);
 				if (cit == new_chains.get_map().get_local_container().end()) {  // does not exist. so add.
 					new_chains.get_map().get_local_container().insert(biedge);
-					if (biedge.first == testKmer) std::cout << " NEW chain." << *it << std::endl;	
 				} else {  // exists, so recheck to see if edge to branch has been deleted.
 					if (bliss::debruijn::points_to_self(std::get<2>(biedge.second))) {  // if new edge points to self, then update
 						std::get<0>((*cit).second) = std::get<0>(biedge.second);
@@ -643,30 +614,19 @@ namespace topology
 					} // else leave the distance as is.  biedge has dist 1 here  (can't be 0 and pointing to branch - no knowledge)
 						// (*cit) has to have at least 1.  (no add edge 0->1 transition) so no change in dist.
 						// if (*cit) has greater than 1, then the L kmers are not going to match either.
-						//
-					if (biedge.first == testKmer) std::cout << " ORIG chain." << *it << std::endl;
 				}
 			}
 
+
 			// 6. do terminal update in ChainGraph using branch vertices from graph.
 			new_chains.setup_chain_termini(dbg);   // distributed (query may be faster than scan inside this function.)
-			auto nit = new_chains.get_map().get_local_container().find(testKmer);
-			if (nit != new_chains.get_map().get_local_container().end()) {
-				std::cout << "termini updated." << *nit << std::endl;
-			}
 
 			// 7. call recompact on new ChainGraph.
 			new_chains.list_rank2();    // distributed   does not move the isolated and cycles
-			nit = new_chains.get_map().get_local_container().find(testKmer);
-			if (nit != new_chains.get_map().get_local_container().end()) {
-				std::cout << "termini compacted." << *nit << std::endl;
-			}
-
 
 			// 8. return new compacted chain graph.
 
 			// after return, copy returned into chains, replacing as needed.
-
 
 			// NOTE *************   at this point, have not separated isolated or cycles. output of this needs to be merged with the original chainmap.
 
@@ -686,7 +646,7 @@ namespace topology
 
 		// setup query for all kmers
 		std::vector<typename ChainGraph::kmer_type> edge_kmers;
-		edge_kmers.reserve(chains.local_size() * 2);
+		edge_kmers.reserve(chains.local_size());
 
 		// the left terminal in chains, pointed to by an internal node, has infor for both the left and right termini in the new chain.
 		// unless the curr node in chain is a left terminal then try to use the right terminal
@@ -700,6 +660,8 @@ namespace topology
 				(! bliss::debruijn::is_chain_terminal(std::get<3>((*it).second)))) {
 				// if not terminal
 				edge_kmers.emplace_back(std::get<0>((*it).second));
+
+				// only need 5'.  5' terminal contains information about right terminal
 			}
 		}
 		
@@ -728,7 +690,7 @@ namespace topology
 				(! bliss::debruijn::is_chain_terminal(std::get<3>((*it).second)))) {
 				// if not chain terminal
 //					if (comm.rank() == 0) std::cout << "L source " << (*it) << std::endl;
-				edge_kmer = std::get<0>((*it).second);
+				edge_kmer = std::get<0>((*it).second);  // again, only 5' is needed.
 				auto found = res.find(edge_kmer);
 				auto found2 = res.find(edge_kmer.reverse_complement());
 				ldist = ::bliss::debruijn::get_chain_dist(std::get<2>((*it).second));
@@ -739,13 +701,16 @@ namespace topology
 					rldist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second));
 					if (rldist > 0) std::get<0>((*it).second) = std::get<0>((*found).second);
 					// if rdist == 0, then we are already pointing to the terminal.
-					std::get<2>((*it).second) = ::bliss::debruijn::mark_as_point_to_terminal(rldist + ldist);   // make sure that this is marked as pointing to terminal.
+					std::get<2>((*it).second) = (::bliss::debruijn::points_to_terminal_or_self(std::get<2>((*found).second))) ?
+						::bliss::debruijn::mark_as_point_to_terminal(rldist + ldist) : (rldist + ldist);   // make sure that this is marked as pointing to terminal.
 
 					// update right
 					rrdist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found).second));
 					if (rrdist > 0) std::get<1>((*it).second) = std::get<1>((*found).second);
 					// if rdist == 0, then we are already pointing to the terminal.
-					std::get<3>((*it).second) = ::bliss::debruijn::mark_as_point_to_terminal(rrdist - ldist);   // make sure that this is marked as pointing to terminal.
+					std::get<3>((*it).second) = (::bliss::debruijn::points_to_terminal_or_self(std::get<3>((*found).second))) ?
+						::bliss::debruijn::mark_as_point_to_terminal(rrdist - ldist) : (rrdist - ldist);   // make sure that this is marked as pointing to terminal.
+
 
 				} else if (found2 != res_end) {
 //						if (comm.rank() == 0) std::cout << "L dest2 " << (*found2) << std::endl;
@@ -754,18 +719,23 @@ namespace topology
 					rldist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found2).second));
 					if (rldist > 0) std::get<0>((*it).second) = std::get<1>((*found2).second).reverse_complement();
 					 // if rdist == 0, then we are already pointing to the terminal.
-					std::get<2>((*it).second) = ::bliss::debruijn::mark_as_point_to_terminal(rldist + ldist); 
+					std::get<2>((*it).second) = (::bliss::debruijn::points_to_terminal_or_self(std::get<3>((*found2).second))) ?
+						::bliss::debruijn::mark_as_point_to_terminal(rldist + ldist) : (rldist + ldist);   // make sure that this is marked as pointing to terminal.
+
 
 					rrdist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found2).second));
 					if (rrdist > 0) std::get<1>((*it).second) = std::get<0>((*found2).second).reverse_complement();
 					 // if rdist == 0, then we are already pointing to the terminal.
-					std::get<3>((*it).second) = ::bliss::debruijn::mark_as_point_to_terminal(rrdist - ldist); // should not be zero.
+					std::get<3>((*it).second) = (::bliss::debruijn::points_to_terminal_or_self(std::get<2>((*found2).second))) ?
+						::bliss::debruijn::mark_as_point_to_terminal(rrdist - ldist) : (rrdist - ldist);   // make sure that this is marked as pointing to terminal.
 
 				} else {
 					if (comm.rank() == 0) std::cout << "WARNING: not matched.  L: " << edge_kmer << " chain node " << (*it) << std::endl;
 				}
 			}
 		}
+//		chains.print_stats("old_chains_internal_updated");
+
 
 		// now that the internal nodes have been updated, merge
 		chains.merge(new_chains);   // note: newly isolated, and newly discovered cycles, will be updated from new-chain
