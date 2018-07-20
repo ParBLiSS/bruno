@@ -213,6 +213,28 @@ using ListRankedChainNodeVecType = std::vector<::bliss::debruijn::chain::listran
 using ChainVecType = ::std::vector<std::pair<KmerType, ChainNodeType> >;
 
 
+
+  /// append to container via emplace.
+  /// modified based on http://stackoverflow.com/questions/18724999/why-no-emplacement-iterators-in-c11-or-c14
+  template<class Container>
+  class discard_iterator : public std::iterator< std::output_iterator_tag,
+                                                      typename::std::iterator_traits<decltype(std::declval<Container>().begin())>::value_type,
+                                                      void, void, void >
+  {
+  public:
+      typedef Container container_type;
+
+      discard_iterator() {}
+
+      template<class... Args>
+      discard_iterator& operator=(Args&&... args) { return *this; }
+      discard_iterator& operator*() { return *this; }
+      discard_iterator& operator++() { return *this; }
+      discard_iterator& operator++(int) { return *this; }
+  };
+
+
+
 template <typename Index>
 void build_index(::std::vector<::bliss::io::file_data> const & file_data, Index & idx, mxx::comm const & comm) {
 	BL_BENCH_INIT(build);
@@ -393,7 +415,7 @@ void build_index_incremental(::std::vector<::bliss::io::file_data> const & file_
 template <typename Index>
 ::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> >
 build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data, Index & idx,
-		size_t const & lower_thresh, size_t const & upper_thresh,  mxx::comm const & comm) {
+		size_t const & lower_thresh, size_t const & upper_thresh,  mxx::comm const & comm, bool benchmark = true) {
 	BL_BENCH_INIT(build);
 
 	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT\n");
@@ -432,7 +454,7 @@ build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data,
 			::bliss::debruijn::biedge::filter::transform_biedges_by_frequency<KmerType, CountMap1Type>(nodes2, counter2, comm);
 
 			// extract the biedges. and save them
-			results.emplace_back(::bliss::debruijn::biedge::filter::extract_biedges<KmerType>(nodes2));
+			if (!benchmark) results.emplace_back(::bliss::debruijn::biedge::filter::extract_biedges<KmerType>(nodes2));
 			BL_BENCH_END(build, "transform_by_freq", nodes2.size());
 
 			// now remove nodes with no edges.
@@ -462,7 +484,7 @@ build_index_thresholded(::std::vector<::bliss::io::file_data> const & file_data,
 template <typename Index>
 ::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> >
 build_index_thresholded_incremental(::std::vector<::bliss::io::file_data> const & file_data, Index & idx,
-		size_t const & lower_thresh, size_t const & upper_thresh,  mxx::comm const & comm) {
+		size_t const & lower_thresh, size_t const & upper_thresh,  mxx::comm const & comm, bool benchmark = true) {
 	BL_BENCH_INIT(build);
 
 	if (comm.rank() == 0) printf("PARSING, FILTER, and INSERT\n");
@@ -535,7 +557,6 @@ build_index_thresholded_incremental(::std::vector<::bliss::io::file_data> const 
 		// initialize a edge vector.
 		::std::vector<EdgeType> edges;
 		edges.reserve(x.getRange().size() / 4);  // estimate.  may be small for fasta, and large for fastq.
-		::fsc::back_emplace_iterator<std::vector<EdgeType> > emplace_iter(edges);
 		total1 += edges.capacity();
 		BL_BENCH_LOOP_PAUSE(build, 1);
 
@@ -552,15 +573,20 @@ build_index_thresholded_incremental(::std::vector<::bliss::io::file_data> const 
 
 
 		// filter and insert
-		total2 += ::bliss::debruijn::biedge::filter::freq_filter_insert_biedges<
+		if (!benchmark) 
+			total2 += ::bliss::debruijn::biedge::filter::freq_filter_insert_biedges<
 				KmerType, Iter, CountMap1Type, Index,
-				::fsc::back_emplace_iterator<std::vector<EdgeType> > >(start, endd, counter2, block_size, idx, emplace_iter, comm);
+				::fsc::back_emplace_iterator<std::vector<EdgeType> > >(start, endd, counter2, block_size, idx, ::fsc::back_emplace_iterator<std::vector<EdgeType> >(edges), comm);
+		else 
+			total2 += ::bliss::debruijn::biedge::filter::freq_filter_insert_biedges<
+				KmerType, Iter, CountMap1Type, Index,
+				discard_iterator<std::vector<EdgeType> > >(start, endd, counter2, block_size, idx, discard_iterator<std::vector<EdgeType> >(), comm);
 		BL_BENCH_LOOP_PAUSE(build, 2);
 
 		BL_BENCH_LOOP_RESUME(build, 3);
 		total3 += edges.size();
 		// save the results.
-		results.emplace_back(std::move(edges));
+		if (!benchmark) results.emplace_back(std::move(edges));
 		BL_BENCH_LOOP_PAUSE(build, 3);
 
 	}
@@ -798,26 +824,26 @@ int main(int argc, char** argv) {
 #if defined(MIN_MEM)
 		if (thresholding) {
 //#if (pPARSER == FASTQ)
-			selected_edges = build_index_thresholded_incremental(file_data, idx, lower, upper, comm);
+			build_index_thresholded_incremental(file_data, idx, lower, upper, comm, benchmark).swap(selected_edges);
 //#else
 //			// TODO: VERIFY FASTA is working. THIS IS WORKING.  FASTA does not support thresholded index build because fasta reader is not yet handling overlaps correctly when dealing with k+2-mers.
 //			if (comm.rank() == 0) printf("ERROR: FASTA files does not yet support pre-filter by frequency.\n");
-//#endif
-
-			if (benchmark) ::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> >().swap(selected_edges);
-			
+//#endif			
 
 		} else {
 			build_index_incremental(file_data, idx, comm);
 		}
 #else
 		if (thresholding) {
-			selected_edges = build_index_thresholded(file_data, idx, lower, upper, comm);
-			if (benchmark) ::std::vector<::std::vector<::bliss::debruijn::biedge::compact_simple_biedge> >().swap(selected_edges);
+			build_index_thresholded(file_data, idx, lower, upper, comm, benchmark).swap(selected_edges);
 		} else {
 			build_index(file_data, idx, comm);
 		}
 #endif
+
+		if (benchmark) {
+			file_data.clear();
+		}
 
 
 		BL_BENCH_COLLECTIVE_END(app, "construct", idx.local_size(), comm);
@@ -868,24 +894,24 @@ int main(int argc, char** argv) {
 			BL_BENCH_START(app);
 			print_branch_edge_frequencies(branch_filename, idx2, comm);
 			BL_BENCH_COLLECTIVE_END(app, "print branch", idx2.local_size(), comm);
-		}
-		BL_BENCH_START(app);
-		print_branch_fasta(branch_fasta_filename, idx, comm);
-		BL_BENCH_COLLECTIVE_END(app, "print branch fasta", idx.local_size(), comm);
-		  // enforce delete idx2.
+		
+			BL_BENCH_START(app);
+			print_branch_fasta(branch_fasta_filename, idx2, comm);
+			BL_BENCH_COLLECTIVE_END(app, "print branch fasta", idx2.local_size(), comm);
+		}  // enforce delete idx2.
 
 		// ==== make chain map
 		BL_BENCH_START(app);
 		chainmap.extract_chains(idx);
 		//make_chain_map(idx, chainmap, comm);
+		if (benchmark) {
+			idx.get_map().clear();
+			idx.get_map().reserve(0);
+		}
+
 		BL_BENCH_COLLECTIVE_END(app, "chainmap", chainmap.local_size(), comm);
 		// == DONE == make chain map
 	} // enforce delete idx.
-
-	if (benchmark) {
-		idx.get_map().clear();
-		idx.get_map().reserve(0);
-	}
 
 #ifndef NDEBUG
 		BL_BENCH_START(app);
@@ -913,6 +939,10 @@ int main(int argc, char** argv) {
 			ListRankedChainNodeVecType compacted_chain = chainmap.to_ranked_chain_nodes();
 			BL_BENCH_COLLECTIVE_END(app, "compact_chain", compacted_chain.size(), comm);
 
+			if (benchmark) {
+				chainmap.clear();
+			}
+
 			BL_BENCH_START(app);
 			print_chain_string(compacted_chain_str_filename, compacted_chain, comm);
 			BL_BENCH_COLLECTIVE_END(app, "chain_str", compacted_chain.size(), comm);
@@ -921,6 +951,10 @@ int main(int argc, char** argv) {
 			BL_BENCH_START(app);
 			::std::vector<::std::string> compressed_chain = chainmap.to_compressed_chains();
 			BL_BENCH_COLLECTIVE_END(app, "compress_chains", compressed_chain.size(), comm);
+
+			if (benchmark) {
+				chainmap.clear();
+			}
 
 			BL_BENCH_START(app);
 			size_t out_size = print_compressed_chains(compressed_chain_filename, compressed_chain, comm);
@@ -1022,8 +1056,7 @@ int main(int argc, char** argv) {
 				compute_freq_map(compacted_chain, count_idx, freq_map, comm);
 #endif			
 				BL_BENCH_COLLECTIVE_END(app, "chain_freqs", freq_map.local_size(), comm);
-
-		} // ensure delet count_index
+			} // ensure delet count_index
 
 
 
@@ -1035,8 +1068,6 @@ int main(int argc, char** argv) {
 			BL_BENCH_START(app);
 			print_chain_nodes(compacted_chain_kmers_filename, compacted_chain, comm);
 			BL_BENCH_COLLECTIVE_END(app, "chain_node", compacted_chain.size(), comm);
-
-
 
 		} // ensure release compacted chain
 
