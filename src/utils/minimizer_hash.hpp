@@ -53,8 +53,8 @@
  *          as murmur hash produces 128 bit value, and identity hash uses the original kmer.
  *
  */
-#ifndef MINIMIZER_HASH_HPP_
-#define MINIMIZER_HASH_HPP_
+#ifndef MMIZER_HASH_HPP_
+#define MMIZER_HASH_HPP_
 
 #ifdef __SSE4_1__
 #include <x86intrin.h>
@@ -93,68 +93,79 @@ namespace bliss {
 
     
       namespace minimizer {
-        // currently supports only DNA and DNA16-mers (not DNA5), and limits to 16 bit output (64k processors)
-        class minimizer {
+        // currently supports only DNA and DNA16-mers (not DNA5), and limits to 16 bit output (64k processors) due to intrinsics for horizontal min.
+        // possible to contruct 32 bit output - the min 16-bit tells the starting position in 32 bit - more work is needed, though
+        // can alternatively use logarithmic algo for hmin.
+        // TODO:  1. Need to work with reverse complement.  - don't - that'd make it specific for k-mers.
+        //        2. set up as a transform.
+        //        3. optimize the code.
+        class kmer_minimizer {
           protected:
             mutable uint8_t temp[16];
             const __m128i mask, ones;
           public:
 
-            minimizer() : mask(_mm_setr_epi16(0x0, 0x0, 0x0, 0xFFFF, 0x0, 0x0, 0x0, 0xFFFF)),
-			ones(_mm_setr_epi32(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF)) {}
+            kmer_minimizer() : 
+              mask(_mm_setr_epi16(0x0, 0x0, 0x0, 0xFFFF, 0x0, 0x0, 0x0, 0xFFFF)),
+			        ones(_mm_setr_epi32(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF)) {}
 
-            //  leverages the 2 lanes for offsets, each lane loads a 1 byte offset pair.
-            // since shift operation introduces 0, we negate first (min->max), shift, negate (max->min) then take the min operation.
-            //    padding bits need to be set to 1 before first negation.
-            // the last 2bytes in each 64bit processing needs to be reprocessed because of the shift op introduces 0.
-            // for the last part, the temp array should be reset each time.
-            // each iteration processes 6x4 charaters.  left lane and right lane are processed separately, until the end.
-            // good for 31-mer or smaller: loads 1byte shifted into higher 64bit lane
-            template <unsigned int KMER_SIZE, typename WORD_TYPE=WordType,
-              typename std::enable_if<(KMER_SIZE <= 31), int>::type = 1>
-            uint16_t operator()(::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA, WORD_TYPE> const & kmer) const {
-              using Kmer = ::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA, WORD_TYPE>;
+
+            // leverages the 2 lanes for offsets, each lane loads a 1 byte offset pair - this cuts the number of shift round to half - 1 .
+            // the last 2 bytes in each 64bit processing needs to be reprocessed because of the shift op introduces 0.
+            // each iteration processes 27 (DNA) or 15 (DNA16) charaters.  left lane and right lane are processed separately, until the end.
+            //  due to the shifts and offset copies, good for up to
+            //  DNA 31-mers (low lane: first 27-mers. high lane, 27-mers shifted by 4, which covers the 1/2 short shift.)
+            //  DNA16 15-mers (low lane: first 13-mers. high lane, 13-mers shifted by 2, which covers the 1/2 short shift.)
+            template <typename Kmer,
+              typename std::enable_if<((Kmer::nBits + Kmer::bitsPerChar) <= 64), int>::type = 1>
+            uint16_t operator()(Kmer const & kmer) const {
+              using WordType = typename Kmer::KmerWordType;
 
               // first make a copy. then set the padding bits to 1
               Kmer k0 = kmer;
-              unsigned char * data = reinterpret_cast<unsigned char *>(k0.getDataRef());
-              data[Kmer::nWords - 1] |= ~(getLeastSignificantBitsMask<WORD_TYPE>(::bliss::common::UnpaddedStreamTraits<WORD_TYPE, Kmer::nBits>::invPadBits));
+              k0.getDataRef()[Kmer::nWords - 1] |= getMostSignificantBitsMask<WordType>(::bliss::common::UnpaddedStreamTraits<WordType, Kmer::nBits>::padBits);
+              unsigned char const * data = reinterpret_cast<unsigned char const *>(k0.getData());
               
               // next start iterating.  3 uint16_t each iteration, 2 offsets at a time, so shifting by 6 bytes at a time.
               __m128i curr, total;
-		total = ones;
 
 //		std::cout << "total init: " << _mm_cvtsi128_si64(total) << std::endl;
               // 31-mer or smaller. the highest 2 bytes in each 64bit lane will not correspond to any usable bits.
               // we can iterate just once.
               // at exactly 32-mer, we'd need another iteration, and rely on the 0xFF of the rest of the register, so use the other version
-                // load the data.
-                memset(temp, 0xFF, 16);  // for the case where there is partial fill
-                memcpy(&(temp[0]), data, std::min(8U, Kmer::nBytes));
-                memcpy(&(temp[8]), data + 1, std::min(8U, Kmer::nBytes - 1U));
-                // load the values
-                curr = _mm_lddqu_si128(reinterpret_cast<__m128i *>(temp));
+
+              // load the data.
+              memset(temp, 0xFF, 16);  // for the case where there is partial fill
+              memcpy(&(temp[0]), data, std::min(8U, Kmer::nBytes));
+              memcpy(&(temp[8]), data + 1, std::min(8U, Kmer::nBytes - 1U));
+              // load the values
+              curr = _mm_lddqu_si128(reinterpret_cast<__m128i *>(temp));
 
 //		std::cout << "curr low: " << *(reinterpret_cast<size_t*>(temp)) << " hi: " << *(reinterpret_cast<size_t*>(temp + 8)) << std::endl;
-                // we load into the 2 lanes 64 bits that are shifted by 1 byte because 
-                // we have to shift in zeros, which makes the results of the last short inaccurate.
-                //  but we can reprocess this byte later.  we avoid more complex shift.
+              // we load into the 2 lanes 64 bits that are shifted by 1 byte because 
+              // we have to shift in zeros, which makes the results of the last short inaccurate.
+              //  but we can reprocess this byte later.  we avoid more complex shift.
 
-                // accumulate the minimum for the shifts.
-                total = _mm_min_epu16(total, curr);
-                curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift 1 char
-                total = _mm_min_epu16(total, curr);
-                curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift 2 chars
-                total = _mm_min_epu16(total, curr);
-                curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift 3 chars
-                total = _mm_min_epu16(total, curr);
-              
-              // ignore the last short in each lane. by setting it to max
+              // accumulate the minimum for the shifts.
+              total = curr;
+              // DNA type
+              switch (Kmer::bitsPerChar) {
+                case 2: 
+                  curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 2 chars
+                  total = _mm_min_epu16(total, curr);
+                  curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 3 chars
+                  total = _mm_min_epu16(total, curr);
+                case 4:
+                  curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char
+                  total = _mm_min_epu16(total, curr);
+                default:
+                  break;
+              }
+              // ignore the highest short in each lane. by setting it to max
               total = _mm_or_si128(total, mask);
               
               // hmin
               __m128i res = _mm_minpos_epu16(total);
-             
 
 //	    std::cout << "kmer: " << kmer << " copy " << k0 << " minimizer " << (_mm_cvtsi128_si32(res) & 0xFFFF) << " at pos " << (_mm_cvtsi128_si32(res) >> 16) << std::endl;
 // 		printf("minimizer %u at pos %u\n", (_mm_cvtsi128_si32(res) & 0xFFFF), (_mm_cvtsi128_si32(res) >> 16));
@@ -162,20 +173,21 @@ namespace bliss {
               return static_cast<uint32_t>(_mm_cvtsi128_si32(res)) & static_cast<uint16_t>(0xFFFF);  
             }
 
+
             // good for 32-mer or larger:  loads 6 byte shifted into upper lane and do 7 shifts (fewer mem access)
-            template <unsigned int KMER_SIZE, typename WORD_TYPE=WordType,
-              typename std::enable_if<(KMER_SIZE > 31), int>::type = 1>
-            uint16_t operator()(::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA, WORD_TYPE> const & kmer) const {
-              using Kmer = ::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA, WORD_TYPE>;
+            template <typename Kmer,
+              typename std::enable_if<(Kmer::nBits >= 64), int>::type = 1>
+            uint16_t operator()(Kmer const & kmer) const {
+              using WordType = typename Kmer::KmerWordType;
 
               // first make a copy. then set the padding bits to 1
               Kmer k0 = kmer;
-              unsigned char * data = reinterpret_cast<unsigned char *>(k0.getDataRef());
-              data[Kmer::nWords - 1] |= ~(getLeastSignificantBitsMask<WORD_TYPE>(::bliss::common::UnpaddedStreamTraits<WORD_TYPE, Kmer::nBits>::invPadBits));
+              k0.getDataRef()[Kmer::nWords - 1] |= getMostSignificantBitsMask<WordType>(::bliss::common::UnpaddedStreamTraits<WordType, Kmer::nBits>::padBits);
+              unsigned char const * data = reinterpret_cast<unsigned char const *>(k0.getData());
               
               // next start iterating.  3 uint16_t each iteration, 2 offsets at a time, so shifting by 6 bytes at a time.
               __m128i curr, total;
-		total = ones;
+              total = ones;
 
               // 32-mer or larger. the highest 2 bytes in each 64bit lane will not correspond to any usable bits.
               for (unsigned int i = 0; i < Kmer::nBytes; ) {
@@ -183,7 +195,7 @@ namespace bliss {
                 memset(temp, 0xFF, 16);  // for the case where there is partial fill
                 memcpy(&(temp[0]), data + i, std::min(8U, Kmer::nBytes - i));
                 i+=6;
-                if (Kmer::nBytes > i) {
+                if (i < Kmer::nBytes) {
                   memcpy(&(temp[8]), data + i, std::min(8U, Kmer::nBytes - i));
                   i+=6;
                 }
@@ -195,10 +207,29 @@ namespace bliss {
                 //  but we can reprocess this byte later.  we avoid more complex shift.
 
                 // accumulate the minimum for the shifts.
-                total = _mm_min_epu16(total, curr);
-                for (int i = 0; i < 7; ++i) {
-                  curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift 1 char, 7 times (14bits)
-                  total = _mm_min_epu16(total, curr);
+                total = _mm_min_epu16(total, curr);  // unshifted.
+                switch (Kmer::bitsPerChar) {
+                  case 2:
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 7 times (14bits)
+                    total = _mm_min_epu16(total, curr);
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 7 times (14bits)
+                    total = _mm_min_epu16(total, curr);
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 7 times (14bits)
+                    total = _mm_min_epu16(total, curr);
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 7 times (14bits)
+                    total = _mm_min_epu16(total, curr);
+
+                  case 4:
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 3 times (12bits)
+                    total = _mm_min_epu16(total, curr);
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 3 times (12bits)
+                    total = _mm_min_epu16(total, curr);
+                  case 8:
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 1 times (8bits)
+                    total = _mm_min_epu16(total, curr);
+                    break;
+                  default:
+                    break;
                 }
               }
               // ignore the last short in each lane. by setting it to max
@@ -212,75 +243,59 @@ namespace bliss {
             }
         // DNA5 version is not implemented YET.
 
-            // good for 31-mer or smaller: loads 1byte shifted into higher 64bit lane
-            template <unsigned int KMER_SIZE, typename WORD_TYPE=WordType,
-              typename std::enable_if<(KMER_SIZE <= 15), int>::type = 1>
-            uint16_t operator()(::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA16, WORD_TYPE> const & kmer) const {
-              using Kmer = ::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA16, WORD_TYPE>;
+        };
 
-              // first make a copy. then set the padding bits to 1
-              Kmer k0 = kmer;
-              unsigned char * data = reinterpret_cast<unsigned char *>(k0.getDataRef());
-              data[Kmer::nWords - 1] |= ~(getLeastSignificantBitsMask<WORD_TYPE>(::bliss::common::UnpaddedStreamTraits<WORD_TYPE, Kmer::nBits>::invPadBits));
-              
-              // next start iterating.  3 uint16_t each iteration, 2 offsets at a time, so shifting by 6 bytes at a time.
-              __m128i curr, total;
-		total = ones;
+        // currently supports only DNA and DNA16-mers (not DNA5), and limits to 16 bit output (64k processors) due to intrinsics for horizontal min.
+        // possible to contruct 32 bit output - the min 16-bit tells the starting position in 32 bit - more work is needed, though
+        // can alternatively use logarithmic algo for hmin.
+        // TODO:  1. Need to work with reverse complement.  - don't - that'd make it specific for k-mers.
+        //        2. set up as a transform.
+        //        3. optimize the code.
+        class kmolecule_minimizer {
+          protected:
+            mutable uint8_t temp[16];
+            const __m128i mask, ones;
+          public:
 
-              // 31-mer or smaller. the highest 2 bytes in each 64bit lane will not correspond to any usable bits.
-              // we can iterate just once.
-              // at exactly 32-mer, we'd need another iteration, and rely on the 0xFF of the rest of the register, so use the other version
-                // load the data.
-                memset(temp, 0xFF, 16);  // for the case where there is partial fill
-                memcpy(&(temp[0]), data, std::min(8U, Kmer::nBytes));
-                memcpy(&(temp[8]), data + 1, std::min(8U, Kmer::nBytes - 1U));
-                // load the values
-                curr = _mm_lddqu_si128(reinterpret_cast<__m128i *>(temp));
+            kmolecule_minimizer() : 
+              mask(_mm_setr_epi16(0x0, 0x0, 0x0, 0xFFFF, 0x0, 0x0, 0x0, 0xFFFF)),
+			        ones(_mm_setr_epi32(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF)) {}
 
-                // we load into the 2 lanes 64 bits that are shifted by 1 byte because 
-                // we have to shift in zeros, which makes the results of the last short inaccurate.
-                //  but we can reprocess this byte later.  we avoid more complex shift.
 
-                // accumulate the minimum for the shifts.
-                total = _mm_min_epu16(total, curr);
-                curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift 1 char
-                total = _mm_min_epu16(total, curr);
-              
-              // ignore the last short in each lane. by setting it to max
-              total = _mm_or_si128(total, mask);
-              
-              // hmin
-              __m128i res = _mm_minpos_epu16(total);
-              
-              // lower 32 bit has the position and value (lowest 16 bit). should always be unsigned
-              return static_cast<uint32_t>(_mm_cvtsi128_si32(res)) & static_cast<uint16_t>(0xFFFF);  
-            }
+            // leverages the 2 lanes for offsets, each lane loads a 1 byte offset pair - this cuts the number of shift round to half - 1 .
+            // the last 2 bytes in each 64bit processing needs to be reprocessed because of the shift op introduces 0.
+            // each iteration processes 27 (DNA) or 15 (DNA16) charaters.  left lane and right lane are processed separately, until the end.
+            //  due to the shifts and offset copies, good for up to
+            //  DNA 31-mers (low lane: first 27-mers. high lane, 27-mers shifted by 4, which covers the 1/2 short shift.)
+            //  DNA16 15-mers (low lane: first 13-mers. high lane, 13-mers shifted by 2, which covers the 1/2 short shift.)
+
 
             // good for 32-mer or larger:  loads 6 byte shifted into upper lane and do 7 shifts (fewer mem access)
-            template <unsigned int KMER_SIZE, typename WORD_TYPE=WordType,
-              typename std::enable_if<(KMER_SIZE > 15), int>::type = 1>
-            uint16_t operator()(::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA16, WORD_TYPE> const & kmer) const {
-              using Kmer = ::bliss::common::Kmer<KMER_SIZE, ::bliss::common::DNA16, WORD_TYPE>;
+            template <typename Kmer>
+            uint16_t operator()(Kmer const & kmer) const {
+              using WordType = typename Kmer::KmerWordType;
 
               // first make a copy. then set the padding bits to 1
               Kmer k0 = kmer;
-              unsigned char * data = reinterpret_cast<unsigned char *>(k0.getDataRef());
-              data[Kmer::nWords - 1] |= ~(getLeastSignificantBitsMask<WORD_TYPE>(::bliss::common::UnpaddedStreamTraits<WORD_TYPE, Kmer::nBits>::invPadBits));
+              Kmer krc;
+              kmer.reverse_complement(krc);
+
+              k0.getDataRef()[Kmer::nWords - 1] |= getMostSignificantBitsMask<WordType>(::bliss::common::UnpaddedStreamTraits<WordType, Kmer::nBits>::padBits);
+              unsigned char const * data = reinterpret_cast<unsigned char const *>(k0.getData());
+              krc.getDataRef()[Kmer::nWords - 1] |= getMostSignificantBitsMask<WordType>(::bliss::common::UnpaddedStreamTraits<WordType, Kmer::nBits>::padBits);
+              unsigned char const * data_rc = reinterpret_cast<unsigned char const *>(krc.getData());
               
               // next start iterating.  3 uint16_t each iteration, 2 offsets at a time, so shifting by 6 bytes at a time.
               __m128i curr, total;
-		total = ones;
+              total = ones;
 
               // 32-mer or larger. the highest 2 bytes in each 64bit lane will not correspond to any usable bits.
-              for (unsigned int i = 0; i < Kmer::nBytes; ) {
+              for (unsigned int i = 0; i < Kmer::nBytes; i += 6) {
                 // load the data.
                 memset(temp, 0xFF, 16);  // for the case where there is partial fill
                 memcpy(&(temp[0]), data + i, std::min(8U, Kmer::nBytes - i));
-                i+=6;
-                if (Kmer::nBytes > i) {
-                  memcpy(&(temp[8]), data + i, std::min(8U, Kmer::nBytes - i));
-                  i+=6;
-                }
+                memcpy(&(temp[8]), data_rc + i, std::min(8U, Kmer::nBytes - i));
+
                 // load the values
                 curr = _mm_lddqu_si128(reinterpret_cast<__m128i *>(temp));
 
@@ -289,10 +304,29 @@ namespace bliss {
                 //  but we can reprocess this byte later.  we avoid more complex shift.
 
                 // accumulate the minimum for the shifts.
-                total = _mm_min_epu16(total, curr);
-                for (int i = 0; i < 3; ++i) {
-                  curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift 1 char, 7 times (14bits)
-                  total = _mm_min_epu16(total, curr);
+                total = _mm_min_epu16(total, curr);  // unshifted.
+                switch (Kmer::bitsPerChar) {
+                  case 2:
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 7 times (14bits)
+                    total = _mm_min_epu16(total, curr);
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 7 times (14bits)
+                    total = _mm_min_epu16(total, curr);
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 7 times (14bits)
+                    total = _mm_min_epu16(total, curr);
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 7 times (14bits)
+                    total = _mm_min_epu16(total, curr);
+
+                  case 4:
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 3 times (12bits)
+                    total = _mm_min_epu16(total, curr);
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 3 times (12bits)
+                    total = _mm_min_epu16(total, curr);
+                  case 8:
+                    curr = _mm_srli_epi64(curr, Kmer::bitsPerChar);  // shift right 1 char, 1 times (8bits)
+                    total = _mm_min_epu16(total, curr);
+                    break;
+                  default:
+                    break;
                 }
               }
               // ignore the last short in each lane. by setting it to max
@@ -304,18 +338,21 @@ namespace bliss {
               // lower 32 bit has the position and value (lowest 16 bit). should always be unsigned
               return static_cast<uint32_t>(_mm_cvtsi128_si32(res)) & static_cast<uint16_t>(0xFFFF);  
             }
+        // DNA5 version is not implemented YET.
+
         };
+
 
       /**
        * @brief  Kmer hash, returns the least significant NumBits directly as identity hash.
        * @note   since the number of buckets is not known ahead of time, can't have nbit be a type.  max is 64bits.
        */
-      template<typename KMER, bool Prefix = false>
+      template<typename KMER, bool Prefix = false, typename MMIZER=::bliss::kmer::hash::minimizer::kmolecule_minimizer>
       class cpp_std {
         protected:
 
           ::std::hash<uint16_t> op;
-          ::bliss::kmer::hash::minimizer::minimizer mini;
+          MMIZER mini;
 
         public:
           static constexpr uint8_t batch_size = 1;
@@ -327,23 +364,27 @@ namespace bliss {
 
           /// operator to compute hash
           inline size_t operator()(const KMER & kmer) const {
+            if (Prefix) {
+              throw ::std::logic_error("ERROR: minimizer with cpp_std hash currently does not support prefix.");
+            } else {
               return op(mini(kmer));
+            }
           }
 
       };
-      template<typename KMER, bool Prefix>
-      constexpr uint8_t cpp_std<KMER, Prefix>::batch_size;
+      template<typename KMER, bool Prefix, typename MMIZER>
+      constexpr uint8_t cpp_std<KMER, Prefix, MMIZER>::batch_size;
 
       /**
        * @brief  Kmer hash, returns the least significant NumBits directly as identity hash.
        * @note   since the number of buckets is not known ahead of time, can't have nbit be a type
        */
-      template <typename KMER, bool Prefix = false>
+      template <typename KMER, bool Prefix = false, typename MMIZER=::bliss::kmer::hash::minimizer::kmolecule_minimizer>
       class identity {
 
         protected:
           unsigned int bits;
-          ::bliss::kmer::hash::minimizer::minimizer mini;
+          MMIZER mini;
 
         public:
           static constexpr uint8_t batch_size = 1;
@@ -357,13 +398,16 @@ namespace bliss {
 
           /// operator to compute hash value
           inline uint64_t operator()(const KMER & kmer) const {
-            return mini(kmer);
-
+            if (Prefix) {
+              throw ::std::logic_error("ERROR: minimizer with identity hash currently does not support prefix.");
+            } else {
+              return mini(kmer);
+            }
             // to few bits to try to split it up.
           }
       };
-      template<typename KMER, bool Prefix>
-      constexpr uint8_t identity<KMER, Prefix>::batch_size;
+      template<typename KMER, bool Prefix, typename MMIZER>
+      constexpr uint8_t identity<KMER, Prefix, MMIZER>::batch_size;
 
       /**
        * @brief Kmer specialization for MurmurHash.  generated hash is 128 bit.
@@ -371,14 +415,14 @@ namespace bliss {
        * TODO: move KMER type template param to operator.
        * TODO: change h to member variable.
        */
-      template <typename KMER, bool Prefix = false>
+      template <typename KMER, bool Prefix = false, typename MMIZER=::bliss::kmer::hash::minimizer::kmolecule_minimizer>
       class murmur {
 
 
         protected:
           static constexpr unsigned int nBytes = (KMER::nBits + 7) / 8;
           uint32_t seed;
-          ::bliss::kmer::hash::minimizer::minimizer mini;
+          MMIZER mini;
 
         public:
           static constexpr uint8_t batch_size = 1;
@@ -410,8 +454,8 @@ namespace bliss {
           }
 
       };
-      template<typename KMER, bool Prefix>
-      constexpr uint8_t murmur<KMER, Prefix>::batch_size;
+      template<typename KMER, bool Prefix, typename MMIZER>
+      constexpr uint8_t murmur<KMER, Prefix, MMIZER>::batch_size;
 
       /**
        * @brief  Kmer hash, returns the least significant NumBits from murmur hash.
@@ -420,14 +464,14 @@ namespace bliss {
        *		therefore, different seed must be applied.  to adhere to existing api, we generate a different seed for "prefix" version.
        * @tparam Prefix:
        */
-      template <typename KMER, bool Prefix = false>
+      template <typename KMER, bool Prefix = false, typename MMIZER=::bliss::kmer::hash::minimizer::kmolecule_minimizer>
       class farm {
 
         protected:
           static constexpr unsigned int nBytes = (KMER::nBits + 7) / 8;
           size_t shift;
           uint32_t seed;
-          ::bliss::kmer::hash::minimizer::minimizer mini;
+          MMIZER mini;
 
         public:
           static constexpr uint8_t batch_size = 1;
@@ -448,8 +492,8 @@ namespace bliss {
           }
 
       };
-      template<typename KMER, bool Prefix>
-      constexpr uint8_t farm<KMER, Prefix>::batch_size;
+      template<typename KMER, bool Prefix, typename MMIZER>
+      constexpr uint8_t farm<KMER, Prefix, MMIZER>::batch_size;
 
       } // namespace minimizer
     } // namespace hash
@@ -458,4 +502,4 @@ namespace bliss {
 
 
 
-#endif /* MINIMIZER_HASH_HPP_ */
+#endif /* MMIZER_HASH_HPP_ */

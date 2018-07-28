@@ -199,7 +199,7 @@
 
 #if defined(MINIMIZER)
 	template <typename KmerType>
-	using KmerDistHash = ::bliss::kmer::hash::minimizer::murmur<KmerType, true>;
+	using KmerDistHash = ::bliss::kmer::hash::minimizer::murmur<KmerType, true, ::bliss::kmer::hash::minimizer::kmolecule_minimizer>;
 #else
 	template <typename KmerType>
 	using KmerDistHash = ::bliss::kmer::hash::murmur<KmerType, true>;

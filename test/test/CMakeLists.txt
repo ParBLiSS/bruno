@@ -7,17 +7,17 @@ include("${PROJECT_SOURCE_DIR}/cmake/ExtraWarnings.cmake")
 if (BUILD_TEST_APPLICATIONS)
 
 # need support for gap or unknown characters.
-# add_executable(test_de_bruijn_graph_DNA test_de_bruijn_graph_construction.cpp)
+# add_executable(test_de_bruijn_graph_DNA compact_debruijn_graph.cpp)
 # SET_TARGET_PROPERTIES(test_de_bruijn_graph_DNA
 #      PROPERTIES COMPILE_FLAGS "-DpDNA=4")
 # target_link_libraries(test_de_bruijn_graph_DNA ${EXTRA_LIBS})
 #
-#add_executable(test_de_bruijn_graph_DNA5 test_de_bruijn_graph_construction.cpp)
+#add_executable(test_de_bruijn_graph_DNA5 compact_debruijn_graph.cpp)
 #SET_TARGET_PROPERTIES(test_de_bruijn_graph_DNA5
 #     PROPERTIES COMPILE_FLAGS "-DpDNA=5")
 #target_link_libraries(test_de_bruijn_graph_DNA5 ${EXTRA_LIBS})
 #
-#add_executable(test_de_bruijn_graph_DNA16 test_de_bruijn_graph_construction.cpp)
+#add_executable(test_de_bruijn_graph_DNA16 compact_debruijn_graph.cpp)
 #SET_TARGET_PROPERTIES(test_de_bruijn_graph_DNA16
 #     PROPERTIES COMPILE_FLAGS "-DpDNA=16")
 #target_link_libraries(test_de_bruijn_graph_DNA16 ${EXTRA_LIBS})
@@ -237,4 +237,13 @@ endforeach(k)
 
 
 endif(BUILD_EXAMPLE_APPLICATIONS)
+
+
+
+if (ENABLE_TESTING)
+    # load the testing:
+    # get all files from ./test
+    FILE(GLOB TEST_FILES test_*.cpp )
+    bruno_add_test(${TEST_NAME} FALSE ${TEST_FILES})
+endif()
 
