@@ -1,4 +1,4 @@
-//*
+/*
  * Copyright 2018 Georgia Institute of Technology
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -64,52 +64,52 @@ class KmerMinimizerTest : public ::testing::Test {
     }
 
   protected:
-        static std::vector<uint8_t> toBytes(const T &kmer)
+    	template <typename KM>
+        static std::vector<uint8_t> toBytes(const KM &kmer)
         {
-          using Alphabet = typename T::KmerAlphabet;
+          using Alphabet = typename KM::KmerAlphabet;
 
-          static_assert(Kmer::bitsPerChar == bliss::common::AlphabetTraits<Alphabet>::getBitsPerChar(), "Kmer's bits Per Char is different than Alphabet's bits per char.");
+          static_assert(KM::bitsPerChar == bliss::common::AlphabetTraits<Alphabet>::getBitsPerChar(), "Kmer's bits Per Char is different than Alphabet's bits per char.");
 
-          /* return the char representation of the data array values */
-          std::vector result;
-          result.resize(Kmer::size);
-          Kmer cpy(kmer);
-          size_t forBitMask = (1 << Kmer::bitsPerChar) - 1;
-          for (unsigned int i = 0; i < Kmer::size; ++i)
+        /* return the char representation of the data array values */ 
+          std::vector<uint8_t> result;
+          result.resize(KM::size);
+          for (unsigned int i = 0; i < KM::size; ++i)
           {
-            result[Kmer::size-i-1] = Alphabet::TO_ASCII[static_cast<size_t>(forBitMask & cpy.getData()[0])];
-            //cpy.do_right_shift(Kmer::bitsPerChar);
-            cpy >>= 1;
+            result[i] = kmer.getCharsAtPos(i, 1); 
           }
 
           return result;
-
         }
 
 
 
+    template <typename TT = T, typename ::std::enable_if<(TT::bitsPerChar == 2), int>::type = 1>
+    std::tuple<bool, int64_t, int64_t> test_minimizer(TT const & kmer, MINI_MER const & mini_mer) {
+        std::vector<uint8_t> kmstr;  toBytes(kmer).swap(kmstr);
+        std::vector<uint8_t> mmstr;  toBytes(mini_mer).swap(mmstr);
 
-    std::tuple<bool, int64_t, int64_t> test_minimizer(T const & kmer, MINI_MER const & mini_mer) {
-        std::string kmstr(bliss::utils::KmerUtils::toAlphabetString(kmer));
-        std::string mmstr(bliss::utils::KmerUtils::toAlphabetString(mini_mer));
 
-        size_t kmlen = kmstr.length();
-        size_t mmlen = mmstr.length();
+	static_assert(TT::bitsPerChar == MINI_MER::bitsPerChar, "ERROR: Minimizer using a different bit length than the kmer");
+	uint64_t mm = *(reinterpret_cast<uint64_t *>(mmstr.data()));
+	uint64_t km;
+
+        size_t kmlen = kmstr.size();
+        size_t mmlen = mmstr.size();
         //std::cout << kmstr << " " << mmstr << std::endl;
 
         // compare.
         bool result = true;
-        int comp = 0;
         int64_t pos = -1;
         int64_t lower_pos = -1;
         for (size_t i = 0; i <= (kmlen - mmlen); ++i) {  // kmlen - mmlen + 1
-            comp = kmstr.compare(i, mmlen, mmstr);   // all substrings should be larger or equal.
-            result = (comp >= 0);
+	    km = *(reinterpret_cast<uint64_t *>(kmstr.data() + i));
+            result = (km >= mm);
 
             //std::cout << comp << " " ;
-            if (comp == 0) {
+            if (km == mm) {
                 pos = i;
-            } else if (comp < 0) {
+            } else if (km < mm) {
                 lower_pos = i;
             }
         }
@@ -117,6 +117,72 @@ class KmerMinimizerTest : public ::testing::Test {
 
         return std::make_tuple(result, pos, lower_pos);
     }
+
+
+    template <typename TT = T, typename ::std::enable_if<(TT::bitsPerChar == 4), int>::type = 1>
+    std::tuple<bool, int64_t, int64_t> test_minimizer(TT const & kmer, MINI_MER const & mini_mer) {
+        std::vector<uint8_t> kmstr;  toBytes(kmer).swap(kmstr);
+        std::vector<uint8_t> mmstr;  toBytes(mini_mer).swap(mmstr);
+	static_assert(TT::bitsPerChar == MINI_MER::bitsPerChar, "ERROR: Minimizer using a different bit length than the kmer");
+	uint32_t mm = *(reinterpret_cast<uint32_t *>(mmstr.data()));
+	uint32_t km;
+
+        size_t kmlen = kmstr.size();
+        size_t mmlen = mmstr.size();
+        //std::cout << kmstr << " " << mmstr << std::endl;
+
+        // compare.
+        bool result = true;
+        int64_t pos = -1;
+        int64_t lower_pos = -1;
+        for (size_t i = 0; i <= (kmlen - mmlen); ++i) {  // kmlen - mmlen + 1
+	    km = *(reinterpret_cast<uint32_t *>(kmstr.data() + i));
+            result = (km >= mm);
+
+            //std::cout << comp << " " ;
+            if (km == mm) {
+                pos = i;
+            } else if (km < mm) {
+                lower_pos = i;
+            }
+        }
+        //std::cout << std::endl;
+
+        return std::make_tuple(result, pos, lower_pos);
+    }
+
+    template <typename TT = T, typename ::std::enable_if<(TT::bitsPerChar == 8), int>::type = 1>
+    std::tuple<bool, int64_t, int64_t> test_minimizer(TT const & kmer, MINI_MER const & mini_mer) {
+        std::vector<uint8_t> kmstr;  toBytes(kmer).swap(kmstr);
+        std::vector<uint8_t> mmstr;  toBytes(mini_mer).swap(mmstr);
+	static_assert(TT::bitsPerChar == MINI_MER::bitsPerChar, "ERROR: Minimizer using a different bit length than the kmer");
+	uint16_t mm = *(reinterpret_cast<uint16_t *>(mmstr.data()));
+	uint16_t km;
+
+        size_t kmlen = kmstr.size();
+        size_t mmlen = mmstr.size();
+        //std::cout << kmstr << " " << mmstr << std::endl;
+
+        // compare.
+        bool result = true;
+        int64_t pos = -1;
+        int64_t lower_pos = -1;
+        for (size_t i = 0; i <= (kmlen - mmlen); ++i) {  // kmlen - mmlen + 1
+	    km = *(reinterpret_cast<uint16_t *>(kmstr.data() + i));
+            result = (km >= mm);
+
+            //std::cout << comp << " " ;
+            if (km == mm) {
+                pos = i;
+            } else if (km < mm) {
+                lower_pos = i;
+            }
+        }
+        //std::cout << std::endl;
+
+        return std::make_tuple(result, pos, lower_pos);
+    }
+
 
     void minimize_kmers() {
 

@@ -8,7 +8,7 @@ include("${PROJECT_SOURCE_DIR}/cmake/ExtraWarnings.cmake")
 
 if (ENABLE_BENCHMARKING)
 
-
+	if (BUILD_EXAMPLE_APPLICATIONS)
 
 # 51 added because hipmer uses that
 foreach(k 21 31 51 55 63)
@@ -26,6 +26,7 @@ foreach(k 21 31 51 55 63)
 
 endforeach(k)
 
+    endif(BUILD_EXAMPLE_APPLICATIONS)
 
 
 ## EXECUTABLES
