@@ -1,4 +1,4 @@
-/*
+//*
  * Copyright 2018 Georgia Institute of Technology
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -64,10 +64,34 @@ class KmerMinimizerTest : public ::testing::Test {
     }
 
   protected:
+        static std::vector<uint8_t> toBytes(const T &kmer)
+        {
+          using Alphabet = typename T::KmerAlphabet;
+
+          static_assert(Kmer::bitsPerChar == bliss::common::AlphabetTraits<Alphabet>::getBitsPerChar(), "Kmer's bits Per Char is different than Alphabet's bits per char.");
+
+          /* return the char representation of the data array values */
+          std::vector result;
+          result.resize(Kmer::size);
+          Kmer cpy(kmer);
+          size_t forBitMask = (1 << Kmer::bitsPerChar) - 1;
+          for (unsigned int i = 0; i < Kmer::size; ++i)
+          {
+            result[Kmer::size-i-1] = Alphabet::TO_ASCII[static_cast<size_t>(forBitMask & cpy.getData()[0])];
+            //cpy.do_right_shift(Kmer::bitsPerChar);
+            cpy >>= 1;
+          }
+
+          return result;
+
+        }
+
+
+
 
     std::tuple<bool, int64_t, int64_t> test_minimizer(T const & kmer, MINI_MER const & mini_mer) {
-        std::string kmstr(bliss::utils::KmerUtils::toASCIIString(kmer));
-        std::string mmstr(bliss::utils::KmerUtils::toASCIIString(mini_mer));
+        std::string kmstr(bliss::utils::KmerUtils::toAlphabetString(kmer));
+        std::string mmstr(bliss::utils::KmerUtils::toAlphabetString(mini_mer));
 
         size_t kmlen = kmstr.length();
         size_t mmlen = mmstr.length();
