@@ -822,13 +822,11 @@ void do_work(::std::vector<::bliss::io::file_data> const &file_data, std::string
 		// 		BL_BENCH_COLLECTIVE_END(work, "terminal_edge_freq", idx2.local_size(), comm);
 		// } // ensure delete kmers.
 
-#ifndef NDEBUG
 		BL_BENCH_START(work);
 		std::string compacted_chain_ends_filename(out_prefix);
 		compacted_chain_ends_filename.append(".chain.edges");
 		print_chain_frequencies(compacted_chain_ends_filename, chain_rep, idx, freq_map, comm);
 		BL_BENCH_COLLECTIVE_END(work, "print_chain_freq", chain_rep.size(), comm);
-#endif
 	}
 
 	// release chainmap
