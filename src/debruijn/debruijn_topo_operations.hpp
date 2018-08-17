@@ -409,119 +409,6 @@ namespace topology
 	 */
 	template <typename Graph, typename ChainGraph >
 	void
-	recompact_new(Graph const & dbg, 
-		std::vector<typename ChainGraph::kmer_type> const & modified,
-		ChainGraph const & chains, 
-		ChainGraph & new_chains,
-		::mxx::comm const & comm) {
-
-
-		// DEBUG
-	//	typename ChainGraph::kmer_type testKmer(std::string("AAAAAAAAAAAAAAAAAAAAAAAAAACCGAC"));
-
-			// 1. create new instance of ChainGraph  - passed in.
-
-			// 2. get the termini, reset the distance to not mark as pointing to terminal
-			// 3. insert all termini locally (because kmer already partitioned, and same hash function).
-			// LOCAL
-			{
-				auto termini = chains.get_terminal_nodes();  // includes isolated and unit length
-				uint dist;
-				for (auto terminus : termini) {
-
-
-					if (::bliss::debruijn::points_to_self(std::get<2>(terminus.second)) &&
-						::bliss::debruijn::points_to_self(std::get<3>(terminus.second)) ) continue;  // skip isolated.
-
-					// reset all to use distances.  remove flag about pointing to terminal/self.
-					dist = std::get<2>(terminus.second);
-						std::get<2>(terminus.second) = bliss::debruijn::get_chain_dist(dist);
-					dist = std::get<3>(terminus.second);
-						std::get<3>(terminus.second) = bliss::debruijn::get_chain_dist(dist);
-					new_chains.get_map().get_local_container().insert(terminus);
-					
-				}
-			}		
-			
-			// move ids of modified nodes.
-			std::vector<typename ChainGraph::kmer_type> local_modified;
-			{
-				// 4. transform the modified to canonical.
-				std::vector<typename ChainGraph::kmer_type> temp;
-				dbg.get_map().transform_input(modified, temp);
-			
-				// 5. distribute the modified vertex identifiers so access is local.
-				::std::vector<size_t> recv_counts;
-	
-				::imxx::distribute(temp, dbg.get_map().get_key_to_rank(), recv_counts, local_modified, comm);
-			}
-
-			// 6. get modified nodes from graph.  modifications may be branch->branch, branch->chain, branch->deadend, chain->deadend
-			// 		chain->deadend involves update existing, because these must be formerly termini.
-			//		branch->chain/deadend involves inserting new chain nodes.
-			//      branch->branch can be filtered out.
-			// LOCAL OP, assuming chainmap and graph have the same DISTHASH
-			::bliss::debruijn::filter::graph::IsChainNode is_chain;   // includes isolated and unit length
-			::bliss::debruijn::to_simple_biedge<typename ChainGraph::kmer_type> to_biedge;
-			// auto not_found = dbg.get_map().get_local_container().cend();
-			for (auto kmer : local_modified) {
-
-				// kmer is canonicalized in the same way as new_chain and dbg.
-				auto it = dbg.get_map().get_local_container().find(kmer);
-				// if(it == not_found) {
-				//  	std::cout << "STATUS: not found, likely removed during filtering. shouldnot remove nodes. the target kmer is " << kmer << std::endl;
-				// 	 continue;
-				// } 
-				if (! is_chain(*it)) {
-					continue;
-				}
-
-				// modified is chain (branch is not relevant here.)
-				// either existing, or new.  if new, then insert modified
-				// if existing, then previously a terminal with distance=0, and distance= length of chain.
-				// dist 0 could mean adjacent to terminal, or deadend.  update to the new modified node's info.
-				// if 1, then should check to see if it's a chain.
-
-				// 7. insert new chain nodes into, and update existing node if new deadend in, new ChainGraph
-				auto biedge = to_biedge(*it);
-				auto cit = new_chains.get_map().get_local_container().find(biedge.first);
-				if (cit == new_chains.get_map().get_local_container().end()) {  // does not exist. so add.
-					new_chains.get_map().get_local_container().insert(biedge);
-				} else {  // exists, so recheck to see if edge to branch has been deleted.
-					// old in edge has dist 0.  could be neighbor of branch or deadend.  update to the modified vertex's in edge.
-					if (bliss::debruijn::get_chain_dist(std::get<2>((*cit).second)) == 0)  {  // if new edge points to self, then update
-						std::get<2>((*cit).second) = std::get<2>(biedge.second);
-
-						// check if neighbor is 
-						std::get<0>((*cit).second) = std::get<0>(biedge.second);
-					} // else leave the distance as is.  biedge has dist 1 here  (can't be 0 and pointing to branch - no knowledge)
-						// (*cit) has to have at least 1.  (no add edge 0->1 transition) so no change in dist.
-						// if (*cit) has greater than 1, then the L kmers are not going to match either.
-					if (bliss::debruijn::get_chain_dist(std::get<3>((*cit).second)) == 0) {  // if new edge points to self, then update
-						std::get<3>((*cit).second) = std::get<3>(biedge.second);
-						std::get<1>((*cit).second) = std::get<1>(biedge.second);
-					} // else leave the distance as is.  biedge has dist 1 here  (can't be 0 and pointing to branch - no knowledge)
-						// (*cit) has to have at least 1.  (no add edge 0->1 transition) so no change in dist.
-						// if (*cit) has greater than 1, then the L kmers are not going to match either.
-				}
-			}
-
-			// 6. do terminal update in ChainGraph using branch vertices from graph.
-			new_chains.setup_chain_termini(dbg);   // distributed (query may be faster than scan inside this function.)
-
-			// 7. call recompact on new ChainGraph.
-			new_chains.list_rank2();    // distributed   does not move the isolated and cycles
-
-			// 8. return new compacted chain graph.
-
-			// after return, copy returned into chains, replacing as needed.
-
-
-			// NOTE *************   at this point, have not separated isolated or cycles. output of this needs to be merged with the original chainmap.
-
-	}
-	template <typename Graph, typename ChainGraph >
-	void
 	recompact(Graph const & dbg, 
 		std::vector<typename ChainGraph::kmer_type> const & modified,
 		ChainGraph const & chains, 
@@ -533,16 +420,36 @@ namespace topology
 		
 //		typename ChainGraph::kmer_type testKmer(std::string("AAAAAAAAAAAAAAAAAAAAAAAAAACCGAC"));
 //		typename ChainGraph::kmer_type testKmer(std::string("ATATATATTCCTATATATATATTCCTATATA"));
+			
+			
 			// 1. create new instance of ChainGraph  - passed in.
-
 			// 2. get the termini, reset the distance to not mark as pointing to terminal
 			// 3. insert all termini locally (because kmer already partitioned, and same hash function).
 			// LOCAL
+			
+			// 3 types of terminal distances:  1. distance to neighbor branch, 2. distance to remote
+			// chain terminal, and 3. distance to self.
+			// case 1. was branch neighbor.  3 possibilities. 
+			// 	a. neighbor remains a branch and terminal remains connected.  -0 -> -0, neighbor kmer same.
+			// 	b. neighbor becomes a chain node and terminal remains connected.  -0 -> +1.  neighbor kmer same
+			//    i. neighbor connects to a chain node.   neighbor's distance can stay 1.
+			//    ii.  neighbor connects to a branch node.   neighbors' distance need to be changed to 0.
+			//	  iii. neighbor connects to nothing.  this is taken cared of.  
+			// 	c. terminal is disconnected from neighbor.   -0 -> -0, neighbor kmer replaced.
+			// case 2. distance needs to participate in recompact.  -d -> +d, neighbor kmer same.
+			// case 3. since no edge can be added, -0 -> -0, neighbor kmer same.
+			// 
+
 			{
 				auto termini = chains.get_terminal_nodes();  // includes isolated and unit length
 				uint dist;
 				for (auto terminus : termini) {
-
+					
+					// modifications
+					// case 1: -0 -> +1
+					// case 2: -d -> +d
+					// case 3: no change.
+						
 					if (::bliss::debruijn::points_to_self(std::get<2>(terminus.second)) &&
 						::bliss::debruijn::points_to_self(std::get<3>(terminus.second)) ) continue;  // skip isolated.
 
@@ -558,12 +465,16 @@ namespace topology
 					} else if (bliss::debruijn::points_to_terminal(dist)) {
 						std::get<3>(terminus.second) = bliss::debruijn::get_chain_dist(dist);
 					}  // else if pointing to uncompacted chain or self, leave as is.
+
 					new_chains.get_map().get_local_container().insert(terminus);
 
 				}
 			}		
 
 			// move ids of modified nodes.
+			// NOTE: include the two vertex k-mers of each modified edge (delete edges only)
+			//			this means that a deleted edge (case 1c) is captured, 
+			//          but 1b is not (adjacent branch is affected, therefore own distance needs to be updated.)
 			std::vector<typename ChainGraph::kmer_type> local_modified;
 			{
 				// 4. transform the modified to canonical.
@@ -593,15 +504,22 @@ namespace topology
 				// 	 continue;
 				// } 
 				if (! is_chain(*it)) {
-					continue;
+					continue;   // case 1a or 1c.  at prev branch node
 				}
 
 				// 7. insert new chain nodes into, and update existing node if new deadend in, new ChainGraph
 				auto biedge = to_biedge(*it);
 				auto cit = new_chains.get_map().get_local_container().find(biedge.first);
 				if (cit == new_chains.get_map().get_local_container().end()) {  // does not exist. so add.
+					// previously branch node (no previous terminal that were not tracked), case 1b, or 1c as chainnode.
 					new_chains.get_map().get_local_container().insert(biedge);
 				} else {  // exists, so recheck to see if edge to branch has been deleted.
+					// previously terminal.  
+					// 	 no case 3 (edges are all deleted),
+					//   no case 2 (no chains deleted)
+					// case 1a and 1b - should not be part of the modified. but for 1b, value needs to change.  can these be differentiated by the modified kmers?
+					// case 1c - part of modified.  so should change.  changed below.
+
 					if (bliss::debruijn::points_to_self(std::get<2>(biedge.second))) {  // if new edge points to self, then update
 						std::get<0>((*cit).second) = std::get<0>(biedge.second);
 						std::get<2>((*cit).second) = std::get<2>(biedge.second);
@@ -614,15 +532,17 @@ namespace topology
 					} // else leave the distance as is.  biedge has dist 1 here  (can't be 0 and pointing to branch - no knowledge)
 						// (*cit) has to have at least 1.  (no add edge 0->1 transition) so no change in dist.
 						// if (*cit) has greater than 1, then the L kmers are not going to match either.
-				}
+				} 
 			}
 
 
 			// 6. do terminal update in ChainGraph using branch vertices from graph.
 			new_chains.setup_chain_termini(dbg);   // distributed (query may be faster than scan inside this function.)
+			// resets all case 1a and 1bii.  1bi, 1biii, 1c, 2, and 3 do not participate here.
+
 
 			// 7. call recompact on new ChainGraph.
-			new_chains.list_rank2();    // distributed   does not move the isolated and cycles
+			new_chains.list_rank2();    // distributed   does NOT move the isolated and cycles
 
 			// 8. return new compacted chain graph.
 
