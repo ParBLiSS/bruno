@@ -443,7 +443,7 @@ namespace topology
 			{
 				auto termini = chains.get_terminal_nodes();  // includes isolated and unit length
 				uint dist;
-				for (auto terminus : termini) {
+			   	for (auto terminus : termini) {
 					
 					// modifications
 					// case 1: -0 -> +1
@@ -469,6 +469,8 @@ namespace topology
 					new_chains.get_map().get_local_container().insert(terminus);
 
 				}
+
+
 			}		
 
 			// move ids of modified nodes.
@@ -537,7 +539,55 @@ namespace topology
 
 
 			// 6. do terminal update in ChainGraph using branch vertices from graph.
-			new_chains.setup_chain_termini(dbg);   // distributed (query may be faster than scan inside this function.)
+			// new_chains.setup_chain_termini(dbg);   // distributed (query may be faster than scan inside this function.)
+			// DO THIS VIA QUERY - don't have to scan through the whole graph.
+			// DO THIS AFTER MODIFIED, else newly added chain nodes would not be processed.
+			{
+				typename Graph::map_type::local_container_type in_local_branches;
+				typename Graph::map_type::local_container_type out_local_branches;
+				// get the branch vertices and check if they are still branches.
+				std::vector<typename ChainGraph::kmer_type> in_branch_neighbors;
+				in_branch_neighbors.reserve(new_chains.local_size());
+				std::vector<typename ChainGraph::kmer_type> out_branch_neighbors;
+				out_branch_neighbors.reserve(new_chains.local_size());
+				auto new_chain_end = new_chains.get_map().get_local_container().end();
+				
+				// get the query
+				for (auto iter = new_chains.get_map().get_local_container().begin(); iter != new_chain_end; ++iter) {
+					// get the 5' neighbors of all chain nodes with 5' dist of 1.
+					if (std::get<2>((*iter).second) == 1) {
+						in_branch_neighbors.emplace_back(std::get<0>((*iter).second));  // save the branch node for query.
+					}
+					if (std::get<3>((*iter).second) == 1) {
+						out_branch_neighbors.emplace_back(std::get<1>((*iter).second));  // save the branch node for query.
+					}
+				}
+				// then perform a query
+				{
+					auto branches = dbg.find_if(in_branch_neighbors, ::bliss::debruijn::filter::graph::IsBranchPoint());
+					in_local_branches.insert(branches);
+				}
+				auto in_local_end = in_local_branches.end();
+				{
+					auto branches = dbg.find_if(out_branch_neighbors, ::bliss::debruijn::filter::graph::IsBranchPoint());
+					out_local_branches.insert(branches);
+				}
+				auto out_local_end = out_local_branches.end();
+				// now do updates
+				for (auto iter = new_chains.get_map().get_local_container().begin(); iter != new_chain_end; ++iter) {
+					// get the 5' neighbors of all chain nodes with 5' dist of 1.
+					if ((std::get<2>((*iter).second) == 1) && 
+						(in_local_branches.find(std::get<0>((*iter).second)) != in_local_end)) {  // a branch neighbor.
+						std::get<2>((*iter).second) = branch_neighbor;  // save the branch node for query.
+					}
+					if ((std::get<3>((*iter).second) == 1) && 
+						(out_local_branches.find(std::get<1>((*iter).second)) != out_local_end)) {  // a branch neighbor.
+						std::get<3>((*iter).second) = branch_neighbor;  // save the branch node for query.
+					}
+				}
+
+
+			}
 			// resets all case 1a and 1bii.  1bi, 1biii, 1c, 2, and 3 do not participate here.
 
 
@@ -579,7 +629,7 @@ namespace topology
 			if (bliss::debruijn::is_chain_terminal(std::get<2>((*it).second)) ||
 				bliss::debruijn::is_chain_terminal(std::get<3>((*it).second))) {
 				// if terminal, the kmer so we can retrieve the new chain data.
-				edge_kmers.emplace_back((*it).first));
+				edge_kmers.emplace_back((*it).first);
 			}
 		}
 		// this query should be faster than inserting the 5' kmer of all internal chain nodes.
@@ -595,7 +645,7 @@ namespace topology
 
 		// if left kmer is same, update left.  else (reverse complement) update right.
 		typename ChainGraph::kmer_type edge_kmer, canonical_edge_kmer;
-		typename ChainGraph::map_type::Base::StoreTrans<typename ChainGraph::kmer_type> transform;
+		typename ChainGraph::map_params_type::template StorageTransform<typename ChainGraph::kmer_type> transform;
 
 		auto res_end = res.end();
 		// cases:  deadend - should remain a deadend.

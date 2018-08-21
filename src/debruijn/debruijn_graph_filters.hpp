@@ -154,6 +154,9 @@ namespace bliss {
                   (isKPalindrome(t)) ||
                   (isKplus1Palindrome(t));
             }
+
+            template <typename Kmer>
+            inline bool operator()(Kmer const & t) const { return true; }
         };
 
 // used only for debugging, and need to be updated with palindrome checks?
