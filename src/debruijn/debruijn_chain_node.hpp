@@ -57,28 +57,25 @@ namespace bliss
 	inline constexpr uint get_chain_dist(uint const & x) {
 		return x & dist_mask;
 	}
-	inline constexpr bool is_chain_terminal(uint const & x) {
+	inline constexpr bool is_chain_terminal(uint const & x) {  // branch or self.
 		return (x & dist_mask) == 0;
 	}
 	inline constexpr bool points_to_branch(uint const & x) {
-		return x == static_cast<uint>(0);
+		return x == branch_neighbor;
 	}
 	inline constexpr bool points_to_self(uint const & x) {  // DEADEND
 		return x == term_mask;
 	}
-	inline constexpr bool points_to_chain_node(uint const & x) {  // MSB not set and d > 0
+	inline constexpr bool points_to_chain_node(uint const & x) {  // not pointing to self, branch, or a terminal.  MSB not set and d > 0
 		return (x ^ term_mask) > term_mask;  // flip MSB, then compare to term_mask
 	}
-	inline constexpr bool points_to_terminal(uint const & x) { // for non-terminal chain nodes.  MSB set.
+	inline constexpr bool points_to_terminal(uint const & x) { // for non-terminal chain nodes pointing to terminal.  MSB set.
 		return x > term_mask;
 	}
-	inline constexpr bool points_to_chain_node_or_self(uint const & x) {  // MSB not set and d > 0
-		return x <= term_mask;  // flip MSB, then compare to term_mask
-	}
-	inline constexpr bool points_to_terminal_or_self(uint const & x) { // for non-terminal and terminal chain nodes.  MSB set.
+	inline constexpr bool points_to_or_is_terminal(uint const & x) { // pointing to self, branch, or terminal.  MSB set.
 		return (x ^ term_mask) <= term_mask;
 	}
-	inline uint mark_as_point_to_terminal(uint const & x) {  // unmark as self pointing, and keep dist.
+	inline uint mark_dist_as_point_to_terminal(uint const & x) {  // unmark as self pointing, and keep dist.  maintains point to branch.
 		return x | term_mask;
 	}
 
@@ -99,10 +96,7 @@ namespace bliss
 			if (neighbors.size() == 1) {
 				std::get<0>(node) = neighbors[0];
 				std::get<2>(node) = static_cast<uint>(1);
-			} // else if there is no neighbor, leave kmer as blank and distance as 0
-//			else {
-//				std::cout << " node without IN edge: " << t << std::endl;
-//			}
+			} // else if there is no neighbor, leave kmer as blank and distance as TERM_MASK
 
 			// get the out neighbor
 			neighbors.clear();
@@ -111,10 +105,7 @@ namespace bliss
 			if (neighbors.size() == 1) {
 				std::get<1>(node) = neighbors[0];
 				std::get<3>(node) = static_cast<uint>(1);
-			} // else if there is no neighbor, leave kmer as blank and distance as 0
-//			else {
-//				std::cout << " node without OUT edge: " << t << std::endl;
-//			}
+			} // else if there is no neighbor, leave kmer as blank and distance as TERM_MASK
 
     		return std::make_pair(t.first, node);
     	}

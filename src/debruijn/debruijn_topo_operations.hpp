@@ -458,13 +458,13 @@ namespace topology
 						std::get<2>(terminus.second) = 1;
 					} else if (bliss::debruijn::points_to_terminal(dist)) {
 						std::get<2>(terminus.second) = bliss::debruijn::get_chain_dist(dist);
-					}  // else if pointing to uncompacted chain or self, leave as is.
+					}  // else if pointing to uncompacted chain (not possible in recompact) or self, leave as is.
 					dist = std::get<3>(terminus.second);
 					if (bliss::debruijn::points_to_branch(dist)) {
 						std::get<3>(terminus.second) = 1;
 					} else if (bliss::debruijn::points_to_terminal(dist)) {
 						std::get<3>(terminus.second) = bliss::debruijn::get_chain_dist(dist);
-					}  // else if pointing to uncompacted chain or self, leave as is.
+					}  // else if pointing to uncompacted chain (not possible in recompact) or self, leave as is.
 
 					new_chains.get_map().get_local_container().insert(terminus);
 
@@ -521,13 +521,13 @@ namespace topology
 					// case 1c - part of modified.  so should change.  changed below.
 
 					if (bliss::debruijn::points_to_self(std::get<2>(biedge.second))) {  // if new edge points to self, then update
-						std::get<0>((*cit).second) = std::get<0>(biedge.second);
+						std::get<0>((*cit).second) = std::get<0>(biedge.second);  // same as blank
 						std::get<2>((*cit).second) = std::get<2>(biedge.second);
 					} // else leave the distance as is.  biedge has dist 1 here  (can't be 0 and pointing to branch - no knowledge)
 						// (*cit) has to have at least 1.  (no add edge 0->1 transition) so no change in dist.
 						// if (*cit) has greater than 1, then the L kmers are not going to match either.
 					if (bliss::debruijn::points_to_self(std::get<3>(biedge.second))) {  // if new edge points to self, then update
-						std::get<1>((*cit).second) = std::get<1>(biedge.second);
+						std::get<1>((*cit).second) = std::get<1>(biedge.second);   // same as blank
 						std::get<3>((*cit).second) = std::get<3>(biedge.second);
 					} // else leave the distance as is.  biedge has dist 1 here  (can't be 0 and pointing to branch - no knowledge)
 						// (*cit) has to have at least 1.  (no add edge 0->1 transition) so no change in dist.
@@ -573,12 +573,11 @@ namespace topology
 		// but if both right and left terminal, then do nothing.
 
 		// WE ONLY NEED TO UPDATE THE INTERNAL NODES.  WE MERGE OTHERS IN ANYWAYS.
-
 		auto end = chains.get_map().get_local_container().end();
 		for (auto it = chains.get_map().get_local_container().begin(); it != end; ++it) {
 			if ((! bliss::debruijn::is_chain_terminal(std::get<2>((*it).second))) &&
 				(! bliss::debruijn::is_chain_terminal(std::get<3>((*it).second)))) {
-				// if not terminal
+				// if not terminal, add the node's 5' terminal (may not be canonical, but the terminal itself has the info)
 				edge_kmers.emplace_back(std::get<0>((*it).second));
 
 				// only need 5'.  5' terminal contains information about right terminal
@@ -608,46 +607,54 @@ namespace topology
 		for (auto it = chains.get_map().get_local_container().begin(); it != end; ++it) {
 			if ((! bliss::debruijn::is_chain_terminal(std::get<2>((*it).second))) &&
 				(! bliss::debruijn::is_chain_terminal(std::get<3>((*it).second)))) {
-				// if not chain terminal
+				// UPDATE ONLY NON-TERMINAL NODES FROM PREV CHAINS
+				// ALL CHAIN NODES ARE CANONICAL
+
 //					if (comm.rank() == 0) std::cout << "L source " << (*it) << std::endl;
 				edge_kmer = std::get<0>((*it).second);  // again, only 5' is needed.
 				auto found = res.find(edge_kmer);
-				auto found2 = res.find(edge_kmer.reverse_complement());
+				auto found2 = res.find(edge_kmer.reverse_complement());  // if on opposite strands
 				ldist = ::bliss::debruijn::get_chain_dist(std::get<2>((*it).second));
 				if (found != res_end) {
 //						if (comm.rank() == 0) std::cout << "L dest " << (*found) << std::endl;
+					// matched to canonical 5'
+					
+					// update left.
+					rldist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second));  // right dist of former terminal
+					if (rldist > 0) std::get<0>((*it).second) = std::get<0>((*found).second);  // if no longer a terminal, then update to point to same terminal
+					// else, we are already pointing to the terminal.
 
-					// matched.  // update left.
-					rldist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found).second));
-					if (rldist > 0) std::get<0>((*it).second) = std::get<0>((*found).second);
-					// if rdist == 0, then we are already pointing to the terminal.
-					std::get<2>((*it).second) = (::bliss::debruijn::points_to_terminal_or_self(std::get<2>((*found).second))) ?
-						::bliss::debruijn::mark_as_point_to_terminal(rldist + ldist) : (rldist + ldist);   // make sure that this is marked as pointing to terminal.
+					// update distance:  
+					//   old terminal remains terminal, is branch or deadend: distance remains same.
+					//	 old terminal not terminal:  points to new terminal.
+					// since this is recompact_finalize, all previous terminal nodes should have been marked as terminal, unless it is a cycle
+					std::get<2>((*it).second) = (::bliss::debruijn::points_to_or_is_terminal(std::get<2>((*found).second))) ?
+						::bliss::debruijn::mark_dist_as_point_to_terminal(rldist + ldist) : (rldist + ldist);   // make sure that this is marked as pointing to terminal.
 
 					// update right
 					rrdist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found).second));
 					if (rrdist > 0) std::get<1>((*it).second) = std::get<1>((*found).second);
 					// if rdist == 0, then we are already pointing to the terminal.
-					std::get<3>((*it).second) = (::bliss::debruijn::points_to_terminal_or_self(std::get<3>((*found).second))) ?
-						::bliss::debruijn::mark_as_point_to_terminal(rrdist - ldist) : (rrdist - ldist);   // make sure that this is marked as pointing to terminal.
+					std::get<3>((*it).second) = (::bliss::debruijn::points_to_or_is_terminal(std::get<3>((*found).second))) ?
+						::bliss::debruijn::mark_dist_as_point_to_terminal(rrdist - ldist) : (rrdist - ldist);   // make sure that this is marked as pointing to terminal.
 
 
 				} else if (found2 != res_end) {
 //						if (comm.rank() == 0) std::cout << "L dest2 " << (*found2) << std::endl;
 
-					// reverse complement matched.  search result is flipped.
+					// 5' reverse complement matched.  search result is flipped.
 					rldist = ::bliss::debruijn::get_chain_dist(std::get<3>((*found2).second));
 					if (rldist > 0) std::get<0>((*it).second) = std::get<1>((*found2).second).reverse_complement();
 					 // if rdist == 0, then we are already pointing to the terminal.
-					std::get<2>((*it).second) = (::bliss::debruijn::points_to_terminal_or_self(std::get<3>((*found2).second))) ?
-						::bliss::debruijn::mark_as_point_to_terminal(rldist + ldist) : (rldist + ldist);   // make sure that this is marked as pointing to terminal.
+					std::get<2>((*it).second) = (::bliss::debruijn::points_to_or_is_terminal(std::get<3>((*found2).second))) ?
+						::bliss::debruijn::mark_dist_as_point_to_terminal(rldist + ldist) : (rldist + ldist);   // make sure that this is marked as pointing to terminal.
 
 
 					rrdist = ::bliss::debruijn::get_chain_dist(std::get<2>((*found2).second));
 					if (rrdist > 0) std::get<1>((*it).second) = std::get<0>((*found2).second).reverse_complement();
 					 // if rdist == 0, then we are already pointing to the terminal.
-					std::get<3>((*it).second) = (::bliss::debruijn::points_to_terminal_or_self(std::get<2>((*found2).second))) ?
-						::bliss::debruijn::mark_as_point_to_terminal(rrdist - ldist) : (rrdist - ldist);   // make sure that this is marked as pointing to terminal.
+					std::get<3>((*it).second) = (::bliss::debruijn::points_to_or_is_terminal(std::get<2>((*found2).second))) ?
+						::bliss::debruijn::mark_dist_as_point_to_terminal(rrdist - ldist) : (rrdist - ldist);   // make sure that this is marked as pointing to terminal.
 
 				} else {
 					if (comm.rank() == 0) std::cout << "WARNING: not matched.  L: " << edge_kmer << " chain node " << (*it) << std::endl;

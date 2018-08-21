@@ -159,8 +159,8 @@ namespace bliss {
             // or is a terminus and pointing to other terminus (0, -y), then this is a node that's finished.
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
-              return ::bliss::debruijn::points_to_terminal_or_self(std::get<2>(t.second)) &&
-                     ::bliss::debruijn::points_to_terminal_or_self(std::get<3>(t.second));
+              return ::bliss::debruijn::points_to_or_is_terminal(std::get<2>(t.second)) &&
+                     ::bliss::debruijn::points_to_or_is_terminal(std::get<3>(t.second));
             }
         };
 
@@ -225,7 +225,7 @@ namespace bliss {
             template <typename Iter>
             inline bool operator()(Iter first, Iter last) const {  return true; }
 
-            // if both one or both of the edge are not pointing to a terminus, then this is a node that's in progress.
+            // if both edges are not pointing to a terminus, then this is a node that's in progress and is potentially a cycle node
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
               return ::bliss::debruijn::points_to_chain_node(std::get<2>(t.second)) &&
@@ -252,7 +252,7 @@ namespace bliss {
 //            }
 //        };
 
-        // points to internal node that are not cycles
+        // points to internal node that are not cycles.  DEPRECATED, USED ONLY BY compact_debruijn_graph.cpp and compact_debruijn_graph_min_mem.cpp
         struct IsUncompactedNode {
             uint max_distance;
 
@@ -262,7 +262,7 @@ namespace bliss {
             template <typename Iter>
             inline bool operator()(Iter first, Iter last) const {  return true; }
 
-            // if both one or both of the edge are not pointing to a terminus, then this is a node that's in progress.
+            // if one or both of the edge are not pointing to a terminus, then this is a node that's in progress.
             template <typename Kmer, typename Edge>
             inline bool operator()(::std::pair<Kmer, Edge> const & t) const {
               return  ( ::bliss::debruijn::points_to_chain_node(std::get<2>(t.second)) || 

@@ -786,6 +786,9 @@ namespace graph
 	    * @note		this is the version used for initial list_ranking.
 	    * 			this function would be inefficient for recompacting after some change.
 		*           TODO: finding unfinished can be merged with the actual loop, and cycle count can be accumulated without using a separate loop.
+		*			
+		*			updates: switch to using iterator.
+		*					 filter for unfinished, instead of map.
 	    */
 	   size_t list_rank() {
 
@@ -800,14 +803,14 @@ namespace graph
 			//			then we can operate on the unfinished with partition, etc, also should save memory.
 			// to prove:
 			//		0. distance between left and right doubles each iteration. (middle nodes)
-			//		1. all nodes between 2^iter and 0 have one end pointing to remote
+			//		1. all nodes between 2^iter-1 and 0 have one end pointing to remote
 			//			by induction:  any number can be expressed as sum of powers of 2.
 			//			subproof:  number of nodes having one end pointing to remote doubles each iteration
 			//		2. end node label is propagated to other end via 2^iter nodes in each iteration
 			//		3. time: logarithmic in length of longest chain
 			//		4. work: more complicated as chains drop out - upperbound is longest chain.
 
-			// TODO: modify so that if left and right are not the same distance (shorter distance implies pointing to terminus
+			// TODO: modify so that if left and right are not the same distance (shorter distance implies pointing to terminus)
 			//       we only send to both ends if left and right are the same distance.
 			//		 we send to the longer end only if the distances are not the same.
 			// 		 complexity?
@@ -819,8 +822,8 @@ namespace graph
 
 				// search unfinished
 				BL_BENCH_START(p_rank);
-				::bliss::debruijn::filter::chain::PointsToInternalNode is_unfinished;
-				auto unfinished = map.find(is_unfinished);
+				::bliss::debruijn::filter::chain::PointsToInternalNode is_unfinished;  // left and right not pointing to termus.
+				auto unfinished = map.find_iterators(is_unfinished);
 				BL_BENCH_COLLECTIVE_END(p_rank, "unfinished", unfinished.size(), comm);
 
 				// check if all chains are compacted
@@ -836,6 +839,7 @@ namespace graph
 				uint dist = 0;
 				KmerType ll, rr;
 				bliss::debruijn::simple_biedge<KmerType> md;
+				KmerType km;
 				::bliss::debruijn::operation::chain::chain_update<KmerType> chain_updater;
 				BL_BENCH_COLLECTIVE_END(p_rank, "init ranking", updates.capacity(), comm);
 
@@ -851,7 +855,8 @@ namespace graph
 
 					// get left and right edges, generate updates
 					for (auto t : unfinished) {
-						md = t.second;
+						md = (*t).second;
+						km = (*t).first;
 
 						// each is a pair with kmer, <in kmer, out kmer, in dist, out dist>
 						// constructing 2 edges <in, out> and <out, in>  distance is sum of the 2.
@@ -868,8 +873,8 @@ namespace graph
 						if (!term_in)  {
 							// send rr to ll.  also let ll know if rr is a terminus.  orientation is OUT
 							updates.emplace_back(std::get<0>(md),
-												update_md(term_out ? t.first : std::get<1>(md),
-															::bliss::debruijn::points_to_chain_node(std::get<3>(md)) ? dist : ::bliss::debruijn::mark_as_point_to_terminal(dist),     // if md.3 <= 0, then finished, so use negative dist.
+												update_md(term_out ? km : std::get<1>(md),
+															::bliss::debruijn::points_to_chain_node(std::get<3>(md)) ? dist : ::bliss::debruijn::mark_dist_as_point_to_terminal(dist),     // if md.3 <= 0, then finished, so use negative dist.
 															bliss::debruijn::operation::OUT
 														)
 												);		// update target (md.0)'s out edge
@@ -882,8 +887,8 @@ namespace graph
 						if (!term_out) {
 							// send ll to rr.  also let rr know if ll is a terminus.  orientation is IN
 							updates.emplace_back(std::get<1>(md),
-									update_md(term_in ? t.first : std::get<0>(md),
-											::bliss::debruijn::points_to_chain_node(std::get<2>(md)) ? dist : ::bliss::debruijn::mark_as_point_to_terminal(dist),  // if md.3 <= 0, then finished, so use negative dist.
+									update_md(term_in ? km : std::get<0>(md),
+											::bliss::debruijn::points_to_chain_node(std::get<2>(md)) ? dist : ::bliss::debruijn::mark_dist_as_point_to_terminal(dist),  // if md.3 <= 0, then finished, so use negative dist.
 											bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
 							// if target is a terminus, then set self as target.  else use left kmer
 							// if target points to a terminus, including self (dist = 0), set update distance to negative to indicate so.
@@ -893,37 +898,43 @@ namespace graph
 						// if ((std::get<2>(md) == 0) && (std::get<3>(md) == 0)) continue;  // singleton.   next.
 					}
 
-					comm.barrier();  // wait for all updates to be constructed.
+					//comm.barrier();  // wait for all updates to be constructed.
 
 					// now perform update
 					size_t count = map.update( updates, false, chain_updater );
 
 					// search unfinished.
-					map.find(is_unfinished).swap(unfinished);
+					// map.find(is_unfinished).swap(unfinished);  // this is scanning the whole list every time...
+					auto new_end = ::std::partition(unfinished.begin(), unfinished.end(), is_unfinished);
+					unfinished.erase(new_end, unfinished.end());   // remove d the finished part.
 
 					// at this point, the new distances in lists are 2^(iterations + 1)
 					++iterations;
 
+					// set iteration specific parameters.
+					::bliss::debruijn::filter::chain::IsCycleNode check_cycle(iterations);
+
 					//std::cout << "rank " << comm.rank() << " iterations " << iterations << std::endl;
 					// find cycles
 					cycle_node_count = std::count_if(unfinished.begin(), unfinished.end(),
-							::bliss::debruijn::filter::chain::IsCycleNode(iterations));
+							check_cycle);
 
 					// going over 30 makes the max_dist in IsCycleNode go to -1, then it is no longer valid as distances are int.  stop at 30
 					// FORCE STOP AT iteration >= 30
 					if (iterations >= 30) {
 
 						// print the remaining non-cycle nodes locally.
-						::bliss::debruijn::filter::chain::IsCycleNode check_cycle(iterations);
 						for (auto t : unfinished) {
-							if (check_cycle(t)) continue;
+							if (check_cycle(*t)) continue;
 
-							auto md = t.second;
+							md = (*t).second;
+							km = (*t).first;
 
 							std::cout << "rank " << comm.rank() << " max iter " << iterations <<
 									"\tin dist " << std::get<2>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md)) <<
 									" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<0>(md).reverse_complement()) <<
-									"\tkmer: " << bliss::utils::KmerUtils::toASCIIString(t.first) << " rc: " << bliss::utils::KmerUtils::toASCIIString(t.first.reverse_complement()) <<
+									"\tkmer: " << bliss::utils::KmerUtils::toASCIIString(km) <<
+									" rc: " << bliss::utils::KmerUtils::toASCIIString(km.reverse_complement()) <<
 									"\tout dist " << std::get<3>(md) << " kmer: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md)) <<
 									" rc: " << bliss::utils::KmerUtils::toASCIIString(std::get<1>(md).reverse_complement()) << std::endl;
 						}
@@ -953,93 +964,6 @@ namespace graph
 //			// due to pointer doubling, and local updating to the farthest remote jump,  some remote
 //			// sources of updates may not be updated again, near the ends, even when they are already pointing to terminal
 //			// these are resolved using a single query.  note that previous code terminates when nothing is updated or when only cycles remain.
-//			{
-//				if (comm.rank() == 0) printf("UPDATE ANY SKIPPED NODES (ones whose end points are handled by another kmer\n");
-//
-//				BL_BENCH_INIT(list_update);
-//
-//				// search unfinished
-//				BL_BENCH_START(list_update);
-//				auto unfinished = chainmap.find(::bliss::debruijn::filter::chain::PointsToInternalNode());
-//				BL_BENCH_COLLECTIVE_END(list_update, "unfinished2", unfinished.size(), comm);
-//
-//				BL_BENCH_START(list_update);
-//
-//				// get global unfinished count
-//				bool all_compacted = (unfinished.size() == 0);
-//				all_compacted = ::mxx::all_of(all_compacted, comm);
-//
-//				// while have unfinished,  run.  qq contains kmers not necessarily canonical
-//
-//				std::vector<KmerType> qq;
-//				qq.reserve(unfinished.size() * 2);
-//
-//				if (!all_compacted) {
-//
-//					qq.clear();
-//					// get the end points.
-//					bliss::debruijn::simple_biedge<KmerType> md;
-//
-//					for (auto t : unfinished) {
-//						md = t.second;
-//
-//						// add the in edge target if it needs to be updated.
-//						if (std::get<2>(md) > 0) {
-//							qq.emplace_back(std::get<0>(md));
-//						}
-//						if (std::get<3>(md) > 0) {
-//							qq.emplace_back(std::get<1>(md));
-//						}
-//					}
-//
-//					comm.barrier();
-//
-//					// now query.
-//					auto results = chainmap.find(qq);
-//
-//					// put query results in a map.  key is CANONICAL
-//					typename ChainMapType::local_container_type res_map(results.begin(), results.end());
-//
-//					// now update.  for each unfinished
-//					KmerType kk;
-//					::bliss::kmer::transform::lex_less<KmerType> lexless;
-//					for (auto t : unfinished) {
-//						// get left (in) kmer.
-//						kk = std::get<0>(t.second);
-//
-//						// lookup left by canonical
-//						auto it = res_map.find(lexless(kk));
-//
-//						// if left is at terminus, and we haven't updated it,
-//						if (((std::get<2>(it->second) == 0) || (std::get<3>(it->second) == 0)) &&
-//								(std::get<2>(t.second) > 0)) {
-//							// update the current left
-//							std::get<2>((*(chainmap.get_local_container().find(t.first))).second) = -(std::get<2>(t.second));
-//						}
-//
-//						// get right (out) kmer
-//						kk = std::get<1>(t.second);
-//
-//						// lookup left by canonical
-//						it = res_map.find(lexless(kk));
-//
-//						// if right is at terminus, and we haven't updated it,
-//						if (((std::get<2>(it->second) == 0) || (std::get<3>(it->second) == 0)) &&
-//								(std::get<3>(t.second) > 0)) {
-//							// update the current left
-//							std::get<3>((*(chainmap.get_local_container().find(t.first))).second) = -(std::get<3>(t.second));
-//						}
-//
-//					}
-//
-//				}
-//				BL_BENCH_COLLECTIVE_END(list_update, "cleanup", unfinished.size(), comm);
-//
-//				size_t unfin = mxx::allreduce(unfinished.size(), comm);
-//				if (comm.rank() == 0) printf("FINAL UPDATE for %ld nodes\n", unfin);
-//
-//				BL_BENCH_REPORT_MPI_NAMED(list_update, "finalize", comm);
-//			}
 
 			{
 
@@ -1085,25 +1009,33 @@ namespace graph
 	    * 					1. neither edges are finished. so update both sides.  this has work 2 * (N - 2 * 2^iter), excluding half finished nodes and 1 for each edge.
 	    * 						both > 0
 	    * 					2. sending local or non-local terminal to non-terminal.  should always do this.  - this has work 2 * 2^iter and double the number of nodes with 1 side terminal.
-	    * 						1 side <= 0, other > 0.  send to >0 side.  terminal node goes to 2^iter
+	    * 						1 side <= 0, other > 0.  send to >0 side.  terminal node goes to 2^iter (iter starts with 0).
+		* 						
 	    * 					3. sending non-terminal to terminal node (to get terminal to point to other terminal).  in list_rank above,
 	    * 						we always send, so require 2 * 2^iter work.
 	    * 						but since we know we have to do a reduction for largest dist, which can be at most 2^iter,
 	    * 							we can choose dist of 2*2^iter node to send.
 	    *
 	    * 						1 side < 0, other > 0.  if dist == 2 * 2^iter, send to < 0 side.  note that dist = 2^(iter+1) implies (l/r)dist != 0, so we can check for <= like in 2.
+		* 
+		*						NOTE: node at 2^iter is of type 1, would update terminal to point to 2^(iter+1) during iter,
+		*							  and 2^(iter+1) updated to point to terminal (without knowledge that its a terminal)
+		*							  and nodes from 0 (terminal) to 2^iter-1 are type 2 and would update nodes 2^iter to 2^(iter+1)-1 as pointing to terminal (becomes type 2).
+		*							so the unfinished edge of terminal is always updated by a type 1 edge.
 	    * 					4. at the last iteration, where 2*2^iter > length, criteria 3 may not be satisfied, but we will have nodes with both edges pointing to termini.
 	    * 						there should be 1 where the left and right distances are equal, or 2 with left and right distances differ by 1.
 	    * 						so in this iteration we will have at most 2 messages.
 	    * 						both sides < 0.  send to both sides (left dist == right dist, or left dist == right dist + 1)  (middle of chain, so not going to be == 0)
 	    *
 	    * 						THIS IS NEVER SATISFIED BECAUSE WE AE WORKING ON UNFINISHED ONLY.
-	    * 					5. both sides 0.  isolated node. do nothing since already done.
+	    * 					5. both sides 0.  isolated node. DO NOTHING SINCE ALREADY DONE.
 	    *
 	    * 				first 2 types are normal.
 	    * 			comm savings should be i = 0..log(N), sum(2 * 2^i) = 2N over the entire run, and compute savings is up to N during last stages
 
-		*           TODO: finding unfinished can be merged with the actual loop, and cycle count can be accumulated without using a separate loop.
+		*           TODO: finding unfinished can be merged with the actual loop,
+			NOTE: Only needs to handle type 1 and type 2 edge updates, i.e. only send updates to the unfinished side.
+
 	    */
 	   size_t list_rank_min_update() {
 
@@ -1165,6 +1097,7 @@ namespace graph
 				::bliss::debruijn::operation::chain::chain_update<KmerType> chain_updater;
 				BL_BENCH_COLLECTIVE_END(p_rank, "init ranking", updates.capacity(), comm);
 
+				BL_BENCH_START(p_rank);
 				// loop until everything is compacted (except for cycles)
 				while (!all_compacted) {
 
@@ -1183,7 +1116,8 @@ namespace graph
 						rdist = std::get<3>(md);
 						dist = ::bliss::debruijn::get_chain_dist(ldist) + ::bliss::debruijn::get_chain_dist(rdist);   // this double the distance...
 
-						// and below pointer jumps.
+						// Only needs to handle type 1 and type 2 edge updates, i.e. only send updates to the unfinished side.
+						//if (::bliss::debruijn::points_to_chain_node(ldist))
 
 						// switch based on node type
 						if (::bliss::debruijn::points_to_chain_node(ldist) && ::bliss::debruijn::points_to_chain_node(rdist)) {
@@ -1231,7 +1165,7 @@ namespace graph
 								// update right.
 								updates.emplace_back(std::get<1>(md),
 										update_md((::bliss::debruijn::get_chain_dist(ldist) == 0) ? km : std::get<0>(md),
-												::bliss::debruijn::mark_as_point_to_terminal(dist),  // if md.3 <= 0, then finished, so use negative dist.
+												::bliss::debruijn::mark_dist_as_point_to_terminal(dist),  // if md.3 <= 0, then finished, so use negative dist.
 												bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
 
 								// handle type 3 here - these are never satistfied.
@@ -1249,7 +1183,7 @@ namespace graph
 								// update left
 								updates.emplace_back(std::get<0>(md),
 										update_md((::bliss::debruijn::get_chain_dist(rdist) == 0) ? km : std::get<1>(md),
-												::bliss::debruijn::mark_as_point_to_terminal(dist),     // if md.3 <= 0, then finished, so use negative dist.
+												::bliss::debruijn::mark_dist_as_point_to_terminal(dist),     // if md.3 <= 0, then finished, so use negative dist.
 												bliss::debruijn::operation::OUT));		// update target (md.0)'s out edge
 								// handle type 3 here
 								if (dist == (static_cast<uint>(2) << iterations)) { // iter i updates a node at max of 2^(i+1) distance away.
@@ -1275,9 +1209,6 @@ namespace graph
 					// search unfinished.
 					//map.find(is_unfinished).swap(unfinished);  // this is scanning the whole list every time...
 					auto new_end = ::std::partition(unfinished.begin(), unfinished.end(), is_unfinished);
-//							[&is_unfinished](typename std::iterator_traits<decltype(unfinished)>::value_type t){
-//						return is_unfinished(*t);
-//					});
 					unfinished.erase(new_end, unfinished.end());   // remove d the finished part.
 
 
@@ -1356,6 +1287,11 @@ namespace graph
 
 		// alternative list ranking algorithm that defines cycle nodes as ones with left and right edges NOT pointing to termini.
 		// when all unfinished are cycle nodes, then we terminate.
+		// DOES NOT REMOVE ISOLATED OR CYCLE NODES.  DOES NOT REQUIRE CYCLE NODES TO HAVE LEFT AND RIGHT DISTANCES TO BE POWER OF 2.
+		// used by recompact, and can be used for initial compaction if cycle and isolated are separately removed.
+		// NOT based on list_rank_min_update because that algorithm depends on power of 2 distance increase to select the source node to update the terminal.
+		//    this could be done if there is an additional "hop" field in addition to the distance field, but would require additional memory cost.
+		//        since this is used by recompact, the number of nodes and iterations (and therefore hops) is low, so speed up effect would be lower.
 	   size_t list_rank2() {
 
 			size_t iterations = 0;
@@ -1388,7 +1324,7 @@ namespace graph
 
 				// search unfinished
 				BL_BENCH_START(p_rank);
-				::bliss::debruijn::filter::chain::PointsToInternalNode is_unfinished;  // left or right not pointing to termus.
+				::bliss::debruijn::filter::chain::PointsToInternalNode is_unfinished;  // left and right not pointing to termus.
 				auto unfinished = map.find_iterators(is_unfinished);
 				BL_BENCH_COLLECTIVE_END(p_rank, "unfinished", unfinished.size(), comm);
 
@@ -1442,7 +1378,7 @@ namespace graph
 							// send rr to ll.  also let ll know if rr is a terminus.  orientation is OUT
 							updates.emplace_back(std::get<0>(md),
 												update_md(term_out ? km : std::get<1>(md),
-															::bliss::debruijn::points_to_chain_node(std::get<3>(md)) ? dist : ::bliss::debruijn::mark_as_point_to_terminal(dist),     // if md.3 <= 0, then finished, so use negative dist.
+															::bliss::debruijn::points_to_chain_node(std::get<3>(md)) ? dist : ::bliss::debruijn::mark_dist_as_point_to_terminal(dist),     // if md.3 <= 0, then finished, so use negative dist.
 															bliss::debruijn::operation::OUT
 														)
 												);		// update target (md.0)'s out edge
@@ -1456,7 +1392,7 @@ namespace graph
 							// send ll to rr.  also let rr know if ll is a terminus.  orientation is IN
 							updates.emplace_back(std::get<1>(md),
 									update_md(term_in ? km : std::get<0>(md),
-											::bliss::debruijn::points_to_chain_node(std::get<2>(md)) ? dist : ::bliss::debruijn::mark_as_point_to_terminal(dist),  // if md.3 <= 0, then finished, so use negative dist.
+											::bliss::debruijn::points_to_chain_node(std::get<2>(md)) ? dist : ::bliss::debruijn::mark_dist_as_point_to_terminal(dist),  // if md.3 <= 0, then finished, so use negative dist.
 											bliss::debruijn::operation::IN));  // udpate target (md.1)'s in edge
 							// if target is a terminus, then set self as target.  else use left kmer
 							// if target points to a terminus, including self (dist = 0), set update distance to negative to indicate so.
@@ -1472,11 +1408,8 @@ namespace graph
 					size_t count = map.update( updates, false, chain_updater );
 
 					// search unfinished.
-					//map.find(is_unfinished).swap(unfinished);  // this is scanning the whole list every time...
+					// map.find(is_unfinished).swap(unfinished);  // this is scanning the whole list every time...
 					auto new_end = ::std::partition(unfinished.begin(), unfinished.end(), is_unfinished);
-//							[&is_unfinished](typename std::iterator_traits<decltype(unfinished)>::value_type t){
-//						return is_unfinished(*t);
-//					});
 					unfinished.erase(new_end, unfinished.end());   // remove d the finished part.
 
 					// at this point, the new distances in lists are 2^(iterations + 1)
@@ -1490,10 +1423,10 @@ namespace graph
 					// going over 30 makes the max_dist in IsCycleNode go to -1, then it is no longer valid as distances are int.  stop at 30
 					// FORCE STOP AT iteration >= 30
 					if (iterations >= 30) {
-						::bliss::debruijn::filter::chain::IsCycleNode check_cycle(iterations);
-						// print the remaining non-cycle nodes locally.
+//						::bliss::debruijn::filter::chain::IsCycleNode check_cycle(iterations);
+						// print the remaining semi-finished nodes locally.
 						for (auto t : unfinished) {
-							if (check_cycle(*t)) continue;
+							if (!is_semifinished(*t)) continue;  // exclude finished and unfinished.
 
 							auto md = (*t).second;
 
