@@ -592,7 +592,7 @@ namespace topology
 
 
 			// 7. call recompact on new ChainGraph.
-			new_chains.list_rank2();    // distributed   does NOT move the isolated and cycles
+			new_chains.list_rank_min_update2();    // distributed   does NOT move the isolated and cycles
 
 			// 8. return new compacted chain graph.
 
