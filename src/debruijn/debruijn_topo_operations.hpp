@@ -574,22 +574,28 @@ namespace topology
 				}
 				auto out_local_end = out_local_branches.end();
 				// now do updates
+				typename ChainGraph::kmer_type km, rc, canon;
 				for (auto iter = new_chains.get_map().get_local_container().begin(); iter != new_chain_end; ++iter) {
 					// get the 5' neighbors of all chain nodes with 5' dist of 1.
-					if ((std::get<2>((*iter).second) == 1) && 
-						(in_local_branches.find(std::get<0>((*iter).second)) != in_local_end)) {  // a branch neighbor.
-						std::get<2>((*iter).second) = branch_neighbor;  // save the branch node for query.
+					if (std::get<2>((*iter).second) == 1) { 
+						km = std::get<0>((*iter).second);
+						rc = km.reverse_complement();	 
+						canon = (km <= rc) ? km : rc;
+						if (in_local_branches.find(canon) != in_local_end)   // a branch neighbor.
+						  std::get<2>((*iter).second) = branch_neighbor;  // save the branch node for query.
 					}
-					if ((std::get<3>((*iter).second) == 1) && 
-						(out_local_branches.find(std::get<1>((*iter).second)) != out_local_end)) {  // a branch neighbor.
-						std::get<3>((*iter).second) = branch_neighbor;  // save the branch node for query.
+					if (std::get<3>((*iter).second) == 1) {
+						km = std::get<1>((*iter).second);
+						rc = km.reverse_complement();	 
+						canon = (km <= rc) ? km : rc;
+						if (out_local_branches.find(canon) != out_local_end)   // a branch neighbor.
+						  std::get<3>((*iter).second) = branch_neighbor;  // save the branch node for query.
 					}
 				}
 
 
 			}
 			// resets all case 1a and 1bii.  1bi, 1biii, 1c, 2, and 3 do not participate here.
-
 
 			// 7. call recompact on new ChainGraph.
 			new_chains.list_rank_min_update2();    // distributed   does NOT move the isolated and cycles
@@ -616,7 +622,7 @@ namespace topology
 
 		// setup query for all kmers
 		std::vector<typename ChainGraph::kmer_type> edge_kmers;
-		edge_kmers.reserve(new_chains.local_size());   // new chains has at least the number of terminals.
+		edge_kmers.reserve(chains.local_size());   // new chains has at least the number of terminals.
 
 		// the left terminal in chains, pointed to by an internal node, has infor for both the left and right termini in the new chain.
 		// unless the curr node in chain is a left terminal then try to use the right terminal
@@ -626,10 +632,12 @@ namespace topology
 		// here we just need the terminal kmer.
 		auto end = chains.get_map().get_local_container().end();
 		for (auto it = chains.get_map().get_local_container().begin(); it != end; ++it) {
-			if (bliss::debruijn::is_chain_terminal(std::get<2>((*it).second)) ||
-				bliss::debruijn::is_chain_terminal(std::get<3>((*it).second))) {
-				// if terminal, the kmer so we can retrieve the new chain data.
-				edge_kmers.emplace_back((*it).first);
+			if ((!bliss::debruijn::is_chain_terminal(std::get<2>((*it).second))) && 
+				(!bliss::debruijn::is_chain_terminal(std::get<3>((*it).second)))) {
+				// if not terminal, add the node's 5' terminal (may not be canonical, but the terminal itself has the info)
+				// HAVE TO GET THIS FOR EVERY CHAIN NODE since each may be on a different processor.
+				edge_kmers.emplace_back(std::get<0>((*it).second));
+				// only need 5'.  5' terminal contains information about right terminal
 			}
 		}
 		// this query should be faster than inserting the 5' kmer of all internal chain nodes.
@@ -644,8 +652,8 @@ namespace topology
 		}
 
 		// if left kmer is same, update left.  else (reverse complement) update right.
-		typename ChainGraph::kmer_type edge_kmer, canonical_edge_kmer;
-		typename ChainGraph::map_params_type::template StorageTransform<typename ChainGraph::kmer_type> transform;
+		typename ChainGraph::kmer_type edge_kmer, rc_edge_kmer, canonical_edge_kmer;
+		// typename ChainGraph::map_params_type::template StorageTransform<typename ChainGraph::kmer_type> transform;
 
 		auto res_end = res.end();
 		// cases:  deadend - should remain a deadend.
@@ -667,13 +675,14 @@ namespace topology
 
 //					if (comm.rank() == 0) std::cout << "L source " << (*it) << std::endl;
 			edge_kmer = std::get<0>((*it).second);  // again, only 5' is needed.
-			canonical_edge_kmer = transform(edge_kmer);  // canonicalize for query.
-			bool was_canonical = (edge_kmer == canonical_edge_kmer);
+			rc_edge_kmer = edge_kmer.reverse_complement();  // canonicalize for query.
+			bool was_canonical = (edge_kmer <= rc_edge_kmer);
+			canonical_edge_kmer = was_canonical ? edge_kmer : rc_edge_kmer;
 
 			auto found = res.find(canonical_edge_kmer);
 			if (found == res_end) {
-				std::cout << "WARNING: not matched.  rank " << comm.rank() << " L: " << edge_kmer << " chain node " << (*it) << std::endl;
-				continue;
+				std::cout << "ERROR: not matched.  rank " << comm.rank() << " L: " << edge_kmer << " chain node " << (*it) << std::endl;
+				throw std::logic_error("SHOULD NOT GET HERE");
 			}
 
 			// reverse complement the found result to make both the 5' node and self to be on the same strand.
@@ -687,8 +696,8 @@ namespace topology
 				
 			// update left.
 			rldist = ::bliss::debruijn::get_chain_dist(std::get<2>(found_edge));  // right dist of former terminal
-			std::get<0>((*it).second) = std::get<0>(found_edge);  // if no longer a terminal, then update to point to same terminal
-			// else, we are already pointing to the terminal
+			if(rldist > 0) std::get<0>((*it).second) = std::get<0>(found_edge);  // if no longer a terminal, then update to point to same terminal
+			// else, we are already pointing to the terminal.  we don't want the internal nodes (being iterated over) to point to the terminal's neighbors.
 
 			// update distance:  
 			//   old terminal remains terminal, is branch or deadend: distance remains same.
@@ -699,7 +708,7 @@ namespace topology
 
 			// update right
 			rrdist = ::bliss::debruijn::get_chain_dist(std::get<3>(found_edge));
-			std::get<1>((*it).second) = std::get<1>(found_edge);
+			if (rrdist > 0) std::get<1>((*it).second) = std::get<1>(found_edge);
 			std::get<3>((*it).second) = (::bliss::debruijn::points_to_or_is_terminal(std::get<3>(found_edge))) ?
 				::bliss::debruijn::mark_dist_as_point_to_terminal(rrdist - ldist) : (rrdist - ldist);   // make sure that this is marked as pointing to terminal.
 		}
